@@ -71,10 +71,7 @@ inline double logBarrier(const double x, const double upperBound)
 {
   return -(1/t) * log(-(upperBound - x));
 }
-inline double logBarrierDerivative(const double x, const double upperBound)
-{
-  return 1.0;
-}
+
 inline void vecProj(Eigen::SparseMatrix<double> A, Eigen::VectorXd x, Eigen::VectorXd b)
 {
   
