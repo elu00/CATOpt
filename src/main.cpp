@@ -19,6 +19,7 @@ using std::unique_ptr;
 unique_ptr<HalfedgeMesh> mesh;
 unique_ptr<VertexPositionGeometry> geometry;
 
+// Mesh data
 size_t nVertices;
 size_t nEdges;
 EdgeData<size_t> eInd;
@@ -103,8 +104,9 @@ inline double logBarrier(const double xi, const double upperBound)
 inline void vecProj(SparseMatrix<double> A, Vector<double> xi, Vector<double> b)
 {
 }
-void objFunction()
+double objFunction()
 {
+    return 0.;
 }
 
 int main(int argc, char **argv)
@@ -143,7 +145,7 @@ int main(int argc, char **argv)
     std::tie(mesh, geometry) = loadMesh(args::get(inputFilename));
     generateConstraints();
     // Initialize with simple linear solve
-    // This will screw up if SuiteSpare doesn't exist
+    // This will screw up if SuiteSparse doesn't exist
     x = solve(constraints, rhs);
     if (checkInequalityConstraints())
     {
@@ -164,8 +166,7 @@ int main(int argc, char **argv)
     // Visualization
     psMesh->addEdgeScalarQuantity("Alphas", x);
     psMesh->addVertexScalarQuantity("curvature",
-                                  geometry->vertexGaussianCurvatures,
-                                  polyscope::DataType::SYMMETRIC);
+                                  geometry->vertexGaussianCurvatures);
 
     // Give control to the polyscope gui
     polyscope::show();
