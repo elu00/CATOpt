@@ -2,6 +2,9 @@
 #include "geometrycentral/surface/meshio.h"
 #include "geometrycentral/surface/vertex_position_geometry.h"
 
+#include "Eigen/Sparse"
+#include "Eigen/Dense"
+
 #include "polyscope/polyscope.h"
 #include "polyscope/surface_mesh.h"
 
@@ -10,40 +13,77 @@
 
 using namespace geometrycentral;
 using namespace geometrycentral::surface;
+using namespace Eigen;
+using std::cout;
+using std::endl;
+using std::unique_ptr;
 
 // == Geometry-central data
-std::unique_ptr<HalfedgeMesh> mesh;
-std::unique_ptr<VertexPositionGeometry> geometry;
+unique_ptr<HalfedgeMesh> mesh;
+unique_ptr<VertexPositionGeometry> geometry;
+
+// Optimization Parameters
+double t = 2.;
+double mew = 1.5;
 
 // Polyscope visualization handle, to quickly add data to the surface
 polyscope::SurfaceMesh *psMesh;
 
-// Some algorithm parameters
-float param1 = 42.0;
+SparseMatrix<double> generateConstraints()
+{
+    // Initialization
+    size_t nVertices = mesh->nVertices;
+    size_t nEdges = mesh->nEdges;
+    EdgeData<size_t> eInd = mesh->getEdgeIndices();
+    VertexData<size_t> vInd = mesh->getVertexIndices();
+    geometry->requireVertexGaussianCurvatures();
+    VertexData<double> angleDefects = geometry->vertexGaussianCurvatures;
 
-// Example computation function -- this one computes and registers a scalar
-// quantity
-void doWork() {
-  polyscope::warning("Computing Gaussian curvature.\nalso, parameter value = " +
-                     std::to_string(param1));
+    // Matrix initialization
+    SparseMatrix<double> d0 = Eigen::SparseMatrix<double>(nVertices, nEdges);
+    std::vector<Triplet<double>> tripletList;
+    VectorXd rhs = VectorXd(nVertices);
+    for (size_t i = 0; i < nVertices; i++) {
+      rhs[i] = angleDefects[mesh->vertex(i)]/2;
+    }
+    for (Edge e : mesh->edges()) {
+      tripletList.emplace_back(vInd[e.halfedge.vertex()], eInd[e], 1);
+      tripletList.emplace_back(vInd[e.halfedge.twin.vertex()], eInd[e], 1);
+    }
+    d0.setFromTriplets(tripletList.begin(), tripletList.end());
 
-  geometry->requireVertexGaussianCurvatures();
-  psMesh->addVertexScalarQuantity("curvature",
-                                  geometry->vertexGaussianCurvatures,
-                                  polyscope::DataType::SYMMETRIC);
+    return d0;
+    /*
+    SparseLU<SparseMatrix<double>> solver;
+    solver.compute(d0);
+    if (solver.info() != Eigen::Success) {
+      cout << "solving failed" << endl;
+    }
+    Vector<double> solution = solver.solve(rhs);
+    if (solver.info() != Eigen::Success) {
+      cout << "solving failed";
+    }
+    */
+
 }
 
-// A user-defined callback, for creating control panels (etc)
-// Use ImGUI commands to build whatever you want here, see
-// https://github.com/ocornut/imgui/blob/master/imgui.h
-void myCallback() {
-
-  if (ImGui::Button("do work")) {
-    doWork();
-  }
-
-  ImGui::SliderFloat("param", &param1, 0., 100.);
+inline double logBarrier(const double x, const double upperBound)
+{
+  return -(1/t) * log(-(upperBound - x));
 }
+inline double logBarrierDerivative(const double x, const double upperBound)
+{
+  return 1.0;
+}
+inline void vecProj(Eigen::SparseMatrix<double> A, Eigen::VectorXd x, Eigen::VectorXd b)
+{
+  
+}
+void objFunction()
+{
+    
+}
+
 
 int main(int argc, char **argv) {
 
@@ -62,21 +102,17 @@ int main(int argc, char **argv) {
     std::cerr << parser;
     return 1;
   }
-
   // Make sure a mesh name was given
   if (!inputFilename) {
     std::cerr << "Please specify a mesh file as argument" << std::endl;
     return EXIT_FAILURE;
   }
-
   // Initialize polyscope
   polyscope::init();
 
-  // Set the callback function
-  polyscope::state::userCallback = myCallback;
-
   // Load mesh
   std::tie(mesh, geometry) = loadMesh(args::get(inputFilename));
+  SparseMatrix<double> constraints = generateConstraints();
 
   // Register the mesh with polyscope
   psMesh = polyscope::registerSurfaceMesh(
