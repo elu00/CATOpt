@@ -36,11 +36,6 @@ CornerData<size_t> cInd;
 CornerData<double> cornerAngles;
 VertexData<double> angleDefects; 
 
-// Optimization Parameters
-double t = 2.;
-double mew = 1.5;
-double epsilon = 0.001;
-
 // Optimization Stuff
 SparseMatrix<double> constraints;
 Vector<double> x_init;
@@ -108,7 +103,22 @@ bool checkInequalityConstraints()
 
 void generateVisualization()
 {
-
+    // Visualization
+    /*
+    EdgeData<double> initialGuess(*mesh);
+    EdgeData<double> finalSolution(*mesh);
+    for (Edge e : mesh->edges())
+    {
+        initialGuess[e] = x_init[eInd[e]];
+        finalSolution[e] = x[eInd[e]];
+        //cout << x[eInd[e]] << endl;
+        //cout << x_init[eInd[e]] << endl;
+    }
+    */
+    psMesh->addEdgeScalarQuantity("Initial Guess", x_init);
+    psMesh->addEdgeScalarQuantity("Final Solution", x);
+    psMesh->addVertexScalarQuantity("curvature",
+            geometry->vertexGaussianCurvatures);
 }
 
 void optimizationStep()
@@ -156,7 +166,7 @@ void optimizationStep()
     for (uint i = 0; i < n; i++) y(0, i) = x_init[i];
     SparsePrimalDualQP<double> qp_solver;   
     auto res = qp_solver(&params, &y, &min_value);
-    x = y.block(0, 0, n, 1).transpose();
+    x = y.block(0, 0, n, 1);
     cout << "RESULT: " << res << endl;
     cout << "VALUE: " << min_value << endl;
     cout << "Optimization Done" << endl;
@@ -164,69 +174,67 @@ void optimizationStep()
 
 
 
+int main(int argc, char **argv)
+{
 
-    int main(int argc, char **argv)
+    // Configure the argument parser
+    args::ArgumentParser parser("geometry-central & Polyscope example project");
+    args::Positional<std::string> inputFilename(parser, "mesh", "A mesh file.");
+
+    // Parse args
+    try
     {
-
-        // Configure the argument parser
-        args::ArgumentParser parser("geometry-central & Polyscope example project");
-        args::Positional<std::string> inputFilename(parser, "mesh", "A mesh file.");
-
-        // Parse args
-        try
-        {
-            parser.ParseCLI(argc, argv);
-        }
-        catch (args::Help)
-        {
-            std::cout << parser;
-            return 0;
-        }
-        catch (args::ParseError e)
-        {
-            std::cerr << e.what() << std::endl;
-            std::cerr << parser;
-            return 1;
-        }
-        // Make sure a mesh name was given
-        if (!inputFilename)
-        {
-            std::cerr << "Please specify a mesh file as argument" << std::endl;
-            return EXIT_FAILURE;
-        }
-        // Initialize polyscope
-        polyscope::init();
-
-        // Load mesh
-        std::tie(mesh, geometry) = loadMesh(args::get(inputFilename));
-        generateConstraints();
-        // Initialize with simple linear solve
-        // This will screw up if SuiteSparse doesn't exist
-        x_init = solve(constraints, rhs);
-        if (checkInequalityConstraints())
-        {
-            cout << "No optimization required!" << endl;
-            x = x_init;
-        }
-        else
-        {
-            cout << "Doing optimization now..." << endl;
-            optimizationStep();
-        }
-
-        // Register the mesh with polyscope
-        psMesh = polyscope::registerSurfaceMesh(
-                polyscope::guessNiceNameFromPath(args::get(inputFilename)),
-                geometry->inputVertexPositions, mesh->getFaceVertexList(),
-                polyscopePermutations(*mesh));
-
-        // Visualization
-        psMesh->addEdgeScalarQuantity("Alphas", x);
-        psMesh->addVertexScalarQuantity("curvature",
-                geometry->vertexGaussianCurvatures);
-
-        // Give control to the polyscope gui
-        polyscope::show();
-
-        return EXIT_SUCCESS;
+        parser.ParseCLI(argc, argv);
     }
+    catch (args::Help)
+    {
+        std::cout << parser;
+        return 0;
+    }
+    catch (args::ParseError e)
+    {
+        std::cerr << e.what() << std::endl;
+        std::cerr << parser;
+        return 1;
+    }
+    // Make sure a mesh name was given
+    if (!inputFilename)
+    {
+        std::cerr << "Please specify a mesh file as argument" << std::endl;
+        return EXIT_FAILURE;
+    }
+    // Initialize polyscope
+    polyscope::init();
+
+    // Load mesh
+    std::tie(mesh, geometry) = loadMesh(args::get(inputFilename));
+    generateConstraints();
+    cout << "Constraints generated" << endl;
+
+    // Initialize with simple linear solve
+    // This will screw up if SuiteSparse doesn't exist
+    x_init = solve(constraints, rhs);
+    if (checkInequalityConstraints())
+    {
+        cout << "No optimization required!" << endl;
+        x = x_init;
+    }
+    else
+    {
+        cout << "Doing optimization now..." << endl;
+        optimizationStep();
+    }
+
+    // Register the mesh with polyscope
+    psMesh = polyscope::registerSurfaceMesh(
+            polyscope::guessNiceNameFromPath(args::get(inputFilename)),
+            geometry->inputVertexPositions, mesh->getFaceVertexList(),
+            polyscopePermutations(*mesh));
+
+    generateVisualization();
+
+    // Give control to the polyscope gui
+    polyscope::show();
+
+    return EXIT_SUCCESS;
+}

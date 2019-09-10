@@ -108,7 +108,7 @@ SparsePrimalDualQP<Scalar>::operator()(Params* params,
     if (rd_norm <= this->options.eps_feas_ &&
         rp_norm <= this->options.eps_feas_ &&
         eta <= this->options.epsilon_) {
-      const auto& x = y->block(0, 0, n_, 1);
+      const Matrix<double, Dynamic, 1>& x = y->block(0, 0, n_, 1);
       *min_value =
           static_cast<Scalar>(0.5)*x.dot(F_->block(0, 0, n_, n_)*x) +
           params->d.dot(x);
@@ -161,7 +161,7 @@ void SparsePrimalDualQP<Scalar>::buildKKTSystem(
   // Build Second Block-Row of F
   // Useful blocks
   const auto& x = y_->block(0, 0, n_, 1);  // Primal variables
-  const auto& lambdas = y_->block(n_, 0, m_, 1);  // Dual variables (ineq)
+  const Matrix<Scalar, Dynamic, 1>& lambdas = y_->block(n_, 0, m_, 1);  // Dual variables (ineq)
   const auto& nu = y_->block(n_ + m_, 0, p_, 1);  // Dual variables (eq)
   const auto& Ain_t = F_->block(0, n_, n_, m_);  // Ain transpose
   const auto& Aeq_t = F_->block(0, n_ + m_, n_, p_);  // Aeq transpose
