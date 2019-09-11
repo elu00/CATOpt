@@ -78,7 +78,7 @@ SparsePrimalDualQP<Scalar>::operator()(Params* params,
 
   if (!F_ || !beq_ || !bin_ || !d_) return INVALID_ARGUMENTS;
 
-  uint iter = 0;
+  int iter = 0;
   Matrix<Scalar, Dynamic, 1> ynt(l_);  // Newton Step
   y_->block(n_, 0, m_ + p_, 1).setConstant(static_cast<Scalar>(1.0));
   Matrix<Scalar, Dynamic, 1> y_plus(l_);
@@ -226,7 +226,7 @@ SparsePrimalDualQP<Scalar>::backTracking(
   // See page 613 from Boyd's book on Convex optimization
   *s = static_cast<Scalar>(1.00);
   const Scalar* ynt_data = ynt.data();
-  for (uint i = 0; i < m_; i++) {
+  for (int i = 0; i < m_; i++) {
     if (ynt_data[n_ + i] < static_cast<Scalar>(0.0)) {
       Scalar val = -(*y_)(n_ + i) / ynt_data[n_ + i];
       if (val < *s) *s = val;
@@ -238,7 +238,7 @@ SparsePrimalDualQP<Scalar>::backTracking(
   *s *= static_cast<Scalar>(0.99);
   Scalar rhs;
   Scalar lhs;
-  uint ninf = 0;  // Number of infeasible ineq.
+  int ninf = 0;  // Number of infeasible ineq.
 
   // Useful blocks
   const auto& x_vec = y_plus->block(0, 0, n_, 1);  // x plus

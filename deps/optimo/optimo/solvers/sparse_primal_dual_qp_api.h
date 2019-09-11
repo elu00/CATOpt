@@ -84,9 +84,9 @@ class SparsePrimalDualQP : public Solver<Scalar> {
 
    public:
     /// QP parameters constructor
-    Params(const uint n /**< Number of unkowns*/,
-           const uint m /**< Number of inequality constraints */,
-           const uint p /**< Number of equality constraints */) :
+    Params(const int n /**< Number of unkowns*/,
+           const int m /**< Number of inequality constraints */,
+           const int p /**< Number of equality constraints */) :
         n_(n), m_(m), p_(p), l_(n + m + p),
         beq(p), bin(m), d(n), F_(n + m + p, n + m + p) { }
 
@@ -104,7 +104,7 @@ class SparsePrimalDualQP : public Solver<Scalar> {
     }
 
     /// Method that inserts an element to matrix \f$Q\f$
-    inline bool setQElement(const uint i, const uint j, const Scalar& val) {
+    inline bool setQElement(const int i, const int j, const Scalar& val) {
       if (i >= n_ || j >= n_) return false;
       if (val == static_cast<Scalar>(0.0)) return false;
       F_.coeffRef(i, j) = val;
@@ -112,32 +112,32 @@ class SparsePrimalDualQP : public Solver<Scalar> {
     }
 
     /// Method that inserts an element to matrix \f$A_{\text{eq}}\f$
-    inline bool setAeqElement(const uint i, const uint j, const Scalar& val) {
+    inline bool setAeqElement(const int i, const int j, const Scalar& val) {
       if (i >= p_ || j >= n_) return false;
       if (val == static_cast<Scalar>(0.0)) return false;
-      const uint f_col = n_ + m_ + i;  // It is transposed in F
-      const uint f_row = j;  // It is transposed
+      const int f_col = n_ + m_ + i;  // It is transposed in F
+      const int f_row = j;  // It is transposed
       F_.coeffRef(f_col, f_row) = val;  // To first block-row of F
       F_.coeffRef(f_row, f_col) = val;  // To third block-row of F
       return true;
     }
 
     /// Method that inserts an element to matrix \f$A_{\text{in}}\f$
-    inline bool setAinElement(const uint i, const uint j, const Scalar& val) {
+    inline bool setAinElement(const int i, const int j, const Scalar& val) {
       if (i >= this->m_ || j >= this->n_) return false;
       if (val == static_cast<Scalar>(0.0)) return false;
-      const uint f_col = n_ + i;
-      const uint f_row = j;
+      const int f_col = n_ + i;
+      const int f_row = j;
       F_.coeffRef(f_row, f_col) = val;
       return true;
     }
 
    private:
     SparseMatrix<Scalar> F_;  // KKT system
-    const uint n_;  // Num. of variables
-    const uint m_;  // Num. of ineq. constraints
-    const uint p_;  // Nun. of eq. constraints
-    const uint l_;  // l = n + m + p
+    const int n_;  // Num. of variables
+    const int m_;  // Num. of ineq. constraints
+    const int p_;  // Nun. of eq. constraints
+    const int l_;  // l = n + m + p
   };
 
   // Constructor
@@ -224,10 +224,10 @@ class SparsePrimalDualQP : public Solver<Scalar> {
   }
   
  private:
-  uint n_;  // Num. of variables
-  uint m_;  // Num. of ineq. constraints
-  uint p_;  // Nun. of eq. constraints
-  uint l_;  // l = n + m + p
+  int n_;  // Num. of variables
+  int m_;  // Num. of ineq. constraints
+  int p_;  // Nun. of eq. constraints
+  int l_;  // l = n + m + p
 
   // Members so that the user can fill out the matrices
   // J(x) = 0.5*x'*Q*x + d'*x

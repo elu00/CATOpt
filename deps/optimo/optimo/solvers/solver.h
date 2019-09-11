@@ -61,7 +61,7 @@ class Solver {
     Scalar mu_ = 10;  ///< For primal dual computation
     Scalar eps_feas_ = 1e-8;  ///< Tolerance for primal dual residuals
     Scalar epsilon_ = 1e-6;  ///< Tolerance
-    uint max_iter_ = 1000;  ///< Maximum number of iterations
+    int max_iter_ = 1000;  ///< Maximum number of iterations
   } options; ///< Solver parameters
 };
 }  // solvers

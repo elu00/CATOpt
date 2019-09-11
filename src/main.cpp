@@ -125,10 +125,10 @@ void optimizationStep()
 { 
     // Initialization
     // parameters are number of unknowns, number of inequality contraints, number of eq constraints
-    const uint n = nEdges;
-    const uint m = 2*nCorners;
-    const uint p = nVertices;
-    const uint l = n + m + p;
+    const int n = nEdges;
+    const int m = 2*nCorners;
+    const int p = nVertices;
+    const int l = n + m + p;
     SparsePrimalDualQP<double>::Params params(n, m, p);
     double min_value;
     params.reserve();
@@ -156,14 +156,14 @@ void optimizationStep()
     }
 
     // Optimization variable lol
-    for (uint i = 0; i < n; i++) 
+    for (int i = 0; i < n; i++) 
     {     
         params.setQElement(i, i, 1);
     }
 
     // Plug in initial guess, I think?
     Matrix<double, Dynamic, 1> y(l);
-    for (uint i = 0; i < n; i++) y(0, i) = x_init[i];
+    for (int i = 0; i < n; i++) y(0, i) = x_init[i];
     SparsePrimalDualQP<double> qp_solver;   
     auto res = qp_solver(&params, &y, &min_value);
     x = y.block(0, 0, n, 1);
