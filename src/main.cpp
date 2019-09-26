@@ -132,20 +132,34 @@ void generateConstraints()
 
 void generateVisualization()
 {
-
+    // Visualization
+    /*
+    EdgeData<double> initialGuess(*mesh);
+    EdgeData<double> finalSolution(*mesh);
+    for (Edge e : mesh->edges())
+    {
+        initialGuess[e] = x_init[eInd[e]];
+        finalSolution[e] = x[eInd[e]];
+        //cout << x[eInd[e]] << endl;
+        //cout << x_init[eInd[e]] << endl;
+    }
+    */
+    psMesh->addEdgeScalarQuantity("Initial Guess", x_init);
+    psMesh->addEdgeScalarQuantity("Final Solution", x);
+    psMesh->addVertexScalarQuantity("curvature",
+            geometry->vertexGaussianCurvatures);
 }
 void optimizationStep()
 {
 }
     
 
+int main(int argc, char **argv)
+{
 
-    int main(int argc, char **argv)
-    {
-
-        // Configure the argument parser
-        args::ArgumentParser parser("geometry-central & Polyscope example project");
-        args::Positional<std::string> inputFilename(parser, "mesh", "A mesh file.");
+    // Configure the argument parser
+    args::ArgumentParser parser("geometry-central & Polyscope example project");
+    args::Positional<std::string> inputFilename(parser, "mesh", "A mesh file.");
 
         // Parse args
         try
@@ -178,19 +192,16 @@ void optimizationStep()
         cout << "starting optimization";
         generateConstraints();
 
-        // Register the mesh with polyscope
-        psMesh = polyscope::registerSurfaceMesh(
-                polyscope::guessNiceNameFromPath(args::get(inputFilename)),
-                geometry->inputVertexPositions, mesh->getFaceVertexList(),
-                polyscopePermutations(*mesh));
+    // Register the mesh with polyscope
+    psMesh = polyscope::registerSurfaceMesh(
+            polyscope::guessNiceNameFromPath(args::get(inputFilename)),
+            geometry->inputVertexPositions, mesh->getFaceVertexList(),
+            polyscopePermutations(*mesh));
 
-        // Visualization
-        psMesh->addEdgeScalarQuantity("Alphas", x);
-        psMesh->addVertexScalarQuantity("curvature",
-                geometry->vertexGaussianCurvatures);
+    generateVisualization();
 
-        // Give control to the polyscope gui
-        polyscope::show();
+    // Give control to the polyscope gui
+    polyscope::show();
 
-        return EXIT_SUCCESS;
-    }
+    return EXIT_SUCCESS;
+}
