@@ -88,35 +88,33 @@ void generateConstraints()
     M->constraint("eq constraints", Expr::mul(Meq, x), Domain::equalsTo(eqRHS));
     cout << "eq generated" << endl;
     // inequality constraints
-    ineqRHS = vector<double>(2*nCorners);
+    ineqRHS0 = vector<double>(nCorners);
+    ineqRHS1 = vector<double>(nCorners);
     rows.clear();
     cols.clear();
     values.clear();
     for (Corner c : mesh->corners())
     {
-        ineqRHS[cInd[c]] = 2*PI - geometry->cornerAngle(c);
-        ineqRHS[cInd[c] + nCorners] = -geometry->cornerAngle(c);
+        ineqRHS0[cInd[c]] = - geometry->cornerAngle(c);
+        ineqRHS1[cInd[c]] = 2*PI - geometry->cornerAngle(c);
         Halfedge h = c.halfedge();
         rows.emplace_back(cInd[c]);
 		cols.emplace_back(eInd[h.edge()]);
 		values.emplace_back(1.);
-        rows.emplace_back(cInd[c] + nCorners);
-		cols.emplace_back(eInd[h.edge()]);
-		values.emplace_back(-1.);
         rows.emplace_back(cInd[h.next().corner()]);
 		cols.emplace_back(eInd[h.edge()]);
 		values.emplace_back(1.);
-        rows.emplace_back(cInd[h.next().corner()] + nCorners);
-		cols.emplace_back(eInd[h.edge()]);
-		values.emplace_back(-1.);
-
     }
     r = new_array_ptr<int>(rows);
     c = new_array_ptr<int>(cols);
     v = new_array_ptr<double>(values);
-	auto Mineq = Matrix::sparse(2*nCorners, nEdges, r, c, v); 
-    auto inRHS = new_array_ptr(ineqRHS);
-    M->constraint("ineq constraints", Expr::mul(Mineq, x), Domain::lessThan(inRHS));
+	auto Mineq = Matrix::sparse(nCorners, nEdges, r, c, v); 
+    auto inRHS0 = new_array_ptr(ineqRHS0);
+    auto inRHS1 = new_array_ptr(ineqRHS1);
+    // sum is greater than 0
+    M->constraint("ineq0 constraints", Expr::mul(Mineq, x), Domain::lessThan(inRHS0));
+    // sum is less thatn 2pi
+    M->constraint("ineq1 constraints", Expr::mul(Mineq, x), Domain::greaterThan(inRHS1));
 
     auto ones =  std::make_shared<ndarray<double,1>>(shape(nEdges),1.);
     cout << "ineq generated" << endl;
