@@ -9,7 +9,7 @@
 #include "args/args.hxx"
 #include "imgui.h"
 
-#include "optimo/solvers/sparse_primal_dual_qp.h"
+#include "fusion.h"
 
 using namespace geometrycentral;
 using namespace geometrycentral::surface;
@@ -17,10 +17,9 @@ using std::cout;
 using std::endl;
 using std::unique_ptr;
 
-using optimo::solvers::SparsePrimalDualQP;
-
-using Eigen::Matrix;
-using Eigen::Dynamic;
+using namespace mosek::fusion;
+using namespace monty;
+using std::vector;
 
 // == Geometry-central data
 unique_ptr<HalfedgeMesh> mesh;
@@ -36,17 +35,12 @@ CornerData<size_t> cInd;
 CornerData<double> cornerAngles;
 VertexData<double> angleDefects; 
 
-// Optimization Parameters
-double t = 2.;
-double mew = 1.5;
-double epsilon = 0.001;
-
 // Optimization Stuff
-SparseMatrix<double> constraints;
+//SparseMatrix<double> constraints;
 Vector<double> x_init;
 Vector<double> x;
-Vector<double> rhs;
-Vector<double> ineqRHS;
+vector<double> rhs;
+vector<double> ineqRHS;
 
 // Polyscope visualization handle, to quickly add data to the surface
 polyscope::SurfaceMesh *psMesh;
@@ -63,106 +57,87 @@ void generateConstraints()
     geometry->requireVertexGaussianCurvatures();
     angleDefects = geometry->vertexGaussianCurvatures;
 
+    // Model initialization
+    Model::t M = new Model(); auto _M = finally([&]() { M->dispose(); });
+    Variable::t x = M->variable("x", nEdges, Domain::inRange(-2*PI, 2 * PI));
+
+   	vector<int> rows;
+	vector<int> cols;
+	vector<double> values;
+
     // Equality constraint initialization
-    constraints = SparseMatrix<double>(nVertices, nEdges);
-    std::vector<Eigen::Triplet<double>> tripletList;
-    rhs = Vector<double>(nVertices);
+    rhs = vector<double>(nVertices);
     for (size_t i = 0; i < nVertices; i++)
     {
         rhs[i] = angleDefects[mesh->vertex(i)] / 2.;
     }
     for (Edge e : mesh->edges())
     {
-        tripletList.emplace_back(vInd[e.halfedge().vertex()], eInd[e], 1);
-        tripletList.emplace_back(vInd[e.halfedge().twin().vertex()], eInd[e], 1);
+        rows.emplace_back(vInd[e.halfedge().vertex()]);
+		cols.emplace_back(eInd[e]);
+		values.emplace_back(1.);
+        rows.emplace_back(vInd[e.halfedge().twin().vertex()]);
+		cols.emplace_back(eInd[e]);
+		values.emplace_back(1.);
     }
-    constraints.setFromTriplets(tripletList.begin(), tripletList.end());
+    auto r = new_array_ptr<int>(rows);
+    auto c = new_array_ptr<int>(cols);
+    auto v = new_array_ptr<double>(values);
+	auto Meq = Matrix::sparse(r->size(), c->size(), r, c, v); 
+    auto eqRHS = new_array_ptr(rhs);
+
+    M->constraint("eq constraints", Expr::mul(Meq, x), Domain::equalsTo(eqRHS));
+    cout << "eq generated" << endl;
+    // inequality constraints
+    ineqRHS = vector<double>(nCorners);
+    rows.clear();
+    cols.clear();
+    values.clear();
+    for (Corner c : mesh->corners())
+    {
+        ineqRHS[cInd[c]] = 2*PI - geometry->cornerAngle(c);
+        ineqRHS[cInd[c] + nCorners] = -geometry->cornerAngle(c);
+        Halfedge h = c.halfedge();
+        rows.emplace_back(cInd[c]);
+		cols.emplace_back(eInd[h.edge()]);
+		values.emplace_back(1.);
+        rows.emplace_back(cInd[c] + nCorners);
+		cols.emplace_back(eInd[h.edge()]);
+		values.emplace_back(-1.);
+        rows.emplace_back(cInd[h.next().corner()]);
+		cols.emplace_back(eInd[h.edge()]);
+		values.emplace_back(1.);
+        rows.emplace_back(cInd[h.next().corner()] + nCorners);
+		cols.emplace_back(eInd[h.edge()]);
+		values.emplace_back(-1.);
+
+    }
+    r = new_array_ptr<int>(rows);
+    c = new_array_ptr<int>(cols);
+    v = new_array_ptr<double>(values);
+	auto Mineq = Matrix::sparse(r->size(), c->size(), r, c, v); 
+    auto inRHS = new_array_ptr(ineqRHS);
+    M->constraint("ineq constraints", Expr::mul(Mineq, x), Domain::lessThan(inRHS));
+
+    cout << "ineq generated" << endl;
+    M->objective(ObjectiveSense::Minimize, x);
+    M->solve();
+    cout << M->getProblemStatus() << endl;
+    cout << "RESULT: " << "hehe" << endl;
+    cout << "VALUE: " << "xd" << endl;
+    cout << "Optimization Done" << endl;
 
     return;
-}
-
-bool checkInequalityConstraints()
-{
-    cornerAngles = CornerData<double>(*mesh);
-    CornerData<double> netAngles = CornerData<double>(*mesh);
-    for (Corner c : mesh->corners())
-    {
-        cornerAngles[c] = geometry->cornerAngle(c);
-        netAngles[c] = cornerAngles[c];
-    }
-    for (Corner c : mesh->corners())
-    {
-        Halfedge h = c.halfedge();
-        netAngles[c] += x_init[eInd[h.edge()]];
-        netAngles[h.next().corner()] += x_init[eInd[h.edge()]];
-    }
-    for (Corner c : mesh->corners())
-    {
-        if (netAngles[c] < 0 || netAngles[c] > 2 * PI)
-        {
-            return false;
-        }
-    }
-    return true;
 }
 
 void generateVisualization()
 {
 
 }
-
 void optimizationStep()
-{ 
-    // Initialization
-    // parameters are number of unknowns, number of inequality contraints, number of eq constraints
-    const uint n = nEdges;
-    const uint m = 2*nCorners;
-    const uint p = nVertices;
-    const uint l = n + m + p;
-    SparsePrimalDualQP<double>::Params params(n, m, p);
-    double min_value;
-    params.reserve();
-    params.d = Vector<double>::Zero(nEdges,1);
-    // Equality constraints
-    params.beq = rhs;
-    for (Edge e : mesh->edges())
-    {
-        params.setAeqElement(vInd[e.halfedge().vertex()], eInd[e], 1);
-        params.setAeqElement(vInd[e.halfedge().twin().vertex()], eInd[e], 1);
-    }
-
-    // Inequality constraints 
-    Matrix<double, Dynamic, 1>& bin = params.bin;   
-    for (Corner c : mesh->corners())
-    {
-        bin[cInd[c]] = 2*PI - geometry->cornerAngle(c);
-        bin[cInd[c] + nCorners] = -geometry->cornerAngle(c);
-        Halfedge h = c.halfedge();
-        params.setAinElement(cInd[c], eInd[h.edge()] , 1);
-        params.setAinElement(cInd[c] + nCorners, eInd[h.edge()] , -1);
-        params.setAinElement(cInd[h.next().corner()], eInd[h.edge()] , 1);
-        params.setAinElement(cInd[h.next().corner()] + nCorners, eInd[h.edge()] , -1);
-
-    }
-
-    // Optimization variable lol
-    for (uint i = 0; i < n; i++) 
-    {     
-        params.setQElement(i, i, 1);
-    }
-
-    // Plug in initial guess, I think?
-    Matrix<double, Dynamic, 1> y(l);
-    for (uint i = 0; i < n; i++) y(0, i) = x_init[i];
-    SparsePrimalDualQP<double> qp_solver;   
-    auto res = qp_solver(&params, &y, &min_value);
-    x = y.block(0, 0, n, 1).transpose();
-    cout << "RESULT: " << res << endl;
-    cout << "VALUE: " << min_value << endl;
-    cout << "Optimization Done" << endl;
+{
 }
-
-
+    
 
 
     int main(int argc, char **argv)
@@ -199,20 +174,9 @@ void optimizationStep()
 
         // Load mesh
         std::tie(mesh, geometry) = loadMesh(args::get(inputFilename));
+        // Do optimization
+        cout << "starting optimization";
         generateConstraints();
-        // Initialize with simple linear solve
-        // This will screw up if SuiteSparse doesn't exist
-        x_init = solve(constraints, rhs);
-        if (checkInequalityConstraints())
-        {
-            cout << "No optimization required!" << endl;
-            x = x_init;
-        }
-        else
-        {
-            cout << "Doing optimization now..." << endl;
-            optimizationStep();
-        }
 
         // Register the mesh with polyscope
         psMesh = polyscope::registerSurfaceMesh(

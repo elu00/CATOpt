@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10.0)
 
-project(gc_polyscope_example)
+project(catopt)
 
 ### Configure output locations
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -21,7 +21,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STR
   # using Clang (linux or apple) or GCC
   message("Using clang/gcc compiler flags")
   SET(BASE_CXX_FLAGS "-std=c++11 -Wall -Wextra -Werror -g3")
-  SET(DISABLED_WARNINGS " -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function -Wno-deprecated-declarations -Wno-missing-braces -Wno-comment -Wno-reorder -Wno-sign-compare")
+  SET(DISABLED_WARNINGS " -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function -Wno-deprecated-declarations -Wno-missing-braces -Wno-comment -Wno-reorder -Wno-sign-compare -Wno-switch -Wno-delete-non-virtual-dtor")
   SET(TRACE_INCLUDES " -H -Wno-error=unused-command-line-argument")
 
   if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
@@ -62,7 +62,7 @@ endif()
 # == Deps
 add_subdirectory(deps/geometry-central)
 add_subdirectory(deps/polyscope)
-include_directories(deps/optimo)
+add_subdirectory(deps/mosek)
 
 # == Build our project stuff
 
@@ -71,7 +71,6 @@ set(SRCS
 	# add any other source files here
 )
 
-# To change the name of your executable, change "gc_project" in the lines below to whatever you want
-add_executable(gc_project "${SRCS}")
-target_include_directories(gc_project PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/")
-target_link_libraries(gc_project geometry-central polyscope)
+add_executable(catopt "${SRCS}")
+target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/")
+target_link_libraries(catopt geometry-central polyscope mosek)
