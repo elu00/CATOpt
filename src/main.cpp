@@ -10,6 +10,7 @@
 #include "imgui.h"
 
 #include "fusion.h"
+#include <algorithm>
 
 using namespace geometrycentral;
 using namespace geometrycentral::surface;
@@ -64,7 +65,6 @@ void generateConstraints()
    	vector<int> rows;
 	vector<int> cols;
 	vector<double> values;
-
     // Equality constraint initialization
     rhs = vector<double>(nVertices);
     for (size_t i = 0; i < nVertices; i++)
@@ -83,13 +83,12 @@ void generateConstraints()
     auto r = new_array_ptr<int>(rows);
     auto c = new_array_ptr<int>(cols);
     auto v = new_array_ptr<double>(values);
-	auto Meq = Matrix::sparse(r->size(), c->size(), r, c, v); 
+	auto Meq = Matrix::sparse(nVertices, nEdges, r, c, v); 
     auto eqRHS = new_array_ptr(rhs);
-
     M->constraint("eq constraints", Expr::mul(Meq, x), Domain::equalsTo(eqRHS));
     cout << "eq generated" << endl;
     // inequality constraints
-    ineqRHS = vector<double>(nCorners);
+    ineqRHS = vector<double>(2*nCorners);
     rows.clear();
     cols.clear();
     values.clear();
@@ -115,16 +114,16 @@ void generateConstraints()
     r = new_array_ptr<int>(rows);
     c = new_array_ptr<int>(cols);
     v = new_array_ptr<double>(values);
-	auto Mineq = Matrix::sparse(r->size(), c->size(), r, c, v); 
+	auto Mineq = Matrix::sparse(2*nCorners, nEdges, r, c, v); 
     auto inRHS = new_array_ptr(ineqRHS);
     M->constraint("ineq constraints", Expr::mul(Mineq, x), Domain::lessThan(inRHS));
 
+    auto ones =  std::make_shared<ndarray<double,1>>(shape(nEdges),1.);
     cout << "ineq generated" << endl;
-    M->objective(ObjectiveSense::Minimize, x);
+    M->objective(ObjectiveSense::Minimize, Expr::dot(ones,x));
     M->solve();
     cout << M->getProblemStatus() << endl;
-    cout << "RESULT: " << "hehe" << endl;
-    cout << "VALUE: " << "xd" << endl;
+    cout << x->level() << endl;
     cout << "Optimization Done" << endl;
 
     return;
@@ -184,7 +183,7 @@ int main(int argc, char **argv)
             return EXIT_FAILURE;
         }
         // Initialize polyscope
-        polyscope::init();
+        //polyscope::init();
 
         // Load mesh
         std::tie(mesh, geometry) = loadMesh(args::get(inputFilename));
@@ -193,6 +192,7 @@ int main(int argc, char **argv)
         generateConstraints();
 
     // Register the mesh with polyscope
+    
     psMesh = polyscope::registerSurfaceMesh(
             polyscope::guessNiceNameFromPath(args::get(inputFilename)),
             geometry->inputVertexPositions, mesh->getFaceVertexList(),
