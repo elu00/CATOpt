@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10.0)
 
-project(catopt)
+project(gc_project)
 
 ### Configure output locations
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -71,6 +71,6 @@ set(SRCS
 	# add any other source files here
 )
 
-add_executable(catopt "${SRCS}")
-target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/")
-target_link_libraries(catopt geometry-central polyscope mosek)
+add_executable(gc_project "${SRCS}")
+target_include_directories(gc_project PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/" )
+target_link_libraries(gc_project PUBLIC geometry-central polyscope mosek)

@@ -41,7 +41,8 @@ VertexData<double> angleDefects;
 Vector<double> x_init;
 Vector<double> x;
 vector<double> rhs;
-vector<double> ineqRHS;
+vector<double> ineqRHS0;
+vector<double> ineqRHS1;
 
 // Polyscope visualization handle, to quickly add data to the surface
 polyscope::SurfaceMesh *psMesh;
@@ -112,9 +113,9 @@ void generateConstraints()
     auto inRHS0 = new_array_ptr(ineqRHS0);
     auto inRHS1 = new_array_ptr(ineqRHS1);
     // sum is greater than 0
-    M->constraint("ineq0 constraints", Expr::mul(Mineq, x), Domain::lessThan(inRHS0));
+    M->constraint("ineq0 constraints", Expr::mul(Mineq, x), Domain::greaterThan(inRHS0));
     // sum is less thatn 2pi
-    M->constraint("ineq1 constraints", Expr::mul(Mineq, x), Domain::greaterThan(inRHS1));
+    M->constraint("ineq1 constraints", Expr::mul(Mineq, x), Domain::lessThan(inRHS1));
 
     auto ones =  std::make_shared<ndarray<double,1>>(shape(nEdges),1.);
     cout << "ineq generated" << endl;
