@@ -38,8 +38,8 @@ VertexData<double> angleDefects;
 
 // Optimization Stuff
 //SparseMatrix<double> constraints;
-Vector<double> x_init;
-Vector<double> x;
+//Vector<double> x_init;
+vector<double> *sol;
 vector<double> rhs;
 vector<double> ineqRHS0;
 vector<double> ineqRHS1;
@@ -124,7 +124,14 @@ void generateConstraints()
     cout << M->getProblemStatus() << endl;
     cout << x->level() << endl;
     cout << "Optimization Done" << endl;
-
+    auto xsize = x->getSize();
+    auto xVal = x->level();
+    std::cout << "\nOptimal primal objective: " << M->primalObjValue() <<"\n";
+    sol = new vector<double>(nEdges);
+    for(int i = 0; i < xsize; ++i)
+    {
+       (*sol)[i] =  (*xVal)[i];
+    }
     return;
 }
 
@@ -142,13 +149,10 @@ void generateVisualization()
         //cout << x_init[eInd[e]] << endl;
     }
     */
-    psMesh->addEdgeScalarQuantity("Initial Guess", x_init);
-    psMesh->addEdgeScalarQuantity("Final Solution", x);
-    psMesh->addVertexScalarQuantity("curvature",
-            geometry->vertexGaussianCurvatures);
-}
-void optimizationStep()
-{
+    //psMesh->addEdgeScalarQuantity("Initial Guess", x_init);
+    //psMesh->addEdgeScalarQuantity("Final Solution", *sol);
+    //psMesh->addVertexScalarQuantity("curvature",
+    //        geometry->vertexGaussianCurvatures);
 }
     
 
@@ -191,7 +195,6 @@ int main(int argc, char **argv)
         generateConstraints();
 
     // Register the mesh with polyscope
-    
     psMesh = polyscope::registerSurfaceMesh(
             polyscope::guessNiceNameFromPath(args::get(inputFilename)),
             geometry->inputVertexPositions, mesh->getFaceVertexList(),
@@ -199,6 +202,7 @@ int main(int argc, char **argv)
 
     generateVisualization();
 
+    cout << "registering mesh" << endl; 
     // Give control to the polyscope gui
     polyscope::show();
 
