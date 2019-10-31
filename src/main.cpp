@@ -11,6 +11,8 @@
 
 #include "fusion.h"
 #include <algorithm>
+
+#include "svg_gen.hpp"
 using namespace geometrycentral;
 using namespace geometrycentral::surface;
 using std::cout;
@@ -38,7 +40,7 @@ VertexData<double> angleDefects;
 // Optimization Stuff
 //SparseMatrix<double> constraints;
 //Vector<double> x_init;
-vector<double> *sol;
+vector<double>* sol;
 vector<double> rhs;
 vector<double> ineqRHS0;
 vector<double> ineqRHS1;
@@ -153,7 +155,29 @@ void generateVisualization()
     psMesh->addVertexScalarQuantity("curvature",
             geometry->vertexGaussianCurvatures);
 }
-    
+   
+void generateSVGs()
+{
+    int n = 0;
+    for (Face f: mesh->faces())
+    {
+        double ij, jk, ki, a_ij, a_jk, a_ki;
+        Halfedge h = f.halfedge();
+        ij = geometry->edgeLength(h.edge());
+        a_ij = (*sol)[eInd[h.edge()]];
+        h = h.next();
+        jk = geometry->edgeLength(h.edge());
+        a_jk = (*sol)[eInd[h.edge()]];
+        h = h.next();
+        ki = geometry->edgeLength(h.edge());
+        a_ki = (*sol)[eInd[h.edge()]];
+        CAT c = CAT(ij, jk, ki, a_ij, a_jk, a_ki, true);
+        cout << ij << endl;
+        cout << c.a_ij << endl;
+        c.to_svg("current" + std::to_string(n) + ".svg");
+        n++;
+    }
+}
 
 
 int main(int argc, char **argv) {
@@ -196,6 +220,7 @@ int main(int argc, char **argv) {
   cout << "starting optimization";
   generateConstraints();
   generateVisualization();
+  generateSVGs();
   // Give control to the polyscope gui
   polyscope::show();
 

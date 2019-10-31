@@ -71,6 +71,7 @@ endif()
 add_subdirectory(deps/geometry-central)
 add_subdirectory(deps/polyscope)
 add_subdirectory(deps/mosek)
+add_subdirectory(deps/catviz)
 
 # == Build our project stuff
 
@@ -80,4 +81,6 @@ set(SRCS
 
 add_executable(catopt "${SRCS}")
 target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/" )
+target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/catviz/src" )
+target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/catviz/deps/glm" )
 target_link_libraries(catopt PUBLIC geometry-central polyscope mosek)
