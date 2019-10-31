@@ -11,7 +11,6 @@
 
 #include "fusion.h"
 #include <algorithm>
-
 using namespace geometrycentral;
 using namespace geometrycentral::surface;
 using std::cout;
@@ -119,7 +118,9 @@ void generateConstraints()
 
     auto ones =  std::make_shared<ndarray<double,1>>(shape(nEdges),1.);
     cout << "ineq generated" << endl;
-    M->objective(ObjectiveSense::Minimize, Expr::dot(ones,x));
+    Variable::t t = M->variable("t", 1, Domain::unbounded());
+    M->constraint( Expr::vstack(t, x), Domain::inQCone() );
+    M->objective( ObjectiveSense::Minimize, t );
     M->solve();
     cout << M->getProblemStatus() << endl;
     cout << x->level() << endl;
@@ -138,73 +139,65 @@ void generateConstraints()
 void generateVisualization()
 {
     // Visualization
-    /*
-    EdgeData<double> initialGuess(*mesh);
-    EdgeData<double> finalSolution(*mesh);
-    for (Edge e : mesh->edges())
-    {
-        initialGuess[e] = x_init[eInd[e]];
-        finalSolution[e] = x[eInd[e]];
+    //EdgeData<double> initialGuess(*mesh);
+    //EdgeData<double> finalSolution(*mesh);
+    //for (Edge e : mesh->edges())
+    //{
+    //    initialGuess[e] = x_init[eInd[e]];
+    //    finalSolution[e] = x[eInd[e]];
         //cout << x[eInd[e]] << endl;
         //cout << x_init[eInd[e]] << endl;
-    }
-    */
+    //}
     //psMesh->addEdgeScalarQuantity("Initial Guess", x_init);
-    //psMesh->addEdgeScalarQuantity("Final Solution", *sol);
-    //psMesh->addVertexScalarQuantity("curvature",
-    //        geometry->vertexGaussianCurvatures);
+    psMesh->addEdgeScalarQuantity("Final Solution", *sol);
+    psMesh->addVertexScalarQuantity("curvature",
+            geometry->vertexGaussianCurvatures);
 }
     
 
-int main(int argc, char **argv)
-{
 
-    // Configure the argument parser
-    args::ArgumentParser parser("geometry-central & Polyscope example project");
-    args::Positional<std::string> inputFilename(parser, "mesh", "A mesh file.");
+int main(int argc, char **argv) {
 
-        // Parse args
-        try
-        {
-            parser.ParseCLI(argc, argv);
-        }
-        catch (args::Help)
-        {
-            std::cout << parser;
-            return 0;
-        }
-        catch (args::ParseError e)
-        {
-            std::cerr << e.what() << std::endl;
-            std::cerr << parser;
-            return 1;
-        }
-        // Make sure a mesh name was given
-        if (!inputFilename)
-        {
-            std::cerr << "Please specify a mesh file as argument" << std::endl;
-            return EXIT_FAILURE;
-        }
-        // Initialize polyscope
-        //polyscope::init();
+  // Configure the argument parser
+  args::ArgumentParser parser("geometry-central & Polyscope example project");
+  args::Positional<std::string> inputFilename(parser, "mesh", "A mesh file.");
 
-        // Load mesh
-        std::tie(mesh, geometry) = loadMesh(args::get(inputFilename));
-        // Do optimization
-        cout << "starting optimization";
-        generateConstraints();
+  // Parse args
+  try {
+    parser.ParseCLI(argc, argv);
+  } catch (args::Help) {
+    std::cout << parser;
+    return 0;
+  } catch (args::ParseError e) {
+    std::cerr << e.what() << std::endl;
+    std::cerr << parser;
+    return 1;
+  }
 
-    // Register the mesh with polyscope
-    psMesh = polyscope::registerSurfaceMesh(
-            polyscope::guessNiceNameFromPath(args::get(inputFilename)),
-            geometry->inputVertexPositions, mesh->getFaceVertexList(),
-            polyscopePermutations(*mesh));
+  // Make sure a mesh name was given
+  if (!inputFilename) {
+    std::cerr << "Please specify a mesh file as argument" << std::endl;
+    return EXIT_FAILURE;
+  }
 
-    generateVisualization();
+  // Initialize polyscope
+  polyscope::init();
 
-    cout << "registering mesh" << endl; 
-    // Give control to the polyscope gui
-    polyscope::show();
 
-    return EXIT_SUCCESS;
+  // Load mesh
+  std::tie(mesh, geometry) = loadMesh(args::get(inputFilename));
+
+  // Register the mesh with polyscope
+  psMesh = polyscope::registerSurfaceMesh(
+      polyscope::guessNiceNameFromPath(args::get(inputFilename)),
+      geometry->inputVertexPositions, mesh->getFaceVertexList(),
+      polyscopePermutations(*mesh));
+
+  cout << "starting optimization";
+  generateConstraints();
+  generateVisualization();
+  // Give control to the polyscope gui
+  polyscope::show();
+
+  return EXIT_SUCCESS;
 }

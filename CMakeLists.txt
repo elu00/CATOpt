@@ -1,11 +1,19 @@
 cmake_minimum_required(VERSION 3.10.0)
 
-project(gc_project)
+project(catopt)
 
 ### Configure output locations
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+IF( EXISTS "${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json" )
+  EXECUTE_PROCESS( COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    ${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json
+    ${CMAKE_CURRENT_SOURCE_DIR}/compile_commands.json
+  )
+ENDIF()
 
 # Print the build type
 if(NOT CMAKE_BUILD_TYPE)
@@ -68,9 +76,8 @@ add_subdirectory(deps/mosek)
 
 set(SRCS 
   src/main.cpp
-	# add any other source files here
 )
 
-add_executable(gc_project "${SRCS}")
-target_include_directories(gc_project PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/" )
-target_link_libraries(gc_project PUBLIC geometry-central polyscope mosek)
+add_executable(catopt "${SRCS}")
+target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/" )
+target_link_libraries(catopt PUBLIC geometry-central polyscope mosek)
