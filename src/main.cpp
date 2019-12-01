@@ -5,6 +5,7 @@
 
 #include "polyscope/polyscope.h"
 #include "polyscope/surface_mesh.h"
+#include "polyscope/point_cloud.h"
 
 #include "args/args.hxx"
 #include "imgui.h"
@@ -13,6 +14,9 @@
 #include <algorithm>
 
 #include "svg_gen.hpp"
+
+#include "glm/vec3.hpp"
+
 using namespace geometrycentral;
 using namespace geometrycentral::surface;
 using std::cout;
@@ -34,16 +38,21 @@ size_t nCorners;
 EdgeData<size_t> eInd;
 VertexData<size_t> vInd;
 CornerData<size_t> cInd;
+FaceData<size_t> fInd;
 CornerData<double> cornerAngles;
 VertexData<double> angleDefects; 
 
 // Optimization Stuff
-//SparseMatrix<double> constraints;
-//Vector<double> x_init;
+// SparseMatrix<double> constraints;
+// Vector<double> x_init;
 vector<double>* sol;
 vector<double> rhs;
 vector<double> ineqRHS0;
 vector<double> ineqRHS1;
+
+size_t subdiv_level = 5;
+vector<Vector3> subdiv_points;
+EdgeData<bool> marked;
 
 // Polyscope visualization handle, to quickly add data to the surface
 polyscope::SurfaceMesh *psMesh;
@@ -57,6 +66,7 @@ void generateConstraints()
     eInd = mesh->getEdgeIndices();
     vInd = mesh->getVertexIndices();
     cInd = mesh->getCornerIndices();
+    fInd = mesh->getFaceIndices();
     geometry->requireVertexGaussianCurvatures();
     angleDefects = geometry->vertexGaussianCurvatures;
 
@@ -138,6 +148,77 @@ void generateConstraints()
     return;
 }
 
+  
+void generateSVGs()
+{
+    int n = 0;
+    for (Face f: mesh->faces())
+    {
+        double ij, jk, ki, a_ij, a_jk, a_ki;
+        Halfedge h = f.halfedge();
+        ij = geometry->edgeLength(h.edge()) * 100;
+        a_ij = (*sol)[eInd[h.edge()]];
+        h = h.next();
+        jk = geometry->edgeLength(h.edge()) * 100;
+        a_jk = (*sol)[eInd[h.edge()]];
+        h = h.next();
+        ki = geometry->edgeLength(h.edge()) * 100;
+        a_ki = (*sol)[eInd[h.edge()]];
+        CAT c = CAT(ij, jk, ki, a_ij, a_jk, a_ki);
+        cout << ij << endl;
+        cout << c.a_ij << endl;
+        c.to_svg("current" + std::to_string(n) + ".svg");
+        n++;
+    }
+}
+inline Vector3 bary (Face f, double a, double b, double c)
+{
+    //cout << a + b + c << endl;
+    auto it = f.halfedge();
+    Vector3 i = geometry->inputVertexPositions[it.vertex()];
+    it = it.next();
+    Vector3 j = geometry->inputVertexPositions[it.vertex()];
+    it = it.next();
+    Vector3 k = geometry->inputVertexPositions[it.vertex()];
+    return a*i + b*j + c*k;
+}
+/* INDEXING CONVENTIONS:
+ * Interior points - edge points - vertices
+ * Interior points and edge points always have index in (0, subdiv_level) (note the strict inequality)
+ */
+inline size_t get_interior_index(Face f, int i, int j)
+{
+    return 6;
+}
+inline size_t get_edge_index(Face e, int i)
+{
+    return 7;
+}
+inline size_t get_vertex_index(Vertex v)
+{
+    return 5;
+}
+void subdivision()
+{
+
+    for (Face f: mesh->faces())
+    {
+        for (int i = 0; i <= subdiv_level; i++)
+        {
+            for (int j = 0; j < subdiv_level - i; j++)
+            {
+                Vector3 coordinate = bary(f, ((double)i)/subdiv_level, ((double)j)/subdiv_level, 1. -((double)(i+j))/subdiv_level);
+                subdiv_points.push_back(coordinate);
+                //cout << coordinate[0] << "," << coordinate[1] << "," << coordinate[2] << endl;
+                //subdiv_points.push_back(glm::vec3{coordinate[0], coordinate[1], coordinate[2]});
+            }
+        }
+    }
+    for (Vertex v: mesh->vertices())
+    {
+        subdiv_points.push_back (geometry->inputVertexPositions[v]);
+    }
+}
 void generateVisualization()
 {
     // Visualization
@@ -154,36 +235,16 @@ void generateVisualization()
     psMesh->addEdgeScalarQuantity("Final Solution", *sol);
     psMesh->addVertexScalarQuantity("curvature",
             geometry->vertexGaussianCurvatures);
-}
-   
-void generateSVGs()
-{
-    int n = 0;
-    for (Face f: mesh->faces())
-    {
-        double ij, jk, ki, a_ij, a_jk, a_ki;
-        Halfedge h = f.halfedge();
-        ij = geometry->edgeLength(h.edge());
-        a_ij = (*sol)[eInd[h.edge()]];
-        h = h.next();
-        jk = geometry->edgeLength(h.edge());
-        a_jk = (*sol)[eInd[h.edge()]];
-        h = h.next();
-        ki = geometry->edgeLength(h.edge());
-        a_ki = (*sol)[eInd[h.edge()]];
-        CAT c = CAT(ij, jk, ki, a_ij, a_jk, a_ki, true);
-        cout << ij << endl;
-        cout << c.a_ij << endl;
-        c.to_svg("current" + std::to_string(n) + ".svg");
-        n++;
-    }
-}
+    cout << "No of subdivision points:" << subdiv_points.size();
 
+    polyscope::registerPointCloud("Initial Subdivision", subdiv_points);
+}
+ 
 
 int main(int argc, char **argv) {
 
   // Configure the argument parser
-  args::ArgumentParser parser("geometry-central & Polyscope example project");
+  args::ArgumentParser parser("Optimization");
   args::Positional<std::string> inputFilename(parser, "mesh", "A mesh file.");
 
   // Parse args
@@ -205,8 +266,8 @@ int main(int argc, char **argv) {
   }
 
   // Initialize polyscope
+  cout << "Initialized" << endl;
   polyscope::init();
-
 
   // Load mesh
   std::tie(mesh, geometry) = loadMesh(args::get(inputFilename));
@@ -219,8 +280,9 @@ int main(int argc, char **argv) {
 
   cout << "starting optimization";
   generateConstraints();
+  subdivision();
   generateVisualization();
-  generateSVGs();
+  //generateSVGs();
   // Give control to the polyscope gui
   polyscope::show();
 
