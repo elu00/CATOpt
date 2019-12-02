@@ -12,6 +12,7 @@
 
 #include "fusion.h"
 #include <algorithm>
+#include <tuple>
 
 #include "svg_gen.hpp"
 
@@ -26,6 +27,8 @@ using std::unique_ptr;
 using namespace mosek::fusion;
 using namespace monty;
 using std::vector;
+using std::tuple;
+using std::make_tuple;
 
 // == Geometry-central data
 unique_ptr<HalfedgeMesh> mesh;
@@ -33,6 +36,7 @@ unique_ptr<VertexPositionGeometry> geometry;
 
 // Mesh data
 size_t nVertices;
+size_t nFaces;
 size_t nEdges;
 size_t nCorners;
 EdgeData<size_t> eInd;
@@ -50,9 +54,12 @@ vector<double> rhs;
 vector<double> ineqRHS0;
 vector<double> ineqRHS1;
 
-size_t subdiv_level = 5;
+size_t subdiv_level = 8;
+size_t int_count;
+size_t edge_count;
+size_t vertex_count;
 vector<Vector3> subdiv_points;
-EdgeData<bool> marked;
+vector<tuple<size_t, size_t, double>> correct_dist;
 
 // Polyscope visualization handle, to quickly add data to the surface
 polyscope::SurfaceMesh *psMesh;
@@ -63,6 +70,7 @@ void generateConstraints()
     nVertices = mesh->nVertices();
     nEdges = mesh->nEdges();
     nCorners = mesh->nCorners();
+    nFaces = mesh->nFaces();
     eInd = mesh->getEdgeIndices();
     vInd = mesh->getVertexIndices();
     cInd = mesh->getCornerIndices();
@@ -182,6 +190,16 @@ inline Vector3 bary (Face f, double a, double b, double c)
     Vector3 k = geometry->inputVertexPositions[it.vertex()];
     return a*i + b*j + c*k;
 }
+inline double l2_dist(Face f, int j1, int k1, int j2, int k2)
+{
+    return 5.;
+}
+
+
+inline void interior_neighbors(Face f, int i, int j)
+{
+
+}
 /* INDEXING CONVENTIONS:
  * Interior points - edge points - vertices
  * Interior points and edge points always have index in (0, subdiv_level) (note the strict inequality)
@@ -200,24 +218,46 @@ inline size_t get_vertex_index(Vertex v)
 }
 void subdivision()
 {
-
+    int_count = nFaces * (subdiv_level-1) * (subdiv_level-2)/2;
+    edge_count = nEdges * (subdiv_level-1);
+    vertex_count = nVertices;
+    subdiv_points = vector<Vector3> (int_count + edge_count + vertex_count);
+    // initialization of initial guesses
     for (Face f: mesh->faces())
     {
-        for (int i = 0; i <= subdiv_level; i++)
+        size_t index = 0;
+        for (size_t j = 1; j < subdiv_level - 1; j++)
         {
-            for (int j = 0; j < subdiv_level - i; j++)
+            for (size_t k = 1; k < subdiv_level - j - 1; k++)
             {
-                Vector3 coordinate = bary(f, ((double)i)/subdiv_level, ((double)j)/subdiv_level, 1. -((double)(i+j))/subdiv_level);
-                subdiv_points.push_back(coordinate);
+                Vector3 coordinate = bary(f, 1.-((double)(j+k))/subdiv_level, ((double)j)/subdiv_level, ((double)k)/subdiv_level);
+                subdiv_points[fInd[f] * (subdiv_level-1) * (subdiv_level-2)/2 + index] = coordinate;
+                index++;
                 //cout << coordinate[0] << "," << coordinate[1] << "," << coordinate[2] << endl;
                 //subdiv_points.push_back(glm::vec3{coordinate[0], coordinate[1], coordinate[2]});
             }
         }
+       
+    }
+    for (Edge e: mesh->edges())
+    {
+        Vector3 v1 = geometry->inputVertexPositions[e.halfedge().vertex()];
+        Vector3 v2 = geometry->inputVertexPositions[e.halfedge().twin().vertex()];
+        for (size_t i = 1; i < subdiv_level - 1; i++)
+        {
+            subdiv_points[int_count + edge_count + eInd[e]] = ((double)i)/subdiv_level * v1 + (1. - ((double)i)/subdiv_level) * v2;
+        }
     }
     for (Vertex v: mesh->vertices())
     {
-        subdiv_points.push_back (geometry->inputVertexPositions[v]);
+        subdiv_points[int_count + edge_count + vInd[v]] = geometry->inputVertexPositions[v];
     }
+    // initialization of "correct" lengths
+    for (Face f: mesh->faces())
+    {
+
+    }
+   
 }
 void generateVisualization()
 {
