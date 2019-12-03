@@ -14,7 +14,7 @@
 #include <algorithm>
 #include <tuple>
 
-#include "svg_gen.hpp"
+#include "util.cpp"
 
 #include "glm/vec3.hpp"
 
@@ -49,7 +49,7 @@ VertexData<double> angleDefects;
 // Optimization Stuff
 // SparseMatrix<double> constraints;
 // Vector<double> x_init;
-vector<double>* sol;
+vector<double> sol;
 vector<double> rhs;
 vector<double> ineqRHS0;
 vector<double> ineqRHS1;
@@ -59,7 +59,11 @@ size_t int_count;
 size_t edge_count;
 size_t vertex_count;
 vector<Vector3> subdiv_points;
+vector<Vector3> grad;
+vector<vector<int>> indexing;
 vector<tuple<size_t, size_t, double>> correct_dist;
+double ep = 1e-6;
+double step_size = 1e-3;
 
 // Polyscope visualization handle, to quickly add data to the surface
 polyscope::SurfaceMesh *psMesh;
@@ -75,6 +79,7 @@ void generateConstraints()
     vInd = mesh->getVertexIndices();
     cInd = mesh->getCornerIndices();
     fInd = mesh->getFaceIndices();
+    geometry->requireEdgeLengths();
     geometry->requireVertexGaussianCurvatures();
     angleDefects = geometry->vertexGaussianCurvatures;
 
@@ -148,10 +153,10 @@ void generateConstraints()
     auto xsize = x->getSize();
     auto xVal = x->level();
     std::cout << "\nOptimal primal objective: " << M->primalObjValue() <<"\n";
-    sol = new vector<double>(nEdges);
+    sol = vector<double>(nEdges);
     for(int i = 0; i < xsize; ++i)
     {
-       (*sol)[i] =  (*xVal)[i];
+       (sol)[i] =  (*xVal)[i];
     }
     return;
 }
@@ -165,13 +170,13 @@ void generateSVGs()
         double ij, jk, ki, a_ij, a_jk, a_ki;
         Halfedge h = f.halfedge();
         ij = geometry->edgeLength(h.edge()) * 100;
-        a_ij = (*sol)[eInd[h.edge()]];
+        a_ij = (sol)[eInd[h.edge()]];
         h = h.next();
         jk = geometry->edgeLength(h.edge()) * 100;
-        a_jk = (*sol)[eInd[h.edge()]];
+        a_jk = (sol)[eInd[h.edge()]];
         h = h.next();
         ki = geometry->edgeLength(h.edge()) * 100;
-        a_ki = (*sol)[eInd[h.edge()]];
+        a_ki = (sol)[eInd[h.edge()]];
         CAT c = CAT(ij, jk, ki, a_ij, a_jk, a_ki);
         cout << ij << endl;
         cout << c.a_ij << endl;
@@ -190,34 +195,77 @@ inline Vector3 bary (Face f, double a, double b, double c)
     Vector3 k = geometry->inputVertexPositions[it.vertex()];
     return a*i + b*j + c*k;
 }
-inline double l2_dist(Face f, int j1, int k1, int j2, int k2)
-{
-    return 5.;
-}
 
-
-inline void interior_neighbors(Face f, int i, int j)
-{
-
-}
 /* INDEXING CONVENTIONS:
  * Interior points - edge points - vertices
  * Interior points and edge points always have index in (0, subdiv_level) (note the strict inequality)
  */
-inline size_t get_interior_index(Face f, int i, int j)
+//returns -1 if invalid index
+inline size_t grab_index(Face f, int j, int k)
 {
-    return 6;
+    int i = subdiv_level - j - k;
+    if (j + k > subdiv_level || j + k < 0) return -1;
+    // vertex i
+    if (i == subdiv_level) return int_count + edge_count + vInd[f.halfedge().vertex()];
+    // vertex j
+    else if (j == subdiv_level) return int_count + edge_count + vInd[f.halfedge().next().vertex()];
+    // vertex k
+    else if (k == subdiv_level) return int_count + edge_count + vInd[f.halfedge().next().next().vertex()];
+    // edge ij
+    else if (k == 0)
+    {
+        // is ij the canonical halfedge?
+        if (f.halfedge().edge().halfedge() == f.halfedge())
+            return int_count + edge_count + (eInd[f.halfedge().edge()] * (subdiv_level-1)) + i - 1;
+        else
+            return int_count + edge_count + (eInd[f.halfedge().edge()] * (subdiv_level-1)) + j - 1;
+    }
+    // edge jk
+    else if (i == 0)
+    {
+        // is jk the canonical halfedge?
+        if (f.halfedge().next().edge().halfedge() == f.halfedge().next())
+            return int_count + edge_count + (eInd[f.halfedge().next().edge()] * (subdiv_level-1)) + j - 1;
+        else
+            return int_count + edge_count + (eInd[f.halfedge().next().edge()] * (subdiv_level-1)) + k - 1;
+    }
+
+    // edge ki
+    else if (j == 0)
+    {
+        // is ki the canonical halfedge?
+        if (f.halfedge().next().next().edge().halfedge() == f.halfedge().next().next())
+            return int_count + edge_count + (eInd[f.halfedge().next().next().edge()] * (subdiv_level-1)) + k - 1;
+        else
+            return int_count + edge_count + (eInd[f.halfedge().next().next().edge()] * (subdiv_level-1)) + i - 1;
+    }
+
+    // other
+    else return fInd[f] * (subdiv_level-1) * (subdiv_level-2)/2 + indexing[j][k];
+
 }
-inline size_t get_edge_index(Face e, int i)
+inline double i_coord(size_t j, size_t k)
 {
-    return 7;
+    return 1.-((double)(j+k))/subdiv_level;
 }
-inline size_t get_vertex_index(Vertex v)
+inline double to_bary(size_t i)
 {
-    return 5;
+    return ((double)i)/subdiv_level;
 }
 void subdivision()
 {
+    // initializing indexing map because I'm lazy
+    cout << "starting subdivision" << endl;
+    indexing = vector<vector<int>>(subdiv_level + 1,vector<int>(subdiv_level+1, -1));
+    size_t index = 0;
+    for (size_t j = 1; j < subdiv_level - 1; j++)
+    {
+        for (size_t k = 1; k < subdiv_level - j - 1; k++)
+        {
+            indexing[j][k] = index;
+            index++;
+        }
+    }
     int_count = nFaces * (subdiv_level-1) * (subdiv_level-2)/2;
     edge_count = nEdges * (subdiv_level-1);
     vertex_count = nVertices;
@@ -225,12 +273,12 @@ void subdivision()
     // initialization of initial guesses
     for (Face f: mesh->faces())
     {
-        size_t index = 0;
+        index = 0;
         for (size_t j = 1; j < subdiv_level - 1; j++)
         {
             for (size_t k = 1; k < subdiv_level - j - 1; k++)
             {
-                Vector3 coordinate = bary(f, 1.-((double)(j+k))/subdiv_level, ((double)j)/subdiv_level, ((double)k)/subdiv_level);
+                Vector3 coordinate = bary(f,i_coord(j, k), to_bary(j) , to_bary(k));
                 subdiv_points[fInd[f] * (subdiv_level-1) * (subdiv_level-2)/2 + index] = coordinate;
                 index++;
                 //cout << coordinate[0] << "," << coordinate[1] << "," << coordinate[2] << endl;
@@ -243,21 +291,128 @@ void subdivision()
     {
         Vector3 v1 = geometry->inputVertexPositions[e.halfedge().vertex()];
         Vector3 v2 = geometry->inputVertexPositions[e.halfedge().twin().vertex()];
-        for (size_t i = 1; i < subdiv_level - 1; i++)
+        for (size_t i = 1; i < subdiv_level; i++)
         {
-            subdiv_points[int_count + edge_count + eInd[e]] = ((double)i)/subdiv_level * v1 + (1. - ((double)i)/subdiv_level) * v2;
+            subdiv_points[int_count + edge_count + (eInd[e] * (subdiv_level-1)) + i - 1] = (1. - to_bary(i)) * v1 + to_bary(i) * v2;
         }
     }
     for (Vertex v: mesh->vertices())
     {
         subdiv_points[int_count + edge_count + vInd[v]] = geometry->inputVertexPositions[v];
     }
+    cout << "hmm" << endl;
     // initialization of "correct" lengths
     for (Face f: mesh->faces())
     {
+        size_t j_, k_;
+        size_t index1, index2;
+        double dist;
+        double ij, jk, ki, a_ij, a_jk, a_ki;
+        Halfedge h = f.halfedge();
+        ij = geometry->edgeLength(h.edge());
+        a_ij = (sol)[eInd[h.edge()]];
+        h = h.next();
+        jk = geometry->edgeLength(h.edge());
+        a_jk = (sol)[eInd[h.edge()]];
+        h = h.next();
+        ki = geometry->edgeLength(h.edge());
+        a_ki = (sol)[eInd[h.edge()]];
 
+        for (size_t j = 0; j <= subdiv_level; j++)
+        {
+            for (size_t k = 0; k <= subdiv_level - j; k++)
+            {
+                index1 = grab_index(f, j, k);
+                // above 1
+                k_ = k + 1;
+                index2 = grab_index(f, j_, k_);
+                if (index2 != -1) 
+                {
+                    dist = l2DistSquared(ij, jk, ki, a_ij, a_jk, a_ki, i_coord(j,k), to_bary(j), to_bary(k), i_coord(j_, k_), to_bary(j_), to_bary(k_));
+                    correct_dist.push_back(make_tuple(index1, index2, dist));
+                }
+                // above 1 right 1
+                j_ = j + 1;
+                index2 = grab_index(f, j_, k_);
+                if (index2 != -1) 
+                {
+                    dist = l2DistSquared(ij, jk, ki, a_ij, a_jk, a_ki, i_coord(j,k), to_bary(j), to_bary(k), i_coord(j_, k_), to_bary(j_), to_bary(k_));
+                    correct_dist.push_back(make_tuple(index1, index2, dist));
+                }
+                // right 1
+                k_ = k;
+                index2 = grab_index(f, j_, k_);
+                if (index2 != -1) 
+                {
+                    dist = l2DistSquared(ij, jk, ki, a_ij, a_jk, a_ki, i_coord(j,k), to_bary(j), to_bary(k), i_coord(j_, k_), to_bary(j_), to_bary(k_));
+                    correct_dist.push_back(make_tuple(index1, index2, dist));
+                }
+                // down 1, right 1
+                k_ = k - 1;
+                index2 = grab_index(f, j_, k_);
+                if (index2 != -1) 
+                {
+                    dist = l2DistSquared(ij, jk, ki, a_ij, a_jk, a_ki, i_coord(j,k), to_bary(j), to_bary(k), i_coord(j_, k_), to_bary(j_), to_bary(k_));
+                    correct_dist.push_back(make_tuple(index1, index2, dist));
+                }
+
+            }
+        }
     }
    
+}
+/*
+ * Optimization code
+ */
+double objective()
+{
+    double result = 0.;
+    int i1, i2;
+    double distsq, diff;
+    //zero out gradient
+    grad = vector<Vector3> (subdiv_points.size(), Vector3{0.,0.,0.});
+    for (auto t: correct_dist)
+    {
+        i1 = std::get<0>(t);
+        i2 = std::get<1>(t);
+        distsq = std::get<2>(t);
+        // update objective
+        diff = (norm2(subdiv_points[i1] - subdiv_points[i2]) - distsq);
+        result += diff * diff;
+        // update gradient
+        grad[i1] += 4. * diff * (subdiv_points[i1] - subdiv_points[i2]);
+        grad[i2] += 4. * diff * (subdiv_points[i2] - subdiv_points[i1]);
+    }
+    return result;
+}
+//auto vec3norm = [](Vector3 v) {return norm(v);};
+
+double grad_norm(vector<Vector3> grad)
+{
+    double result = 0.;
+    for (auto v: grad)
+    {
+        result += norm(v);
+    }
+    return sqrt(result);
+}
+
+void descent()
+{
+    cout << "Starting descent" << endl;
+    size_t iter = 0;
+    double result;
+    grad = vector<Vector3> (subdiv_points.size(), Vector3{0.,0.,0.});
+    while (grad_norm(grad) > ep)
+    {
+        result = objective();
+        if (iter % 100 == 0) 
+        {
+            cout << "Starting iteration" << iter << endl;
+            cout << "grad size:" << grad_norm(grad) << endl;
+            cout << "objective:" << result << endl;
+        }
+    }
 }
 void generateVisualization()
 {
@@ -272,12 +427,12 @@ void generateVisualization()
         //cout << x_init[eInd[e]] << endl;
     //}
     //psMesh->addEdgeScalarQuantity("Initial Guess", x_init);
-    psMesh->addEdgeScalarQuantity("Final Solution", *sol);
+    psMesh->addEdgeScalarQuantity("Final Solution", sol);
     psMesh->addVertexScalarQuantity("curvature",
             geometry->vertexGaussianCurvatures);
     cout << "No of subdivision points:" << subdiv_points.size();
 
-    polyscope::registerPointCloud("Initial Subdivision", subdiv_points);
+    polyscope::registerPointCloud("Subdivision", subdiv_points);
 }
  
 
@@ -321,6 +476,7 @@ int main(int argc, char **argv) {
   cout << "starting optimization";
   generateConstraints();
   subdivision();
+  descent();
   generateVisualization();
   //generateSVGs();
   // Give control to the polyscope gui
