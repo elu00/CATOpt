@@ -62,8 +62,8 @@ vector<Vector3> subdiv_points;
 vector<Vector3> grad;
 vector<vector<int>> indexing;
 vector<tuple<size_t, size_t, double>> correct_dist;
-double ep = 1e-6;
-double step_size = 1e-3;
+double ep = 1e-5;
+double step_size = 1e-2;
 
 // Polyscope visualization handle, to quickly add data to the surface
 polyscope::SurfaceMesh *psMesh;
@@ -204,7 +204,7 @@ inline Vector3 bary (Face f, double a, double b, double c)
 inline size_t grab_index(Face f, int j, int k)
 {
     int i = subdiv_level - j - k;
-    if (j + k > subdiv_level || j + k < 0) return -1;
+    if (j + k > subdiv_level || j < 0 || k < 0) return -1;
     // vertex i
     if (i == subdiv_level) return int_count + edge_count + vInd[f.halfedge().vertex()];
     // vertex j
@@ -216,18 +216,18 @@ inline size_t grab_index(Face f, int j, int k)
     {
         // is ij the canonical halfedge?
         if (f.halfedge().edge().halfedge() == f.halfedge())
-            return int_count + edge_count + (eInd[f.halfedge().edge()] * (subdiv_level-1)) + i - 1;
+            return int_count + (eInd[f.halfedge().edge()] * (subdiv_level-1)) + i - 1;
         else
-            return int_count + edge_count + (eInd[f.halfedge().edge()] * (subdiv_level-1)) + j - 1;
+            return int_count + (eInd[f.halfedge().edge()] * (subdiv_level-1)) + j - 1;
     }
     // edge jk
     else if (i == 0)
     {
         // is jk the canonical halfedge?
         if (f.halfedge().next().edge().halfedge() == f.halfedge().next())
-            return int_count + edge_count + (eInd[f.halfedge().next().edge()] * (subdiv_level-1)) + j - 1;
+            return int_count + (eInd[f.halfedge().next().edge()] * (subdiv_level-1)) + j - 1;
         else
-            return int_count + edge_count + (eInd[f.halfedge().next().edge()] * (subdiv_level-1)) + k - 1;
+            return int_count + (eInd[f.halfedge().next().edge()] * (subdiv_level-1)) + k - 1;
     }
 
     // edge ki
@@ -235,9 +235,9 @@ inline size_t grab_index(Face f, int j, int k)
     {
         // is ki the canonical halfedge?
         if (f.halfedge().next().next().edge().halfedge() == f.halfedge().next().next())
-            return int_count + edge_count + (eInd[f.halfedge().next().next().edge()] * (subdiv_level-1)) + k - 1;
+            return int_count + (eInd[f.halfedge().next().next().edge()] * (subdiv_level-1)) + k - 1;
         else
-            return int_count + edge_count + (eInd[f.halfedge().next().next().edge()] * (subdiv_level-1)) + i - 1;
+            return int_count + (eInd[f.halfedge().next().next().edge()] * (subdiv_level-1)) + i - 1;
     }
 
     // other
@@ -260,7 +260,7 @@ void subdivision()
     size_t index = 0;
     for (size_t j = 1; j < subdiv_level - 1; j++)
     {
-        for (size_t k = 1; k < subdiv_level - j - 1; k++)
+        for (size_t k = 1; k < subdiv_level - j; k++)
         {
             indexing[j][k] = index;
             index++;
@@ -276,7 +276,7 @@ void subdivision()
         index = 0;
         for (size_t j = 1; j < subdiv_level - 1; j++)
         {
-            for (size_t k = 1; k < subdiv_level - j - 1; k++)
+            for (size_t k = 1; k < subdiv_level - j; k++)
             {
                 Vector3 coordinate = bary(f,i_coord(j, k), to_bary(j) , to_bary(k));
                 subdiv_points[fInd[f] * (subdiv_level-1) * (subdiv_level-2)/2 + index] = coordinate;
@@ -293,14 +293,13 @@ void subdivision()
         Vector3 v2 = geometry->inputVertexPositions[e.halfedge().twin().vertex()];
         for (size_t i = 1; i < subdiv_level; i++)
         {
-            subdiv_points[int_count + edge_count + (eInd[e] * (subdiv_level-1)) + i - 1] = (1. - to_bary(i)) * v1 + to_bary(i) * v2;
+            subdiv_points[int_count + (eInd[e] * (subdiv_level-1)) + i - 1] = (1. - to_bary(i)) * v1 + to_bary(i) * v2;
         }
     }
     for (Vertex v: mesh->vertices())
     {
         subdiv_points[int_count + edge_count + vInd[v]] = geometry->inputVertexPositions[v];
     }
-    cout << "hmm" << endl;
     // initialization of "correct" lengths
     for (Face f: mesh->faces())
     {
@@ -324,6 +323,7 @@ void subdivision()
             {
                 index1 = grab_index(f, j, k);
                 // above 1
+                j_ = j;
                 k_ = k + 1;
                 index2 = grab_index(f, j_, k_);
                 if (index2 != -1) 
@@ -375,6 +375,8 @@ double objective()
     {
         i1 = std::get<0>(t);
         i2 = std::get<1>(t);
+        //cout << "i1:" << i1 << " i2: " << i2 << endl;
+        //cout << subdiv_points.size() << endl;
         distsq = std::get<2>(t);
         // update objective
         diff = (norm2(subdiv_points[i1] - subdiv_points[i2]) - distsq);
@@ -402,17 +404,27 @@ void descent()
     cout << "Starting descent" << endl;
     size_t iter = 0;
     double result;
-    grad = vector<Vector3> (subdiv_points.size(), Vector3{0.,0.,0.});
+    grad = vector<Vector3> (subdiv_points.size(), Vector3{1.,0.,0.});
     while (grad_norm(grad) > ep)
     {
         result = objective();
-        if (iter % 100 == 0) 
+        for (int i = 0; i < subdiv_points.size(); i++)
         {
-            cout << "Starting iteration" << iter << endl;
+            subdiv_points[i] -= step_size * grad[i];
+        }
+        if (iter % 1000 == 0) 
+        {
+            cout << "Starting iteration " << iter << endl;
             cout << "grad size:" << grad_norm(grad) << endl;
             cout << "objective:" << result << endl;
         }
+        iter++;
+
     }
+    cout << "iteration count: " << iter << endl;
+    cout << "grad size:" << grad_norm(grad) << endl;
+    cout << "objective:" << result << endl;
+
 }
 void generateVisualization()
 {
