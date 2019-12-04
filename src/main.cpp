@@ -59,11 +59,13 @@ size_t int_count;
 size_t edge_count;
 size_t vertex_count;
 vector<Vector3> subdiv_points;
-vector<Vector3> grad;
+//vector<Vector3> grad;
 vector<vector<int>> indexing;
 vector<tuple<size_t, size_t, double>> correct_dist;
+double alpha = 0.2;
+double beta = 0.5;
 double ep = 1e-5;
-double step_size = 1e-2;
+vector<Vector3> fin;
 
 // Polyscope visualization handle, to quickly add data to the surface
 polyscope::SurfaceMesh *psMesh;
@@ -364,13 +366,12 @@ void subdivision()
 /*
  * Optimization code
  */
-double objective()
+double objective(vector<Vector3> x)
 {
     double result = 0.;
     int i1, i2;
     double distsq, diff;
     //zero out gradient
-    grad = vector<Vector3> (subdiv_points.size(), Vector3{0.,0.,0.});
     for (auto t: correct_dist)
     {
         i1 = std::get<0>(t);
@@ -379,52 +380,82 @@ double objective()
         //cout << subdiv_points.size() << endl;
         distsq = std::get<2>(t);
         // update objective
-        diff = (norm2(subdiv_points[i1] - subdiv_points[i2]) - distsq);
+        diff = (norm2(x[i1] - x[i2]) - distsq);
         result += diff * diff;
-        // update gradient
-        grad[i1] += 4. * diff * (subdiv_points[i1] - subdiv_points[i2]);
-        grad[i2] += 4. * diff * (subdiv_points[i2] - subdiv_points[i1]);
     }
     return result;
 }
+vector<Vector3> gradient(vector<Vector3> x)
+{
+    int i1, i2;
+    double distsq, diff;
+    //zero out gradient
+    vector<Vector3> grad (subdiv_points.size(), Vector3{0.,0.,0.});
+    for (auto t: correct_dist)
+    {
+        i1 = std::get<0>(t);
+        i2 = std::get<1>(t);
+        distsq = std::get<2>(t);
+        diff = (norm2(x[i1] - x[i2]) - distsq);
+        // update gradient
+        grad[i1] += 4. * diff * (x[i1] - x[i2]);
+        grad[i2] += 4. * diff * (x[i2] - x[i1]);
+    }
+    return grad;
+}
 //auto vec3norm = [](Vector3 v) {return norm(v);};
 
-double grad_norm(vector<Vector3> grad)
+double grad_norm_sq(vector<Vector3> grad)
 {
     double result = 0.;
     for (auto v: grad)
     {
-        result += norm(v);
+        result += norm2(v);
     }
-    return sqrt(result);
+    return result;
 }
 
-void descent()
+vector<Vector3> descent()
 {
     cout << "Starting descent" << endl;
     size_t iter = 0;
     double result;
-    grad = vector<Vector3> (subdiv_points.size(), Vector3{1.,0.,0.});
-    while (grad_norm(grad) > ep)
+    double t = 1.0;
+    vector<Vector3> grad (subdiv_points.size(), Vector3{1.,0.,0.});
+    double grad_size = 1.;
+    vector<Vector3> x = subdiv_points;
+    vector<Vector3> x_new = subdiv_points;
+    while (sqrt(grad_size) > ep)
     {
-        result = objective();
+        double result = objective(x);
+        grad = gradient(x);
+        grad_size = grad_norm_sq(grad);
+        t = 1.;
         for (int i = 0; i < subdiv_points.size(); i++)
         {
-            subdiv_points[i] -= step_size * grad[i];
+            x_new[i] = x[i] - t * grad[i];
         }
+        while (objective(x_new) > result - alpha * t * grad_size)
+        {
+            t = beta * t;
+            for (int i = 0; i < subdiv_points.size(); i++)
+            {
+                x_new[i] = x[i] - t * grad[i];
+            }
+        }
+        x = x_new;
         if (iter % 1000 == 0) 
         {
             cout << "Starting iteration " << iter << endl;
-            cout << "grad size:" << grad_norm(grad) << endl;
+            cout << "grad size squared:" << grad_size << endl;
             cout << "objective:" << result << endl;
         }
         iter++;
-
     }
     cout << "iteration count: " << iter << endl;
-    cout << "grad size:" << grad_norm(grad) << endl;
-    cout << "objective:" << result << endl;
-
+    cout << "grad size:" << sqrt(grad_size) << endl;
+    cout << "objective:" << objective(x) << endl;
+    return x;
 }
 void generateVisualization()
 {
@@ -444,7 +475,8 @@ void generateVisualization()
             geometry->vertexGaussianCurvatures);
     cout << "No of subdivision points:" << subdiv_points.size();
 
-    polyscope::registerPointCloud("Subdivision", subdiv_points);
+    polyscope::registerPointCloud("Initial Subdivision", subdiv_points);
+    polyscope::registerPointCloud("Final Subdivision", fin);
 }
  
 
@@ -488,7 +520,7 @@ int main(int argc, char **argv) {
   cout << "starting optimization";
   generateConstraints();
   subdivision();
-  descent();
+  fin = descent();
   generateVisualization();
   //generateSVGs();
   // Give control to the polyscope gui
