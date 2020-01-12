@@ -35,6 +35,9 @@ typedef std::tuple<Face, size_t, size_t> bindex;
 // == Geometry-central data
 unique_ptr<HalfedgeMesh> mesh;
 unique_ptr<VertexPositionGeometry> geometry;
+unique_ptr<HalfedgeMesh> CATmesh;
+unique_ptr<VertexPositionGeometry> CATgeometry;
+
 
 // Mesh data
 size_t nVertices;
@@ -68,6 +71,7 @@ vector<Vector3> fin;
 
 // Polyscope visualization handle, to quickly add data to the surface
 polyscope::SurfaceMesh *psMesh;
+polyscope::SurfaceMesh *CATpsMesh;
 
 void initializeQuantities() {
 
@@ -319,10 +323,6 @@ void subdivision() {
     for (Face f: mesh->faces()) {
         for (size_t j = 0; j <= subdiv_level; j++) {
             for (size_t k = 0; k <= subdiv_level - j; k++) {
-                if (get_index(f, j, k) == 59) {
-                    cout << "59 found:" << endl;
-                    cout << fInd[f] << endl << j << endl << k << endl;
-                }
                 subdiv_points[get_index(f, j, k)] = bary(f,i_coord(j, k), to_bary(j) , to_bary(k));
             }
         }
@@ -344,10 +344,6 @@ void subdivision() {
         h = h.next();
         ki = geometry->edgeLength(h.edge());
         a_ki = (sol)[eInd[h.edge()]];
-        // DEBUG
-        a_ij = 0;
-        a_jk = 0;
-        a_ki = 0;
 
         for (size_t j = 0; j <= subdiv_level; j++) {
             for (size_t k = 0; k <= subdiv_level - j; k++) {
@@ -358,11 +354,6 @@ void subdivision() {
                 index2 = get_index(f, j_, k_);
                 if (index2 != -1) {
                     dist = l2DistSquared(ij, jk, ki, a_ij, a_jk, a_ki, i_coord(j,k), to_bary(j), to_bary(k), i_coord(j_, k_), to_bary(j_), to_bary(k_));
-                    /*
-                    cout << "j:" << j << "k:" << k << endl;
-                   cout << "j_:" << j_ << "k_:" << k_ << endl;
-                       cout << dist << endl;
-                       */
                     correct_dist.push_back(make_tuple(index1, index2, dist));
                 }
                 // right 1
@@ -371,11 +362,6 @@ void subdivision() {
                 index2 = get_index(f, j_, k_);
                 if (index2 != -1) {
                     dist = l2DistSquared(ij, jk, ki, a_ij, a_jk, a_ki, i_coord(j,k), to_bary(j), to_bary(k), i_coord(j_, k_), to_bary(j_), to_bary(k_));
-                    /*
-                       cout << "j:" << j << "k:" << k << endl;
-                       cout << "j_:" << j_ << "k_:" << k_ << endl;
-                       cout << dist << endl;
-                       */
                     correct_dist.push_back(make_tuple(index1, index2, dist));
                 }
                 // right and down
@@ -384,11 +370,6 @@ void subdivision() {
                 index2 = get_index(f, j_, k_);
                 if (index2 != -1) {
                     dist = l2DistSquared(ij, jk, ki, a_ij, a_jk, a_ki, i_coord(j,k), to_bary(j), to_bary(k), i_coord(j_, k_), to_bary(j_), to_bary(k_));
-                    /*
-                       cout << "j:" << j << "k:" << k << endl;
-                       cout << "j_:" << j_ << "k_:" << k_ << endl;
-                       cout << dist << endl;
-                       */
                     correct_dist.push_back(make_tuple(index1, index2, dist));
                 }
             }
@@ -474,6 +455,41 @@ vector<Vector3> descent() {
     cout << "objective:" << objective(x) << endl;
     return x;
 }
+void buildNewMesh() {
+    std::vector<std::vector<size_t>> polygons;
+    for (Face f: mesh->faces()) {
+        for (size_t j = 0; j < subdiv_level; j++) {
+            for (size_t k = 0; k < subdiv_level - j; k++) {
+                size_t index1 = get_index(f, j, k);
+                // right and up 1
+                size_t index2 = get_index(f, j, k + 1);
+                // right 1
+                size_t index3 = get_index(f, j + 1, k);
+                // right and down
+                size_t index4 = get_index(f, j + 1, k - 1);
+                /*
+                vector<size_t> temp1 = {index1, index3, index2};
+                vector<size_t> temp2 = {index1, index4, index3};
+                polygons.push_back(temp1);
+                if (index4 != -1)  polygons.push_back(temp2);
+                */
+                polygons.push_back({index1, index3, index2});
+                if (index4 != -1) polygons.push_back({index1, index4, index3});
+            } 
+        }
+    }
+    CATmesh = std::unique_ptr<HalfedgeMesh> (new HalfedgeMesh(polygons));
+    VertexData<Vector3> positions(*CATmesh);
+    for (size_t i = 0; i < fin.size(); i++) {
+        positions[i] = fin[i];
+    }
+    CATgeometry = std::unique_ptr<VertexPositionGeometry> (new VertexPositionGeometry(*CATmesh, positions));
+    CATpsMesh = polyscope::registerSurfaceMesh(
+            "CAT Mesh",
+            CATgeometry->inputVertexPositions, CATmesh->getFaceVertexList(),
+            polyscopePermutations(*CATmesh));
+
+}
 void generateVisualization() {
     // Visualization
     //EdgeData<double> initialGuess(*mesh);
@@ -517,7 +533,6 @@ void generateSVGs() {
 
 
 int main(int argc, char **argv) {
-
     // Configure the argument parser
     args::ArgumentParser parser("Optimization");
     args::Positional<std::string> inputFilename(parser, "mesh", "A mesh file.");
@@ -539,17 +554,16 @@ int main(int argc, char **argv) {
         std::cerr << "Please specify a mesh file as argument" << std::endl;
         return EXIT_FAILURE;
     }
-
     // Initialize polyscope
     cout << "Initialized" << endl;
     polyscope::init();
 
     // Load mesh
-    std::tie(mesh, geometry) = loadMesh(args::get(inputFilename));
+  std::tie(mesh, geometry) = loadMesh(args::get(inputFilename));
 
     // Register the mesh with polyscope
     psMesh = polyscope::registerSurfaceMesh(
-            polyscope::guessNiceNameFromPath(args::get(inputFilename)),
+      polyscope::guessNiceNameFromPath(args::get(inputFilename)),
             geometry->inputVertexPositions, mesh->getFaceVertexList(),
             polyscopePermutations(*mesh));
 
@@ -560,8 +574,9 @@ int main(int argc, char **argv) {
 
     vector<Vector3> x = subdiv_points;
     cout << "OBJECTIVE" << objective(x) << endl;
-    //fin = descent();
-    generateVisualization();
+    fin = descent();
+    buildNewMesh();
+    //generateVisualization();
     //generateSVGs();
     // Give control to the polyscope gui
     polyscope::show();
