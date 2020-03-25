@@ -29,8 +29,9 @@ using namespace mosek::fusion;
 using namespace monty;
 using std::vector;
 using std::tuple;
+using std::map;
 using std::make_tuple;
-typedef std::tuple<Face, size_t, size_t> bindex;
+
 
 // == Geometry-central data
 unique_ptr<HalfedgeMesh> mesh;
@@ -62,7 +63,7 @@ vector<double> ineqRHS1;
 size_t subdiv_level = 8;
 vector<Vector3> subdiv_points;
 //vector<Vector3> grad;
-std::map<bindex, size_t> indexing;
+map<tuple<Face, size_t, size_t>, size_t> indexing;
 vector<tuple<size_t, size_t, double>> correct_dist;
 double alpha = 0.2;
 double beta = 0.5;
@@ -491,17 +492,6 @@ void buildNewMesh() {
 
 }
 void generateVisualization() {
-    // Visualization
-    //EdgeData<double> initialGuess(*mesh);
-    //EdgeData<double> finalSolution(*mesh);
-    //for (Edge e : mesh->edges())
-    //{
-    //    initialGuess[e] = x_init[eInd[e]];
-    //    finalSolution[e] = x[eInd[e]];
-    //cout << x[eInd[e]] << endl;
-    //cout << x_init[eInd[e]] << endl;
-    //}
-    //psMesh->addEdgeScalarQuantity("Initial Guess", x_init);
     psMesh->addEdgeScalarQuantity("Final Solution", sol);
     psMesh->addVertexScalarQuantity("curvature",
             geometry->vertexGaussianCurvatures);
