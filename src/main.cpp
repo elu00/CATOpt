@@ -31,7 +31,7 @@ using namespace monty;
 using std::vector;
 using std::tuple;
 using std::make_tuple;
-typedef std::tuple<Face, size_t, size_t> bindex;
+using Eigen::VectorXd
 
 // == Geometry-central data
 unique_ptr<HalfedgeMesh> mesh;
@@ -65,7 +65,7 @@ vector<double> ineqRHS1;
 size_t subdiv_level = 8;
 vector<Vector3> subdiv_points;
 //vector<Vector3> grad;
-std::map<bindex, size_t> indexing;
+std::map<std::tuple<Face, size_t, size_t>, size_t> indexing;
 std::map<size_t, std::map<size_t, Edge>> intrinsicEdgeMap;
 vector<tuple<size_t, size_t, double>> correct_dist;
 Eigen::SparseMatrix<double> bendingMatrix;
@@ -427,7 +427,7 @@ void buildIntrinsicMesh() {
 /*
  * Optimization code
  */
-double objective(vector<Vector3> x) {
+double objective(const VectorXd &x1, const VectorXd &x2, const VectorXd &x3) {
     double result = 0.;
     int i1, i2;
     double distsq, diff;
@@ -439,65 +439,94 @@ double objective(vector<Vector3> x) {
         diff = (norm2(x[i1] - x[i2]) - distsq);
         result += diff * diff;
     }
+    // bending energy
+    result += 0.5 * (bendingMatrix * x1).dot(x1);
+    result += 0.5 * (bendingMatrix * x2).dot(x2);
+    result += 0.5 * (bendingMatrix * x3).dot(x3);
     return result;
 }
-vector<Vector3> gradient(vector<Vector3> x) {
+tuple<VectorXd, VectorXd, VectorXd> gradient(const VectorXd &x1, const VectorXd &x2, const VectorXd &x3) {
     int i1, i2;
-    double distsq, diff;
-    //zero out gradient
-    vector<Vector3> grad (subdiv_points.size(), Vector3{0.,0.,0.});
+    double distsq, actualDistsq, diff;
+    VectorXd grad1 = VectorXd.Zero(subdiv_points.size())
+    VectorXd grad2 = VectorXd.Zero(subdiv_points.size())
+    VectorXd grad3 = VectorXd.Zero(subdiv_points.size())
     for (auto t: correct_dist) {
         i1 = std::get<0>(t);
         i2 = std::get<1>(t);
         distsq = std::get<2>(t);
-        diff = (norm2(x[i1] - x[i2]) - distsq);
+        actualDistsq = (x1[i1] - x1[i2]) * (x1[i1] - x1[i2]);
+        actualDistsq += (x2[i1] - x2[i2]) * (x2[i1] - x2[i2]);
+        actualDistsq += (x3[i1] - x3[i2]) * (x3[i1] - x3[i2]);
+        diff = actualDistsq - distsq;
         // update gradient
-        grad[i1] += 4. * diff * (x[i1] - x[i2]);
-        grad[i2] += 4. * diff * (x[i2] - x[i1]);
+        grad1[i1] += 4. * diff * (x1[i1] - x1[i2]);
+        grad1[i2] += 4. * diff * (x1[i2] - x1[i1]);
+        grad2[i1] += 4. * diff * (x2[i1] - x2[i2]);
+        grad2[i2] += 4. * diff * (x2[i2] - x2[i1]);
+        grad3[i1] += 4. * diff * (x3[i1] - x3[i2]);
+        grad3[i2] += 4. * diff * (x3[i2] - x3[i1]);
+
     }
-    return grad;
+    // bending energy
+    grad1 += bendingMatrix * x1; 
+    grad2 += bendingMatrix * x2; 
+    grad3 += bendingMatrix * x3; 
+    return make_tuple(grad1, grad2, grad3);
 }
 
-double grad_norm_sq(vector<Vector3> grad) {
-    double result = 0.;
-    for (auto v: grad) {
-        result += norm2(v);
-    }
-    return result;
+double grad_norm_sq(const VectorXd &grad1, const VectorXd &grad2, const VectorXd &grad3) {
+    return grad1.squaredNorm() + grad2.squaredNorm() + grad3.squaredNorm();
 }
 
 vector<Vector3> descent() {
     cout << "Starting descent" << endl;
-    buildIntrinsicMesh();
+
     // Building bending energy
+    buildIntrinsicMesh();
     IntrinsicGeometry->requireCotanLaplacian();
     IntrinsicGeometry->requireVertexLumpedMassMatrix();
     auto L = IntrinsicGeometry->cotanLaplacian;
     auto M = IntrinsicGeometry->vertexLumpedMassMatrix.diagonal().asDiagonal().inverse();
     bendingMatrix = L.transpose() * M * L;
     cout << "bending matrix made" << endl;
+
     size_t iter = 0;
     double result;
     double t = 1.0;
-    vector<Vector3> grad (subdiv_points.size(), Vector3{1.,0.,0.});
+    VectorXd grad1;
+    VectorXd grad2;
+    VectorXd grad3;
     double grad_size = 1.;
-    vector<Vector3> x = subdiv_points;
-    vector<Vector3> x_new = subdiv_points;
+    VectorXd x1 (subdiv_points.size());
+    VectorXd x2 (subdiv_points.size());
+    VectorXd x3 (subdiv_points.size());
+    for (int i = 0; i < subdiv_points.size(); i++) {
+        x1[i] = subdiv_points[i].x;
+        x2[i] = subdiv_points[i].y;
+        x3[i] = subdiv_points[i].z;
+    }
+    VectorXd x = subdiv_points;
+    VectorXd x1_new = x1;
+    VectorXd x2_new = x2;
+    VectorXd x3_new = x3;
     while (sqrt(grad_size) > ep) {
-        double result = objective(x);
-        grad = gradient(x);
-        grad_size = grad_norm_sq(grad);
+        double result = objective(x1,x2,x3);
+        std::tie(grad1, grad2, grad3) = gradient(x1,x2,x3);
+        grad_size = grad_norm_sq(grad1, grad2, grad3);
         t = 1.;
-        for (int i = 0; i < subdiv_points.size(); i++) {
-            x_new[i] = x[i] - t * grad[i];
-        }
-        while (objective(x_new) > result - alpha * t * grad_size) {
+        x_new1 = x1 - t * grad1;
+        x_new2 = x2 - t * grad2;
+        x_new3 = x3 - t * grad3;
+        while (objective(x_new1, x_new2, x_new3) > result - alpha * t * grad_size) {
             t = beta * t;
-            for (int i = 0; i < subdiv_points.size(); i++) {
-                x_new[i] = x[i] - t * grad[i];
-            }
+            x_new1 = x1 - t * grad1;
+            x_new2 = x2 - t * grad2;
+            x_new3 = x3 - t * grad3;
         }
-        x = x_new;
+        x1 = x_new1;
+        x2 = x_new2;
+        x3 = x_new3;
         if (iter % 1000 == 0) {
             cout << "Starting iteration " << iter << endl;
             cout << "grad size squared:" << grad_size << endl;
@@ -507,8 +536,14 @@ vector<Vector3> descent() {
     }
     cout << "iteration count: " << iter << endl;
     cout << "grad size:" << sqrt(grad_size) << endl;
-    cout << "objective:" << objective(x) << endl;
-    return x;
+    cout << "objective:" << objective(x1,x2,x3) << endl;
+    vector<Vector3> pos = subdiv_points;
+    for (int i = 0; i < subdiv_points.size(); i++) {
+        pos[i].x = x1[i];
+        pos[i].y = x2[i];
+        pos[i].z = x3[i];
+    }
+    return result;
 }
 void buildNewMesh() {
     VertexData<Vector3> positions(*CATmesh);
@@ -524,23 +559,10 @@ void buildNewMesh() {
 }
 void generateVisualization() {
     // Visualization
-    //EdgeData<double> initialGuess(*mesh);
-    //EdgeData<double> finalSolution(*mesh);
-    //for (Edge e : mesh->edges())
-    //{
-    //    initialGuess[e] = x_init[eInd[e]];
-    //    finalSolution[e] = x[eInd[e]];
-    //cout << x[eInd[e]] << endl;
-    //cout << x_init[eInd[e]] << endl;
-    //}
-    //psMesh->addEdgeScalarQuantity("Initial Guess", x_init);
     psMesh->addEdgeScalarQuantity("Final Solution", sol);
     psMesh->addVertexScalarQuantity("curvature",
             geometry->vertexGaussianCurvatures);
     cout << "No of subdivision points:" << subdiv_points.size();
-
-    //polyscope::registerPointCloud("Initial Subdivision", subdiv_points);
-    //polyscope::registerPointCloud("Final Subdivision", fin);
 }
 void generateSVGs() {
     int n = 0;
@@ -615,3 +637,4 @@ int main(int argc, char **argv) {
 
     return EXIT_SUCCESS;
 }
+
