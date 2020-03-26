@@ -1,5 +1,6 @@
 #include "geometrycentral/surface/halfedge_mesh.h"
 #include "geometrycentral/surface/meshio.h"
+#include "geometrycentral/surface/edge_length_geometry.h"
 #include "geometrycentral/surface/vertex_position_geometry.h"
 #include "geometrycentral/numerical/linear_solvers.h"
 
@@ -35,6 +36,8 @@ typedef std::tuple<Face, size_t, size_t> bindex;
 // == Geometry-central data
 unique_ptr<HalfedgeMesh> mesh;
 unique_ptr<VertexPositionGeometry> geometry;
+
+unique_ptr<EdgeLengthGeometry> IntrinsicGeometry;
 unique_ptr<HalfedgeMesh> CATmesh;
 unique_ptr<VertexPositionGeometry> CATgeometry;
 
@@ -63,10 +66,13 @@ size_t subdiv_level = 8;
 vector<Vector3> subdiv_points;
 //vector<Vector3> grad;
 std::map<bindex, size_t> indexing;
+std::map<size_t, std::map<size_t, Edge>> intrinsicEdgeMap;
 vector<tuple<size_t, size_t, double>> correct_dist;
+Eigen::SparseMatrix<double> bendingMatrix;
 double alpha = 0.2;
 double beta = 0.5;
-double ep = 1e-5;
+double ep = 1e-4;
+double bendingWeight = 1e-4;
 vector<Vector3> fin;
 
 // Polyscope visualization handle, to quickly add data to the surface
@@ -188,6 +194,81 @@ inline double i_coord(size_t j, size_t k) {
 }
 inline double to_bary(size_t i) {
     return ((double)i)/subdiv_level;
+}
+void buildConnectivity() {
+    vector<vector<size_t>> polygons;
+    for (Face f: mesh->faces()) {
+        for (size_t j = 0; j < subdiv_level; j++) {
+            for (size_t k = 0; k < subdiv_level - j; k++) {
+                size_t index1 = get_index(f, j, k);
+                // right and up 1
+                size_t index2 = get_index(f, j, k + 1);
+                // right 1
+                size_t index3 = get_index(f, j + 1, k);
+                // right and down
+                size_t index4 = get_index(f, j + 1, k - 1);
+                polygons.push_back({index1, index3, index2});
+                if (index4 != -1) polygons.push_back({index1, index4, index3});
+            } 
+        }
+    }
+    CATmesh = std::unique_ptr<HalfedgeMesh> (new HalfedgeMesh(polygons));
+    VertexData<size_t> vMap = CATmesh->getVertexIndices();
+    for (Edge e : CATmesh->edges()) {
+        size_t v1 = vMap[e.halfedge().vertex()];
+        size_t v2 = vMap[e.halfedge().twin().vertex()];
+        intrinsicEdgeMap[v1][v2] = e;
+        intrinsicEdgeMap[v2][v1] = e;
+    }
+}
+void initializeEdgeLengths() {
+// initialization of "correct" lengths
+    for (Face f: mesh->faces())
+    {
+        size_t j_, k_;
+        size_t index1, index2;
+        double dist;
+        double ij, jk, ki, a_ij, a_jk, a_ki;
+        Halfedge h = f.halfedge();
+        ij = geometry->edgeLength(h.edge());
+        a_ij = (sol)[eInd[h.edge()]];
+        h = h.next();
+        jk = geometry->edgeLength(h.edge());
+        a_jk = (sol)[eInd[h.edge()]];
+        h = h.next();
+        ki = geometry->edgeLength(h.edge());
+        a_ki = (sol)[eInd[h.edge()]];
+
+        for (size_t j = 0; j <= subdiv_level; j++) {
+            for (size_t k = 0; k <= subdiv_level - j; k++) {
+                index1 = get_index(f, j, k);
+                // right and up 1
+                j_ = j;
+                k_ = k + 1;
+                index2 = get_index(f, j_, k_);
+                if (index2 != -1) {
+                    dist = l2DistSquared(ij, jk, ki, a_ij, a_jk, a_ki, i_coord(j,k), to_bary(j), to_bary(k), i_coord(j_, k_), to_bary(j_), to_bary(k_));
+                    correct_dist.push_back(make_tuple(index1, index2, dist));
+                }
+                // right 1
+                j_ = j + 1;
+                k_ = k;
+                index2 = get_index(f, j_, k_);
+                if (index2 != -1) {
+                    dist = l2DistSquared(ij, jk, ki, a_ij, a_jk, a_ki, i_coord(j,k), to_bary(j), to_bary(k), i_coord(j_, k_), to_bary(j_), to_bary(k_));
+                    correct_dist.push_back(make_tuple(index1, index2, dist));
+                }
+                // right and down
+                j_ = j + 1;
+                k_ = k - 1;
+                index2 = get_index(f, j_, k_);
+                if (index2 != -1) {
+                    dist = l2DistSquared(ij, jk, ki, a_ij, a_jk, a_ki, i_coord(j,k), to_bary(j), to_bary(k), i_coord(j_, k_), to_bary(j_), to_bary(k_));
+                    correct_dist.push_back(make_tuple(index1, index2, dist));
+                }
+            }
+        }
+    }
 }
 void subdivision() {
     EdgeData<size_t> eStart(*mesh, -1);
@@ -327,55 +408,21 @@ void subdivision() {
             }
         }
     }
+    initializeEdgeLengths();
+    buildConnectivity();
+    
 
-    // initialization of "correct" lengths
-    for (Face f: mesh->faces())
-    {
-        size_t j_, k_;
-        size_t index1, index2;
-        double dist;
-        double ij, jk, ki, a_ij, a_jk, a_ki;
-        Halfedge h = f.halfedge();
-        ij = geometry->edgeLength(h.edge());
-        a_ij = (sol)[eInd[h.edge()]];
-        h = h.next();
-        jk = geometry->edgeLength(h.edge());
-        a_jk = (sol)[eInd[h.edge()]];
-        h = h.next();
-        ki = geometry->edgeLength(h.edge());
-        a_ki = (sol)[eInd[h.edge()]];
-
-        for (size_t j = 0; j <= subdiv_level; j++) {
-            for (size_t k = 0; k <= subdiv_level - j; k++) {
-                index1 = get_index(f, j, k);
-                // right and up 1
-                j_ = j;
-                k_ = k + 1;
-                index2 = get_index(f, j_, k_);
-                if (index2 != -1) {
-                    dist = l2DistSquared(ij, jk, ki, a_ij, a_jk, a_ki, i_coord(j,k), to_bary(j), to_bary(k), i_coord(j_, k_), to_bary(j_), to_bary(k_));
-                    correct_dist.push_back(make_tuple(index1, index2, dist));
-                }
-                // right 1
-                j_ = j + 1;
-                k_ = k;
-                index2 = get_index(f, j_, k_);
-                if (index2 != -1) {
-                    dist = l2DistSquared(ij, jk, ki, a_ij, a_jk, a_ki, i_coord(j,k), to_bary(j), to_bary(k), i_coord(j_, k_), to_bary(j_), to_bary(k_));
-                    correct_dist.push_back(make_tuple(index1, index2, dist));
-                }
-                // right and down
-                j_ = j + 1;
-                k_ = k - 1;
-                index2 = get_index(f, j_, k_);
-                if (index2 != -1) {
-                    dist = l2DistSquared(ij, jk, ki, a_ij, a_jk, a_ki, i_coord(j,k), to_bary(j), to_bary(k), i_coord(j_, k_), to_bary(j_), to_bary(k_));
-                    correct_dist.push_back(make_tuple(index1, index2, dist));
-                }
-            }
-        }
+}
+void buildIntrinsicMesh() {
+    EdgeData<double> edgeLengths (*CATmesh);
+    size_t i1, i2;
+    for (auto t: correct_dist) {
+        i1 = std::get<0>(t);
+        i2 = std::get<1>(t);
+        double distsq = std::get<2>(t);
+        edgeLengths[intrinsicEdgeMap[i1][i2]] = sqrt(distsq);
     }
-
+    IntrinsicGeometry = std::unique_ptr<EdgeLengthGeometry> (new EdgeLengthGeometry(*CATmesh, edgeLengths));
 }
 /*
  * Optimization code
@@ -421,6 +468,14 @@ double grad_norm_sq(vector<Vector3> grad) {
 
 vector<Vector3> descent() {
     cout << "Starting descent" << endl;
+    buildIntrinsicMesh();
+    // Building bending energy
+    IntrinsicGeometry->requireCotanLaplacian();
+    IntrinsicGeometry->requireVertexLumpedMassMatrix();
+    auto L = IntrinsicGeometry->cotanLaplacian;
+    auto M = IntrinsicGeometry->vertexLumpedMassMatrix.diagonal().asDiagonal().inverse();
+    bendingMatrix = L.transpose() * M * L;
+    cout << "bending matrix made" << endl;
     size_t iter = 0;
     double result;
     double t = 1.0;
@@ -456,29 +511,6 @@ vector<Vector3> descent() {
     return x;
 }
 void buildNewMesh() {
-    std::vector<std::vector<size_t>> polygons;
-    for (Face f: mesh->faces()) {
-        for (size_t j = 0; j < subdiv_level; j++) {
-            for (size_t k = 0; k < subdiv_level - j; k++) {
-                size_t index1 = get_index(f, j, k);
-                // right and up 1
-                size_t index2 = get_index(f, j, k + 1);
-                // right 1
-                size_t index3 = get_index(f, j + 1, k);
-                // right and down
-                size_t index4 = get_index(f, j + 1, k - 1);
-                /*
-                vector<size_t> temp1 = {index1, index3, index2};
-                vector<size_t> temp2 = {index1, index4, index3};
-                polygons.push_back(temp1);
-                if (index4 != -1)  polygons.push_back(temp2);
-                */
-                polygons.push_back({index1, index3, index2});
-                if (index4 != -1) polygons.push_back({index1, index4, index3});
-            } 
-        }
-    }
-    CATmesh = std::unique_ptr<HalfedgeMesh> (new HalfedgeMesh(polygons));
     VertexData<Vector3> positions(*CATmesh);
     for (size_t i = 0; i < fin.size(); i++) {
         positions[i] = fin[i];
@@ -507,8 +539,8 @@ void generateVisualization() {
             geometry->vertexGaussianCurvatures);
     cout << "No of subdivision points:" << subdiv_points.size();
 
-    polyscope::registerPointCloud("Initial Subdivision", subdiv_points);
-    polyscope::registerPointCloud("Final Subdivision", fin);
+    //polyscope::registerPointCloud("Initial Subdivision", subdiv_points);
+    //polyscope::registerPointCloud("Final Subdivision", fin);
 }
 void generateSVGs() {
     int n = 0;
@@ -559,7 +591,7 @@ int main(int argc, char **argv) {
     polyscope::init();
 
     // Load mesh
-  std::tie(mesh, geometry) = loadMesh(args::get(inputFilename));
+    std::tie(mesh, geometry) = loadMesh(args::get(inputFilename));
 
     // Register the mesh with polyscope
     psMesh = polyscope::registerSurfaceMesh(
