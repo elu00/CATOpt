@@ -1,4 +1,4 @@
-#include <SolverInfo.h>
+#include "SolverInfo.h"
 namespace mosek {
 namespace fusion {
   std::vector<std::string> SolverInfo::dinfnames  {

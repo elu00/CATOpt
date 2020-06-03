@@ -5,7 +5,6 @@
 [submodule "deps/polyscope"]
 	path = deps/polyscope
 	url = https://github.com/nmwsharp/polyscope.git
-	branch = v02
 [submodule "deps/catviz"]
 	path = deps/catviz
 	url = https://github.com/elu00/catviz

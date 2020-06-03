@@ -7,7 +7,7 @@
 #include <map>
 #include <memory>
 #include <cassert>
-#include <SolverInfo.h>
+#include "SolverInfo.h"
 
 #include "mosektask_p.h"
 
