@@ -10,6 +10,19 @@ namespace mosek
 {
 namespace fusion
 {
+enum class Opcode
+{
+NOP,
+PARAM,
+CONST,
+ADD,
+NEG,
+MUL,
+INV,
+SUM,
+ZERO
+};
+std::ostream & operator<<(std::ostream & os, Opcode val);
 enum class RelationKey
 {
 EqualsTo,
@@ -117,8 +130,6 @@ monty::rc_ptr< ::mosek::fusion::Expression > slice(std::shared_ptr< monty::ndarr
 virtual monty::rc_ptr< ::mosek::fusion::Expression > __mosek_2fusion_2Expression__slice(int first,int last) = 0;
 monty::rc_ptr< ::mosek::fusion::Expression > slice(int first,int last);
 virtual void eval(monty::rc_ptr< ::mosek::fusion::WorkStack > rs,monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs) = 0;
-virtual monty::rc_ptr< ::mosek::fusion::FlatExpr > __mosek_2fusion_2Expression__eval() = 0;
-monty::rc_ptr< ::mosek::fusion::FlatExpr > eval();
 virtual int getND() = 0;
 virtual int getDim(int d) = 0;
 virtual long long getSize() = 0;
@@ -136,12 +147,17 @@ virtual std::string toString() = 0;
 virtual int numInst() = 0;
 virtual int inst(int spoffset,std::shared_ptr< monty::ndarray< long long,1 > > sparsity,int nioffset,std::shared_ptr< monty::ndarray< long long,1 > > nativeidxs) = 0;
 virtual void inst(int offset,std::shared_ptr< monty::ndarray< long long,1 > > nativeidxs) = 0;
+virtual void remove() = 0;
 virtual int getND() = 0;
 virtual std::shared_ptr< monty::ndarray< int,1 > > getShape() = 0;
 virtual monty::rc_ptr< ::mosek::fusion::Model > __mosek_2fusion_2Variable__getModel() = 0;
 monty::rc_ptr< ::mosek::fusion::Model > getModel();
 virtual long long getSize() = 0;
 virtual void setLevel(std::shared_ptr< monty::ndarray< double,1 > > v) = 0;
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__fromTril(int dim) = 0;
+monty::rc_ptr< ::mosek::fusion::Variable > fromTril(int dim);
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__tril() = 0;
+monty::rc_ptr< ::mosek::fusion::Variable > tril();
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__reshape(int dim0,int dim1,int dim2) = 0;
 monty::rc_ptr< ::mosek::fusion::Variable > reshape(int dim0,int dim1,int dim2);
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__reshape(int dim0,int dim1) = 0;
@@ -206,6 +222,42 @@ typedef monty::rc_ptr< SymmetricVariable > t;
 virtual void destroy() = 0;
 virtual ~SymmetricVariable() {};
 }; // interface SymmetricVariable;
+
+class /*interface*/ Parameter : public virtual ::mosek::fusion::Expression
+{
+public:
+typedef monty::rc_ptr< Parameter > t;
+
+virtual void destroy() = 0;
+virtual ~Parameter() {};
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Parameter__clone(monty::rc_ptr< ::mosek::fusion::Model > m) = 0;
+monty::rc_ptr< ::mosek::fusion::Parameter > clone(monty::rc_ptr< ::mosek::fusion::Model > m);
+virtual monty::rc_ptr< ::mosek::fusion::Model > __mosek_2fusion_2Parameter__getModel() = 0;
+monty::rc_ptr< ::mosek::fusion::Model > getModel();
+virtual long long getSize() = 0;
+virtual void getAllIndexes(std::shared_ptr< monty::ndarray< int,1 > > dst,int ofs) = 0;
+virtual int getIndex(int i) = 0;
+virtual void getSp(std::shared_ptr< monty::ndarray< long long,1 > > dest,int offset) = 0;
+virtual std::shared_ptr< monty::ndarray< int,1 > > getShape() = 0;
+virtual int getND() = 0;
+virtual int getDim(int i) = 0;
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Parameter__slice(std::shared_ptr< monty::ndarray< int,1 > > astart,std::shared_ptr< monty::ndarray< int,1 > > astop) = 0;
+monty::rc_ptr< ::mosek::fusion::Parameter > slice(std::shared_ptr< monty::ndarray< int,1 > > astart,std::shared_ptr< monty::ndarray< int,1 > > astop);
+virtual monty::rc_ptr< ::mosek::fusion::Expression > __mosek_2fusion_2Expression__slice(std::shared_ptr< monty::ndarray< int,1 > > firsta,std::shared_ptr< monty::ndarray< int,1 > > lasta);
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Parameter__slice(int start,int stop) = 0;
+monty::rc_ptr< ::mosek::fusion::Parameter > slice(int start,int stop);
+virtual monty::rc_ptr< ::mosek::fusion::Expression > __mosek_2fusion_2Expression__slice(int first,int last);
+virtual bool isSparse() = 0;
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Parameter__reshape(std::shared_ptr< monty::ndarray< int,1 > > dims) = 0;
+monty::rc_ptr< ::mosek::fusion::Parameter > reshape(std::shared_ptr< monty::ndarray< int,1 > > dims);
+virtual int getNumNonzero() = 0;
+virtual monty::rc_ptr< ::mosek::fusion::Expression > __mosek_2fusion_2Parameter__asExpr() = 0;
+monty::rc_ptr< ::mosek::fusion::Expression > asExpr();
+virtual std::shared_ptr< monty::ndarray< double,1 > > getValue() = 0;
+virtual void setValue(std::shared_ptr< monty::ndarray< double,2 > > values2) = 0;
+virtual void setValue(std::shared_ptr< monty::ndarray< double,1 > > values) = 0;
+virtual void setValue(double value) = 0;
+}; // interface Parameter;
 
 class FusionException : public ::monty::Exception
 {
@@ -294,6 +346,17 @@ SliceError();
 SliceError(const std::string &  msg);
 }; // class SliceError;
 
+class UpdateError : public ::mosek::fusion::FusionRuntimeException
+{
+private:
+protected:
+public:
+typedef monty::rc_ptr< UpdateError > t;
+
+UpdateError();
+UpdateError(const std::string &  msg);
+}; // class UpdateError;
+
 class SetDefinitionError : public ::mosek::fusion::FusionRuntimeException
 {
 private:
@@ -323,6 +386,16 @@ typedef monty::rc_ptr< NameError > t;
 
 NameError(const std::string &  msg);
 }; // class NameError;
+
+class DeletionError : public ::mosek::fusion::FusionRuntimeException
+{
+private:
+protected:
+public:
+typedef monty::rc_ptr< DeletionError > t;
+
+DeletionError(const std::string &  msg);
+}; // class DeletionError;
 
 class ModelError : public ::mosek::fusion::FusionRuntimeException
 {
@@ -470,11 +543,13 @@ static void putlicensecode(std::shared_ptr< monty::ndarray< int,1 > > code);
 virtual /* override */ void dispose() ;
 virtual MSKtask_t __mosek_2fusion_2Model__getTask() ;
 MSKtask_t getTask();
+virtual void getConstraintDuals(bool lower,std::shared_ptr< monty::ndarray< int,1 > > nativeidxs,std::shared_ptr< monty::ndarray< double,1 > > res,int offset) ;
 virtual void getConstraintValues(bool primal,std::shared_ptr< monty::ndarray< int,1 > > nativeidxs,std::shared_ptr< monty::ndarray< double,1 > > res,int offset) ;
 virtual void getVariableDuals(bool lower,std::shared_ptr< monty::ndarray< long long,1 > > nativeidxs,std::shared_ptr< monty::ndarray< double,1 > > res,int offset) ;
 virtual void getVariableValues(bool primal,std::shared_ptr< monty::ndarray< long long,1 > > nativeidxs,std::shared_ptr< monty::ndarray< double,1 > > res,int offset) ;
 virtual void setVariableValues(bool primal,std::shared_ptr< monty::ndarray< long long,1 > > nativeidxs,std::shared_ptr< monty::ndarray< double,1 > > values) ;
 virtual void flushNames() ;
+virtual void writeTaskNoFlush(const std::string &  filename) ;
 virtual void writeTask(const std::string &  filename) ;
 virtual long long getSolverLIntInfo(const std::string &  name) ;
 virtual int getSolverIntInfo(const std::string &  name) ;
@@ -486,7 +561,10 @@ virtual void setSolverParam(const std::string &  name,double floatval) ;
 virtual void setSolverParam(const std::string &  name,int intval) ;
 virtual void setSolverParam(const std::string &  name,const std::string &  strval) ;
 virtual void breakSolver() ;
+virtual void optserverHost(const std::string &  addr) ;
+virtual void solve(const std::string &  server,const std::string &  port) ;
 virtual void solve() ;
+virtual void flushParameters() ;
 virtual void flushSolutions() ;
 virtual mosek::fusion::SolutionStatus getDualSolutionStatus() ;
 virtual mosek::fusion::ProblemStatus getProblemStatus() ;
@@ -500,6 +578,34 @@ virtual mosek::fusion::ProblemStatus getProblemStatus(mosek::fusion::SolutionTyp
 virtual mosek::fusion::SolutionStatus getDualSolutionStatus(mosek::fusion::SolutionType which) ;
 virtual mosek::fusion::SolutionStatus getPrimalSolutionStatus(mosek::fusion::SolutionType which) ;
 virtual void updateObjective(monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::Variable > x) ;
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Model__parameter(const std::string &  name) ;
+monty::rc_ptr< ::mosek::fusion::Parameter > parameter(const std::string &  name);
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Model__parameter(const std::string &  name,int d1,int d2,int d3) ;
+monty::rc_ptr< ::mosek::fusion::Parameter > parameter(const std::string &  name,int d1,int d2,int d3);
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Model__parameter(const std::string &  name,int d1,int d2) ;
+monty::rc_ptr< ::mosek::fusion::Parameter > parameter(const std::string &  name,int d1,int d2);
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Model__parameter(const std::string &  name,int d1) ;
+monty::rc_ptr< ::mosek::fusion::Parameter > parameter(const std::string &  name,int d1);
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Model__parameter(const std::string &  name,std::shared_ptr< monty::ndarray< int,1 > > shape) ;
+monty::rc_ptr< ::mosek::fusion::Parameter > parameter(const std::string &  name,std::shared_ptr< monty::ndarray< int,1 > > shape);
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Model__parameter(const std::string &  name,std::shared_ptr< monty::ndarray< int,1 > > shape,std::shared_ptr< monty::ndarray< long long,1 > > sp) ;
+monty::rc_ptr< ::mosek::fusion::Parameter > parameter(const std::string &  name,std::shared_ptr< monty::ndarray< int,1 > > shape,std::shared_ptr< monty::ndarray< long long,1 > > sp);
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Model__parameter(const std::string &  name,std::shared_ptr< monty::ndarray< int,1 > > shape,std::shared_ptr< monty::ndarray< int,2 > > sparsity) ;
+monty::rc_ptr< ::mosek::fusion::Parameter > parameter(const std::string &  name,std::shared_ptr< monty::ndarray< int,1 > > shape,std::shared_ptr< monty::ndarray< int,2 > > sparsity);
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Model__parameter() ;
+monty::rc_ptr< ::mosek::fusion::Parameter > parameter();
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Model__parameter(int d1,int d2,int d3) ;
+monty::rc_ptr< ::mosek::fusion::Parameter > parameter(int d1,int d2,int d3);
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Model__parameter(int d1,int d2) ;
+monty::rc_ptr< ::mosek::fusion::Parameter > parameter(int d1,int d2);
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Model__parameter(int d1) ;
+monty::rc_ptr< ::mosek::fusion::Parameter > parameter(int d1);
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Model__parameter(std::shared_ptr< monty::ndarray< int,1 > > shape) ;
+monty::rc_ptr< ::mosek::fusion::Parameter > parameter(std::shared_ptr< monty::ndarray< int,1 > > shape);
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Model__parameter(std::shared_ptr< monty::ndarray< int,1 > > shape,std::shared_ptr< monty::ndarray< long long,1 > > sp) ;
+monty::rc_ptr< ::mosek::fusion::Parameter > parameter(std::shared_ptr< monty::ndarray< int,1 > > shape,std::shared_ptr< monty::ndarray< long long,1 > > sp);
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Model__parameter(std::shared_ptr< monty::ndarray< int,1 > > shape,std::shared_ptr< monty::ndarray< int,2 > > sparsity) ;
+monty::rc_ptr< ::mosek::fusion::Parameter > parameter(std::shared_ptr< monty::ndarray< int,1 > > shape,std::shared_ptr< monty::ndarray< int,2 > > sparsity);
 virtual void objective(double c) ;
 virtual void objective(mosek::fusion::ObjectiveSense sense,double c) ;
 virtual void objective(mosek::fusion::ObjectiveSense sense,monty::rc_ptr< ::mosek::fusion::Expression > expr) ;
@@ -510,10 +616,10 @@ virtual monty::rc_ptr< ::mosek::fusion::Constraint > __mosek_2fusion_2Model__con
 monty::rc_ptr< ::mosek::fusion::Constraint > constraint(monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::ConeDomain > qdom);
 virtual monty::rc_ptr< ::mosek::fusion::Constraint > __mosek_2fusion_2Model__constraint(const std::string &  name,monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::ConeDomain > qdom) ;
 monty::rc_ptr< ::mosek::fusion::Constraint > constraint(const std::string &  name,monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::ConeDomain > qdom);
-virtual monty::rc_ptr< ::mosek::fusion::Constraint > __mosek_2fusion_2Model__constraint(monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom) ;
-monty::rc_ptr< ::mosek::fusion::Constraint > constraint(monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom);
-virtual monty::rc_ptr< ::mosek::fusion::Constraint > __mosek_2fusion_2Model__constraint(const std::string &  name,monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom) ;
-monty::rc_ptr< ::mosek::fusion::Constraint > constraint(const std::string &  name,monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom);
+virtual monty::rc_ptr< ::mosek::fusion::RangedConstraint > __mosek_2fusion_2Model__constraint(monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom) ;
+monty::rc_ptr< ::mosek::fusion::RangedConstraint > constraint(monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom);
+virtual monty::rc_ptr< ::mosek::fusion::RangedConstraint > __mosek_2fusion_2Model__constraint(const std::string &  name,monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom) ;
+monty::rc_ptr< ::mosek::fusion::RangedConstraint > constraint(const std::string &  name,monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom);
 virtual monty::rc_ptr< ::mosek::fusion::Constraint > __mosek_2fusion_2Model__constraint(monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::LinearDomain > ldom) ;
 monty::rc_ptr< ::mosek::fusion::Constraint > constraint(monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::LinearDomain > ldom);
 virtual monty::rc_ptr< ::mosek::fusion::Constraint > __mosek_2fusion_2Model__constraint(const std::string &  name,monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::LinearDomain > ldom) ;
@@ -556,22 +662,22 @@ virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__varia
 monty::rc_ptr< ::mosek::fusion::Variable > variable(const std::string &  name,std::shared_ptr< monty::ndarray< int,1 > > shp,monty::rc_ptr< ::mosek::fusion::PSDDomain > psddom);
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(monty::rc_ptr< ::mosek::fusion::ConeDomain > qdom) ;
 monty::rc_ptr< ::mosek::fusion::Variable > variable(monty::rc_ptr< ::mosek::fusion::ConeDomain > qdom);
-virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom) ;
-monty::rc_ptr< ::mosek::fusion::Variable > variable(monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom);
+virtual monty::rc_ptr< ::mosek::fusion::RangedVariable > __mosek_2fusion_2Model__variable(monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom) ;
+monty::rc_ptr< ::mosek::fusion::RangedVariable > variable(monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom);
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(monty::rc_ptr< ::mosek::fusion::LinearDomain > ldom) ;
 monty::rc_ptr< ::mosek::fusion::Variable > variable(monty::rc_ptr< ::mosek::fusion::LinearDomain > ldom);
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(std::shared_ptr< monty::ndarray< int,1 > > shp,monty::rc_ptr< ::mosek::fusion::ConeDomain > qdom) ;
 monty::rc_ptr< ::mosek::fusion::Variable > variable(std::shared_ptr< monty::ndarray< int,1 > > shp,monty::rc_ptr< ::mosek::fusion::ConeDomain > qdom);
-virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(std::shared_ptr< monty::ndarray< int,1 > > shp,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom) ;
-monty::rc_ptr< ::mosek::fusion::Variable > variable(std::shared_ptr< monty::ndarray< int,1 > > shp,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom);
+virtual monty::rc_ptr< ::mosek::fusion::RangedVariable > __mosek_2fusion_2Model__variable(std::shared_ptr< monty::ndarray< int,1 > > shp,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom) ;
+monty::rc_ptr< ::mosek::fusion::RangedVariable > variable(std::shared_ptr< monty::ndarray< int,1 > > shp,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom);
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(std::shared_ptr< monty::ndarray< int,1 > > shp,monty::rc_ptr< ::mosek::fusion::LinearDomain > ldom) ;
 monty::rc_ptr< ::mosek::fusion::Variable > variable(std::shared_ptr< monty::ndarray< int,1 > > shp,monty::rc_ptr< ::mosek::fusion::LinearDomain > ldom);
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(std::shared_ptr< monty::ndarray< int,1 > > shp) ;
 monty::rc_ptr< ::mosek::fusion::Variable > variable(std::shared_ptr< monty::ndarray< int,1 > > shp);
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(int size,monty::rc_ptr< ::mosek::fusion::ConeDomain > qdom) ;
 monty::rc_ptr< ::mosek::fusion::Variable > variable(int size,monty::rc_ptr< ::mosek::fusion::ConeDomain > qdom);
-virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(int size,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom) ;
-monty::rc_ptr< ::mosek::fusion::Variable > variable(int size,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom);
+virtual monty::rc_ptr< ::mosek::fusion::RangedVariable > __mosek_2fusion_2Model__variable(int size,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom) ;
+monty::rc_ptr< ::mosek::fusion::RangedVariable > variable(int size,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom);
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(int size,monty::rc_ptr< ::mosek::fusion::LinearDomain > ldom) ;
 monty::rc_ptr< ::mosek::fusion::Variable > variable(int size,monty::rc_ptr< ::mosek::fusion::LinearDomain > ldom);
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(int size) ;
@@ -580,22 +686,22 @@ virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__varia
 monty::rc_ptr< ::mosek::fusion::Variable > variable();
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(const std::string &  name,monty::rc_ptr< ::mosek::fusion::ConeDomain > qdom) ;
 monty::rc_ptr< ::mosek::fusion::Variable > variable(const std::string &  name,monty::rc_ptr< ::mosek::fusion::ConeDomain > qdom);
-virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(const std::string &  name,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom) ;
-monty::rc_ptr< ::mosek::fusion::Variable > variable(const std::string &  name,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom);
+virtual monty::rc_ptr< ::mosek::fusion::RangedVariable > __mosek_2fusion_2Model__variable(const std::string &  name,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom) ;
+monty::rc_ptr< ::mosek::fusion::RangedVariable > variable(const std::string &  name,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom);
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(const std::string &  name,monty::rc_ptr< ::mosek::fusion::LinearDomain > ldom) ;
 monty::rc_ptr< ::mosek::fusion::Variable > variable(const std::string &  name,monty::rc_ptr< ::mosek::fusion::LinearDomain > ldom);
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(const std::string &  name,std::shared_ptr< monty::ndarray< int,1 > > shp,monty::rc_ptr< ::mosek::fusion::ConeDomain > qdom) ;
 monty::rc_ptr< ::mosek::fusion::Variable > variable(const std::string &  name,std::shared_ptr< monty::ndarray< int,1 > > shp,monty::rc_ptr< ::mosek::fusion::ConeDomain > qdom);
-virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(const std::string &  name,std::shared_ptr< monty::ndarray< int,1 > > shp,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom) ;
-monty::rc_ptr< ::mosek::fusion::Variable > variable(const std::string &  name,std::shared_ptr< monty::ndarray< int,1 > > shp,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom);
+virtual monty::rc_ptr< ::mosek::fusion::RangedVariable > __mosek_2fusion_2Model__variable(const std::string &  name,std::shared_ptr< monty::ndarray< int,1 > > shp,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom) ;
+monty::rc_ptr< ::mosek::fusion::RangedVariable > variable(const std::string &  name,std::shared_ptr< monty::ndarray< int,1 > > shp,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom);
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(const std::string &  name,std::shared_ptr< monty::ndarray< int,1 > > shp,monty::rc_ptr< ::mosek::fusion::LinearDomain > ldom) ;
 monty::rc_ptr< ::mosek::fusion::Variable > variable(const std::string &  name,std::shared_ptr< monty::ndarray< int,1 > > shp,monty::rc_ptr< ::mosek::fusion::LinearDomain > ldom);
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(const std::string &  name,std::shared_ptr< monty::ndarray< int,1 > > shp) ;
 monty::rc_ptr< ::mosek::fusion::Variable > variable(const std::string &  name,std::shared_ptr< monty::ndarray< int,1 > > shp);
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(const std::string &  name,int size,monty::rc_ptr< ::mosek::fusion::ConeDomain > qdom) ;
 monty::rc_ptr< ::mosek::fusion::Variable > variable(const std::string &  name,int size,monty::rc_ptr< ::mosek::fusion::ConeDomain > qdom);
-virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(const std::string &  name,int size,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom) ;
-monty::rc_ptr< ::mosek::fusion::Variable > variable(const std::string &  name,int size,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom);
+virtual monty::rc_ptr< ::mosek::fusion::RangedVariable > __mosek_2fusion_2Model__variable(const std::string &  name,int size,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom) ;
+monty::rc_ptr< ::mosek::fusion::RangedVariable > variable(const std::string &  name,int size,monty::rc_ptr< ::mosek::fusion::RangeDomain > rdom);
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(const std::string &  name,int size,monty::rc_ptr< ::mosek::fusion::LinearDomain > ldom) ;
 monty::rc_ptr< ::mosek::fusion::Variable > variable(const std::string &  name,int size,monty::rc_ptr< ::mosek::fusion::LinearDomain > ldom);
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(const std::string &  name,int size) ;
@@ -603,8 +709,11 @@ monty::rc_ptr< ::mosek::fusion::Variable > variable(const std::string &  name,in
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Model__variable(const std::string &  name) ;
 monty::rc_ptr< ::mosek::fusion::Variable > variable(const std::string &  name);
 static std::string getVersion();
+virtual bool hasParameter(const std::string &  name) ;
 virtual bool hasConstraint(const std::string &  name) ;
 virtual bool hasVariable(const std::string &  name) ;
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Model__getParameter(const std::string &  name) ;
+monty::rc_ptr< ::mosek::fusion::Parameter > getParameter(const std::string &  name);
 virtual monty::rc_ptr< ::mosek::fusion::Constraint > __mosek_2fusion_2Model__getConstraint(int index) ;
 monty::rc_ptr< ::mosek::fusion::Constraint > getConstraint(int index);
 virtual monty::rc_ptr< ::mosek::fusion::Constraint > __mosek_2fusion_2Model__getConstraint(const std::string &  name) ;
@@ -846,11 +955,20 @@ typedef monty::rc_ptr< BaseVariable > t;
 
 BaseVariable(monty::rc_ptr< ::mosek::fusion::Model > m,std::shared_ptr< monty::ndarray< int,1 > > shape,std::shared_ptr< monty::ndarray< long long,1 > > sparsity,std::shared_ptr< monty::ndarray< long long,1 > > nativeidxs);
 virtual /* override */ std::string toString() ;
-virtual monty::rc_ptr< ::mosek::fusion::FlatExpr > __mosek_2fusion_2BaseVariable__eval() ;
-monty::rc_ptr< ::mosek::fusion::FlatExpr > eval();
-/* override: mosek.fusion.Expression.eval*/
-virtual monty::rc_ptr< ::mosek::fusion::FlatExpr > __mosek_2fusion_2Expression__eval();
 virtual void eval(monty::rc_ptr< ::mosek::fusion::WorkStack > rs,monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs) ;
+virtual void remove() ;
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BaseVariable__fromTril(int dim0,int d) ;
+monty::rc_ptr< ::mosek::fusion::Variable > fromTril(int dim0,int d);
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BaseVariable__fromTril(int d) ;
+monty::rc_ptr< ::mosek::fusion::Variable > fromTril(int d);
+/* override: mosek.fusion.Variable.fromTril*/
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__fromTril(int d);
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BaseVariable__tril(int dim1,int dim2) ;
+monty::rc_ptr< ::mosek::fusion::Variable > tril(int dim1,int dim2);
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BaseVariable__tril() ;
+monty::rc_ptr< ::mosek::fusion::Variable > tril();
+/* override: mosek.fusion.Variable.tril*/
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__tril();
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BaseVariable__reshape(int dim0,int dim1,int dim2) ;
 monty::rc_ptr< ::mosek::fusion::Variable > reshape(int dim0,int dim1,int dim2);
 /* override: mosek.fusion.Variable.reshape*/
@@ -956,6 +1074,7 @@ virtual void make_integer() ;
 class SliceVariable : public ::mosek::fusion::BaseVariable
 {
 SliceVariable(monty::rc_ptr< ::mosek::fusion::Model > m,std::shared_ptr< monty::ndarray< int,1 > > shape,std::shared_ptr< monty::ndarray< long long,1 > > sparsity,std::shared_ptr< monty::ndarray< long long,1 > > nativeidxs);
+SliceVariable(monty::rc_ptr< ::mosek::fusion::SliceVariable > v);
 protected: SliceVariable(p_SliceVariable * _impl);
 public:
 SliceVariable(const SliceVariable &) = delete;
@@ -966,6 +1085,66 @@ virtual void destroy();
 typedef monty::rc_ptr< SliceVariable > t;
 
 }; // class SliceVariable;
+
+class BoundInterfaceVariable : public ::mosek::fusion::SliceVariable
+{
+BoundInterfaceVariable(monty::rc_ptr< ::mosek::fusion::Model > m,std::shared_ptr< monty::ndarray< int,1 > > shape,std::shared_ptr< monty::ndarray< long long,1 > > sparsity,std::shared_ptr< monty::ndarray< long long,1 > > nativeidxs,bool islower);
+BoundInterfaceVariable(monty::rc_ptr< ::mosek::fusion::SliceVariable > v,bool islower);
+protected: BoundInterfaceVariable(p_BoundInterfaceVariable * _impl);
+public:
+BoundInterfaceVariable(const BoundInterfaceVariable &) = delete;
+const BoundInterfaceVariable & operator=(const BoundInterfaceVariable &) = delete;
+friend class p_BoundInterfaceVariable;
+virtual ~BoundInterfaceVariable();
+virtual void destroy();
+typedef monty::rc_ptr< BoundInterfaceVariable > t;
+
+virtual /* override */ std::shared_ptr< monty::ndarray< double,1 > > dual() ;
+virtual /* override */ monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BoundInterfaceVariable__transpose() ;
+monty::rc_ptr< ::mosek::fusion::Variable > transpose();
+/* override: mosek.fusion.BaseVariable.transpose*/
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BaseVariable__transpose();
+virtual /* override */ monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BoundInterfaceVariable__pick(std::shared_ptr< monty::ndarray< int,1 > > i0,std::shared_ptr< monty::ndarray< int,1 > > i1,std::shared_ptr< monty::ndarray< int,1 > > i2) ;
+monty::rc_ptr< ::mosek::fusion::Variable > pick(std::shared_ptr< monty::ndarray< int,1 > > i0,std::shared_ptr< monty::ndarray< int,1 > > i1,std::shared_ptr< monty::ndarray< int,1 > > i2);
+/* override: mosek.fusion.BaseVariable.pick*/
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BaseVariable__pick(std::shared_ptr< monty::ndarray< int,1 > > i0,std::shared_ptr< monty::ndarray< int,1 > > i1,std::shared_ptr< monty::ndarray< int,1 > > i2);
+virtual /* override */ monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BoundInterfaceVariable__pick(std::shared_ptr< monty::ndarray< int,1 > > i0,std::shared_ptr< monty::ndarray< int,1 > > i1) ;
+monty::rc_ptr< ::mosek::fusion::Variable > pick(std::shared_ptr< monty::ndarray< int,1 > > i0,std::shared_ptr< monty::ndarray< int,1 > > i1);
+/* override: mosek.fusion.BaseVariable.pick*/
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BaseVariable__pick(std::shared_ptr< monty::ndarray< int,1 > > i0,std::shared_ptr< monty::ndarray< int,1 > > i1);
+virtual /* override */ monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BoundInterfaceVariable__pick(std::shared_ptr< monty::ndarray< int,2 > > midxs) ;
+monty::rc_ptr< ::mosek::fusion::Variable > pick(std::shared_ptr< monty::ndarray< int,2 > > midxs);
+/* override: mosek.fusion.BaseVariable.pick*/
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BaseVariable__pick(std::shared_ptr< monty::ndarray< int,2 > > midxs);
+virtual /* override */ monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BoundInterfaceVariable__pick(std::shared_ptr< monty::ndarray< int,1 > > idxs) ;
+monty::rc_ptr< ::mosek::fusion::Variable > pick(std::shared_ptr< monty::ndarray< int,1 > > idxs);
+/* override: mosek.fusion.BaseVariable.pick*/
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BaseVariable__pick(std::shared_ptr< monty::ndarray< int,1 > > idxs);
+virtual /* override */ monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BoundInterfaceVariable__antidiag(int index) ;
+monty::rc_ptr< ::mosek::fusion::Variable > antidiag(int index);
+/* override: mosek.fusion.BaseVariable.antidiag*/
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BaseVariable__antidiag(int index);
+virtual /* override */ monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BoundInterfaceVariable__antidiag() ;
+monty::rc_ptr< ::mosek::fusion::Variable > antidiag();
+/* override: mosek.fusion.BaseVariable.antidiag*/
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BaseVariable__antidiag();
+virtual /* override */ monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BoundInterfaceVariable__diag(int index) ;
+monty::rc_ptr< ::mosek::fusion::Variable > diag(int index);
+/* override: mosek.fusion.BaseVariable.diag*/
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BaseVariable__diag(int index);
+virtual /* override */ monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BoundInterfaceVariable__diag() ;
+monty::rc_ptr< ::mosek::fusion::Variable > diag();
+/* override: mosek.fusion.BaseVariable.diag*/
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BaseVariable__diag();
+virtual /* override */ monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BoundInterfaceVariable__slice(std::shared_ptr< monty::ndarray< int,1 > > firsta,std::shared_ptr< monty::ndarray< int,1 > > lasta) ;
+monty::rc_ptr< ::mosek::fusion::Variable > slice(std::shared_ptr< monty::ndarray< int,1 > > firsta,std::shared_ptr< monty::ndarray< int,1 > > lasta);
+/* override: mosek.fusion.BaseVariable.slice*/
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BaseVariable__slice(std::shared_ptr< monty::ndarray< int,1 > > firsta,std::shared_ptr< monty::ndarray< int,1 > > lasta);
+virtual /* override */ monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BoundInterfaceVariable__slice(int first,int last) ;
+monty::rc_ptr< ::mosek::fusion::Variable > slice(int first,int last);
+/* override: mosek.fusion.BaseVariable.slice*/
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2BaseVariable__slice(int first,int last);
+}; // class BoundInterfaceVariable;
 
 class ModelVariable : public ::mosek::fusion::BaseVariable
 {
@@ -979,6 +1158,7 @@ virtual void destroy();
 typedef monty::rc_ptr< ModelVariable > t;
 
 virtual void elementName(long long index,monty::rc_ptr< ::mosek::fusion::Utils::StringBuffer > sb) ;
+virtual /* override */ void remove() ;
 }; // class ModelVariable;
 
 class SymRangedVariable : public ::mosek::fusion::ModelVariable, public virtual ::mosek::fusion::SymmetricVariable
@@ -1002,6 +1182,7 @@ virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__pi
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__pick(std::shared_ptr< monty::ndarray< int,1 > > idxs) { return ::mosek::fusion::BaseVariable::pick(idxs); }
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__antidiag() { return ::mosek::fusion::BaseVariable::antidiag(); }
 virtual void makeContinuous() { ::mosek::fusion::BaseVariable::makeContinuous(); };
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__fromTril(int d) { return ::mosek::fusion::BaseVariable::fromTril(d); }
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__reshape(int dim0,int dim1,int dim2) { return ::mosek::fusion::BaseVariable::reshape(dim0,dim1,dim2); }
 virtual void set_values(std::shared_ptr< monty::ndarray< double,1 > > values,bool primal) { ::mosek::fusion::BaseVariable::set_values(values,primal); };
 virtual int getND() { return ::mosek::fusion::BaseVariable::getND(); };
@@ -1011,10 +1192,12 @@ virtual void makeInteger() { ::mosek::fusion::BaseVariable::makeInteger(); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__index(int i0,int i1,int i2) { return ::mosek::fusion::BaseVariable::index(i0,i1,i2); }
 virtual int getDim(int d) { return ::mosek::fusion::BaseVariable::getDim(d); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__diag() { return ::mosek::fusion::BaseVariable::diag(); }
+virtual void remove() { ::mosek::fusion::ModelVariable::remove(); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__index(int i0,int i1) { return ::mosek::fusion::BaseVariable::index(i0,i1); }
 virtual std::shared_ptr< monty::ndarray< int,1 > > getShape() { return ::mosek::fusion::BaseVariable::getShape(); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__transpose() { return ::mosek::fusion::BaseVariable::transpose(); }
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__index(std::shared_ptr< monty::ndarray< int,1 > > index) { return ::mosek::fusion::BaseVariable::index(index); }
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__tril() { return ::mosek::fusion::BaseVariable::tril(); }
 virtual long long getSize() { return ::mosek::fusion::BaseVariable::getSize(); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__pick(std::shared_ptr< monty::ndarray< int,1 > > i0,std::shared_ptr< monty::ndarray< int,1 > > i1) { return ::mosek::fusion::BaseVariable::pick(i0,i1); }
 virtual std::shared_ptr< monty::ndarray< double,1 > > level() { return ::mosek::fusion::BaseVariable::level(); };
@@ -1027,7 +1210,6 @@ virtual void setLevel(std::shared_ptr< monty::ndarray< double,1 > > v) { ::mosek
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__diag(int index) { return ::mosek::fusion::BaseVariable::diag(index); }
 virtual std::shared_ptr< monty::ndarray< double,1 > > dual() { return ::mosek::fusion::BaseVariable::dual(); };
 virtual int inst(int spoffset,std::shared_ptr< monty::ndarray< long long,1 > > sparsity,int nioffset,std::shared_ptr< monty::ndarray< long long,1 > > nativeidxs) { return ::mosek::fusion::BaseVariable::inst(spoffset,sparsity,nioffset,nativeidxs); };
-virtual monty::rc_ptr< ::mosek::fusion::FlatExpr > __mosek_2fusion_2Expression__eval() { return ::mosek::fusion::BaseVariable::eval(); }
 virtual int numInst() { return ::mosek::fusion::BaseVariable::numInst(); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__slice(std::shared_ptr< monty::ndarray< int,1 > > first,std::shared_ptr< monty::ndarray< int,1 > > last) { return ::mosek::fusion::BaseVariable::slice(first,last); }
 virtual std::string toString() { return ::mosek::fusion::BaseVariable::toString(); };
@@ -1052,6 +1234,10 @@ typedef monty::rc_ptr< RangedVariable > t;
 
 virtual monty::rc_ptr< ::mosek::fusion::Utils::StringBuffer > __mosek_2fusion_2RangedVariable__elementDesc(long long index,monty::rc_ptr< ::mosek::fusion::Utils::StringBuffer > sb) ;
 monty::rc_ptr< ::mosek::fusion::Utils::StringBuffer > elementDesc(long long index,monty::rc_ptr< ::mosek::fusion::Utils::StringBuffer > sb);
+virtual monty::rc_ptr< ::mosek::fusion::BoundInterfaceVariable > __mosek_2fusion_2RangedVariable__upperBoundVar() ;
+monty::rc_ptr< ::mosek::fusion::BoundInterfaceVariable > upperBoundVar();
+virtual monty::rc_ptr< ::mosek::fusion::BoundInterfaceVariable > __mosek_2fusion_2RangedVariable__lowerBoundVar() ;
+monty::rc_ptr< ::mosek::fusion::BoundInterfaceVariable > lowerBoundVar();
 }; // class RangedVariable;
 
 class LinearPSDVariable : public ::mosek::fusion::ModelVariable
@@ -1096,6 +1282,7 @@ virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__pi
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__pick(std::shared_ptr< monty::ndarray< int,1 > > idxs) { return ::mosek::fusion::BaseVariable::pick(idxs); }
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__antidiag() { return ::mosek::fusion::BaseVariable::antidiag(); }
 virtual void makeContinuous() { ::mosek::fusion::BaseVariable::makeContinuous(); };
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__fromTril(int d) { return ::mosek::fusion::BaseVariable::fromTril(d); }
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__reshape(int dim0,int dim1,int dim2) { return ::mosek::fusion::BaseVariable::reshape(dim0,dim1,dim2); }
 virtual void set_values(std::shared_ptr< monty::ndarray< double,1 > > values,bool primal) { ::mosek::fusion::BaseVariable::set_values(values,primal); };
 virtual int getND() { return ::mosek::fusion::BaseVariable::getND(); };
@@ -1105,10 +1292,12 @@ virtual void makeInteger() { ::mosek::fusion::BaseVariable::makeInteger(); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__index(int i0,int i1,int i2) { return ::mosek::fusion::BaseVariable::index(i0,i1,i2); }
 virtual int getDim(int d) { return ::mosek::fusion::BaseVariable::getDim(d); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__diag() { return ::mosek::fusion::BaseVariable::diag(); }
+virtual void remove() { ::mosek::fusion::ModelVariable::remove(); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__index(int i0,int i1) { return ::mosek::fusion::BaseVariable::index(i0,i1); }
 virtual std::shared_ptr< monty::ndarray< int,1 > > getShape() { return ::mosek::fusion::BaseVariable::getShape(); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__transpose() { return ::mosek::fusion::BaseVariable::transpose(); }
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__index(std::shared_ptr< monty::ndarray< int,1 > > index) { return ::mosek::fusion::BaseVariable::index(index); }
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__tril() { return ::mosek::fusion::BaseVariable::tril(); }
 virtual long long getSize() { return ::mosek::fusion::BaseVariable::getSize(); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__pick(std::shared_ptr< monty::ndarray< int,1 > > i0,std::shared_ptr< monty::ndarray< int,1 > > i1) { return ::mosek::fusion::BaseVariable::pick(i0,i1); }
 virtual std::shared_ptr< monty::ndarray< double,1 > > level() { return ::mosek::fusion::BaseVariable::level(); };
@@ -1121,7 +1310,6 @@ virtual void setLevel(std::shared_ptr< monty::ndarray< double,1 > > v) { ::mosek
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__diag(int index) { return ::mosek::fusion::BaseVariable::diag(index); }
 virtual std::shared_ptr< monty::ndarray< double,1 > > dual() { return ::mosek::fusion::BaseVariable::dual(); };
 virtual int inst(int spoffset,std::shared_ptr< monty::ndarray< long long,1 > > sparsity,int nioffset,std::shared_ptr< monty::ndarray< long long,1 > > nativeidxs) { return ::mosek::fusion::BaseVariable::inst(spoffset,sparsity,nioffset,nativeidxs); };
-virtual monty::rc_ptr< ::mosek::fusion::FlatExpr > __mosek_2fusion_2Expression__eval() { return ::mosek::fusion::BaseVariable::eval(); }
 virtual int numInst() { return ::mosek::fusion::BaseVariable::numInst(); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__slice(std::shared_ptr< monty::ndarray< int,1 > > first,std::shared_ptr< monty::ndarray< int,1 > > last) { return ::mosek::fusion::BaseVariable::slice(first,last); }
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__antidiag(int index) { return ::mosek::fusion::BaseVariable::antidiag(index); }
@@ -1151,6 +1339,7 @@ virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__pi
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__pick(std::shared_ptr< monty::ndarray< int,1 > > idxs) { return ::mosek::fusion::BaseVariable::pick(idxs); }
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__antidiag() { return ::mosek::fusion::BaseVariable::antidiag(); }
 virtual void makeContinuous() { ::mosek::fusion::BaseVariable::makeContinuous(); };
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__fromTril(int d) { return ::mosek::fusion::BaseVariable::fromTril(d); }
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__reshape(int dim0,int dim1,int dim2) { return ::mosek::fusion::BaseVariable::reshape(dim0,dim1,dim2); }
 virtual void set_values(std::shared_ptr< monty::ndarray< double,1 > > values,bool primal) { ::mosek::fusion::BaseVariable::set_values(values,primal); };
 virtual int getND() { return ::mosek::fusion::BaseVariable::getND(); };
@@ -1160,10 +1349,12 @@ virtual void makeInteger() { ::mosek::fusion::BaseVariable::makeInteger(); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__index(int i0,int i1,int i2) { return ::mosek::fusion::BaseVariable::index(i0,i1,i2); }
 virtual int getDim(int d) { return ::mosek::fusion::BaseVariable::getDim(d); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__diag() { return ::mosek::fusion::BaseVariable::diag(); }
+virtual void remove() { ::mosek::fusion::ModelVariable::remove(); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__index(int i0,int i1) { return ::mosek::fusion::BaseVariable::index(i0,i1); }
 virtual std::shared_ptr< monty::ndarray< int,1 > > getShape() { return ::mosek::fusion::BaseVariable::getShape(); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__transpose() { return ::mosek::fusion::BaseVariable::transpose(); }
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__index(std::shared_ptr< monty::ndarray< int,1 > > index) { return ::mosek::fusion::BaseVariable::index(index); }
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__tril() { return ::mosek::fusion::BaseVariable::tril(); }
 virtual long long getSize() { return ::mosek::fusion::BaseVariable::getSize(); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__pick(std::shared_ptr< monty::ndarray< int,1 > > i0,std::shared_ptr< monty::ndarray< int,1 > > i1) { return ::mosek::fusion::BaseVariable::pick(i0,i1); }
 virtual std::shared_ptr< monty::ndarray< double,1 > > level() { return ::mosek::fusion::BaseVariable::level(); };
@@ -1176,7 +1367,6 @@ virtual void setLevel(std::shared_ptr< monty::ndarray< double,1 > > v) { ::mosek
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__diag(int index) { return ::mosek::fusion::BaseVariable::diag(index); }
 virtual std::shared_ptr< monty::ndarray< double,1 > > dual() { return ::mosek::fusion::BaseVariable::dual(); };
 virtual int inst(int spoffset,std::shared_ptr< monty::ndarray< long long,1 > > sparsity,int nioffset,std::shared_ptr< monty::ndarray< long long,1 > > nativeidxs) { return ::mosek::fusion::BaseVariable::inst(spoffset,sparsity,nioffset,nativeidxs); };
-virtual monty::rc_ptr< ::mosek::fusion::FlatExpr > __mosek_2fusion_2Expression__eval() { return ::mosek::fusion::BaseVariable::eval(); }
 virtual int numInst() { return ::mosek::fusion::BaseVariable::numInst(); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__slice(std::shared_ptr< monty::ndarray< int,1 > > first,std::shared_ptr< monty::ndarray< int,1 > > last) { return ::mosek::fusion::BaseVariable::slice(first,last); }
 virtual std::string toString() { return ::mosek::fusion::BaseVariable::toString(); };
@@ -1272,6 +1462,7 @@ virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__pi
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__pick(std::shared_ptr< monty::ndarray< int,1 > > idxs) { return ::mosek::fusion::BaseVariable::pick(idxs); }
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__antidiag() { return ::mosek::fusion::BaseVariable::antidiag(); }
 virtual void makeContinuous() { ::mosek::fusion::BaseVariable::makeContinuous(); };
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__fromTril(int d) { return ::mosek::fusion::BaseVariable::fromTril(d); }
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__reshape(int dim0,int dim1,int dim2) { return ::mosek::fusion::BaseVariable::reshape(dim0,dim1,dim2); }
 virtual int getND() { return ::mosek::fusion::BaseVariable::getND(); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__pick(std::shared_ptr< monty::ndarray< int,1 > > i0,std::shared_ptr< monty::ndarray< int,1 > > i1,std::shared_ptr< monty::ndarray< int,1 > > i2) { return ::mosek::fusion::BaseVariable::pick(i0,i1,i2); }
@@ -1279,9 +1470,11 @@ virtual void makeInteger() { ::mosek::fusion::BaseVariable::makeInteger(); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__index(int i0,int i1,int i2) { return ::mosek::fusion::BaseVariable::index(i0,i1,i2); }
 virtual int getDim(int d) { return ::mosek::fusion::BaseVariable::getDim(d); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__diag() { return ::mosek::fusion::BaseVariable::diag(); }
+virtual void remove() { ::mosek::fusion::BaseVariable::remove(); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__index(int i0,int i1) { return ::mosek::fusion::BaseVariable::index(i0,i1); }
 virtual std::shared_ptr< monty::ndarray< int,1 > > getShape() { return ::mosek::fusion::BaseVariable::getShape(); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__transpose() { return ::mosek::fusion::BaseVariable::transpose(); }
+virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__tril() { return ::mosek::fusion::BaseVariable::tril(); }
 virtual long long getSize() { return ::mosek::fusion::BaseVariable::getSize(); };
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__pick(std::shared_ptr< monty::ndarray< int,1 > > i0,std::shared_ptr< monty::ndarray< int,1 > > i1) { return ::mosek::fusion::BaseVariable::pick(i0,i1); }
 virtual std::shared_ptr< monty::ndarray< double,1 > > level() { return ::mosek::fusion::BaseVariable::level(); };
@@ -1294,7 +1487,6 @@ virtual void setLevel(std::shared_ptr< monty::ndarray< double,1 > > v) { ::mosek
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__diag(int index) { return ::mosek::fusion::BaseVariable::diag(index); }
 virtual std::shared_ptr< monty::ndarray< double,1 > > dual() { return ::mosek::fusion::BaseVariable::dual(); };
 virtual int inst(int spoffset,std::shared_ptr< monty::ndarray< long long,1 > > sparsity,int nioffset,std::shared_ptr< monty::ndarray< long long,1 > > nativeidxs) { return ::mosek::fusion::BaseVariable::inst(spoffset,sparsity,nioffset,nativeidxs); };
-virtual monty::rc_ptr< ::mosek::fusion::FlatExpr > __mosek_2fusion_2Expression__eval() { return ::mosek::fusion::BaseVariable::eval(); }
 virtual monty::rc_ptr< ::mosek::fusion::Variable > __mosek_2fusion_2Variable__antidiag(int index) { return ::mosek::fusion::BaseVariable::antidiag(index); }
 }; // class NilVariable;
 
@@ -1397,6 +1589,7 @@ Constraint(monty::rc_ptr< ::mosek::fusion::Model > model,std::shared_ptr< monty:
 virtual /* override */ std::string toString() ;
 virtual std::shared_ptr< monty::ndarray< double,1 > > dual() ;
 virtual std::shared_ptr< monty::ndarray< double,1 > > level() ;
+virtual void remove() ;
 virtual void update(std::shared_ptr< monty::ndarray< double,1 > > bfix) ;
 virtual void update(monty::rc_ptr< ::mosek::fusion::Expression > expr) ;
 virtual void update(monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::Variable > x,bool bfixupdate) ;
@@ -1431,6 +1624,7 @@ virtual std::shared_ptr< monty::ndarray< int,1 > > getShape() ;
 
 class SliceConstraint : public ::mosek::fusion::Constraint
 {
+SliceConstraint(monty::rc_ptr< ::mosek::fusion::SliceConstraint > c);
 SliceConstraint(monty::rc_ptr< ::mosek::fusion::Model > model,std::shared_ptr< monty::ndarray< int,1 > > shape,std::shared_ptr< monty::ndarray< int,1 > > nativeidxs);
 protected: SliceConstraint(p_SliceConstraint * _impl);
 public:
@@ -1444,6 +1638,38 @@ typedef monty::rc_ptr< SliceConstraint > t;
 virtual /* override */ std::string toString() ;
 }; // class SliceConstraint;
 
+class BoundInterfaceConstraint : public ::mosek::fusion::SliceConstraint
+{
+BoundInterfaceConstraint(monty::rc_ptr< ::mosek::fusion::Model > m,std::shared_ptr< monty::ndarray< int,1 > > shape,std::shared_ptr< monty::ndarray< int,1 > > nativeidxs,bool islower);
+BoundInterfaceConstraint(monty::rc_ptr< ::mosek::fusion::SliceConstraint > c,bool islower);
+protected: BoundInterfaceConstraint(p_BoundInterfaceConstraint * _impl);
+public:
+BoundInterfaceConstraint(const BoundInterfaceConstraint &) = delete;
+const BoundInterfaceConstraint & operator=(const BoundInterfaceConstraint &) = delete;
+friend class p_BoundInterfaceConstraint;
+virtual ~BoundInterfaceConstraint();
+virtual void destroy();
+typedef monty::rc_ptr< BoundInterfaceConstraint > t;
+
+virtual /* override */ std::shared_ptr< monty::ndarray< double,1 > > dual() ;
+virtual /* override */ monty::rc_ptr< ::mosek::fusion::Constraint > __mosek_2fusion_2BoundInterfaceConstraint__slice(std::shared_ptr< monty::ndarray< int,1 > > firsta,std::shared_ptr< monty::ndarray< int,1 > > lasta) ;
+monty::rc_ptr< ::mosek::fusion::Constraint > slice(std::shared_ptr< monty::ndarray< int,1 > > firsta,std::shared_ptr< monty::ndarray< int,1 > > lasta);
+/* override: mosek.fusion.Constraint.slice*/
+virtual monty::rc_ptr< ::mosek::fusion::Constraint > __mosek_2fusion_2Constraint__slice(std::shared_ptr< monty::ndarray< int,1 > > firsta,std::shared_ptr< monty::ndarray< int,1 > > lasta);
+virtual /* override */ monty::rc_ptr< ::mosek::fusion::Constraint > __mosek_2fusion_2BoundInterfaceConstraint__slice(int first,int last) ;
+monty::rc_ptr< ::mosek::fusion::Constraint > slice(int first,int last);
+/* override: mosek.fusion.Constraint.slice*/
+virtual monty::rc_ptr< ::mosek::fusion::Constraint > __mosek_2fusion_2Constraint__slice(int first,int last);
+virtual /* override */ monty::rc_ptr< ::mosek::fusion::Constraint > __mosek_2fusion_2BoundInterfaceConstraint__index(std::shared_ptr< monty::ndarray< int,1 > > idxa) ;
+monty::rc_ptr< ::mosek::fusion::Constraint > index(std::shared_ptr< monty::ndarray< int,1 > > idxa);
+/* override: mosek.fusion.Constraint.index*/
+virtual monty::rc_ptr< ::mosek::fusion::Constraint > __mosek_2fusion_2Constraint__index(std::shared_ptr< monty::ndarray< int,1 > > idxa);
+virtual /* override */ monty::rc_ptr< ::mosek::fusion::Constraint > __mosek_2fusion_2BoundInterfaceConstraint__index(int idx) ;
+monty::rc_ptr< ::mosek::fusion::Constraint > index(int idx);
+/* override: mosek.fusion.Constraint.index*/
+virtual monty::rc_ptr< ::mosek::fusion::Constraint > __mosek_2fusion_2Constraint__index(int idx);
+}; // class BoundInterfaceConstraint;
+
 class ModelConstraint : public ::mosek::fusion::Constraint
 {
 protected: ModelConstraint(p_ModelConstraint * _impl);
@@ -1456,6 +1682,7 @@ virtual void destroy();
 typedef monty::rc_ptr< ModelConstraint > t;
 
 virtual /* override */ std::string toString() ;
+virtual /* override */ void remove() ;
 }; // class ModelConstraint;
 
 class LinearPSDConstraint : public ::mosek::fusion::ModelConstraint
@@ -1492,7 +1719,7 @@ virtual /* override */ std::string toString() ;
 class RangedConstraint : public ::mosek::fusion::ModelConstraint
 {
 RangedConstraint(monty::rc_ptr< ::mosek::fusion::RangedConstraint > c,monty::rc_ptr< ::mosek::fusion::Model > m);
-RangedConstraint(monty::rc_ptr< ::mosek::fusion::Model > model,const std::string &  name,std::shared_ptr< monty::ndarray< int,1 > > shape,std::shared_ptr< monty::ndarray< int,1 > > nativeidxs);
+RangedConstraint(monty::rc_ptr< ::mosek::fusion::Model > model,const std::string &  name,std::shared_ptr< monty::ndarray< int,1 > > shape,std::shared_ptr< monty::ndarray< int,1 > > nativeidxs,int conid);
 protected: RangedConstraint(p_RangedConstraint * _impl);
 public:
 RangedConstraint(const RangedConstraint &) = delete;
@@ -1502,6 +1729,10 @@ virtual ~RangedConstraint();
 virtual void destroy();
 typedef monty::rc_ptr< RangedConstraint > t;
 
+virtual monty::rc_ptr< ::mosek::fusion::BoundInterfaceConstraint > __mosek_2fusion_2RangedConstraint__upperBoundCon() ;
+monty::rc_ptr< ::mosek::fusion::BoundInterfaceConstraint > upperBoundCon();
+virtual monty::rc_ptr< ::mosek::fusion::BoundInterfaceConstraint > __mosek_2fusion_2RangedConstraint__lowerBoundCon() ;
+monty::rc_ptr< ::mosek::fusion::BoundInterfaceConstraint > lowerBoundCon();
 }; // class RangedConstraint;
 
 class ConicConstraint : public ::mosek::fusion::ModelConstraint
@@ -1650,6 +1881,12 @@ virtual monty::rc_ptr< ::mosek::fusion::RangeDomain > __mosek_2fusion_2RangeDoma
 monty::rc_ptr< ::mosek::fusion::RangeDomain > sparse();
 virtual monty::rc_ptr< ::mosek::fusion::RangeDomain > __mosek_2fusion_2RangeDomain__integral() ;
 monty::rc_ptr< ::mosek::fusion::RangeDomain > integral();
+virtual monty::rc_ptr< ::mosek::fusion::RangeDomain > __mosek_2fusion_2RangeDomain__withShape(int dim0,int dim1,int dim2) ;
+monty::rc_ptr< ::mosek::fusion::RangeDomain > withShape(int dim0,int dim1,int dim2);
+virtual monty::rc_ptr< ::mosek::fusion::RangeDomain > __mosek_2fusion_2RangeDomain__withShape(int dim0,int dim1) ;
+monty::rc_ptr< ::mosek::fusion::RangeDomain > withShape(int dim0,int dim1);
+virtual monty::rc_ptr< ::mosek::fusion::RangeDomain > __mosek_2fusion_2RangeDomain__withShape(int dim0) ;
+monty::rc_ptr< ::mosek::fusion::RangeDomain > withShape(int dim0);
 virtual monty::rc_ptr< ::mosek::fusion::RangeDomain > __mosek_2fusion_2RangeDomain__withShape(std::shared_ptr< monty::ndarray< int,1 > > shp) ;
 monty::rc_ptr< ::mosek::fusion::RangeDomain > withShape(std::shared_ptr< monty::ndarray< int,1 > > shp);
 }; // class RangeDomain;
@@ -1714,6 +1951,12 @@ virtual monty::rc_ptr< ::mosek::fusion::LinearDomain > __mosek_2fusion_2LinearDo
 monty::rc_ptr< ::mosek::fusion::LinearDomain > sparse();
 virtual monty::rc_ptr< ::mosek::fusion::LinearDomain > __mosek_2fusion_2LinearDomain__integral() ;
 monty::rc_ptr< ::mosek::fusion::LinearDomain > integral();
+virtual monty::rc_ptr< ::mosek::fusion::LinearDomain > __mosek_2fusion_2LinearDomain__withShape(int dim0,int dim1,int dim2) ;
+monty::rc_ptr< ::mosek::fusion::LinearDomain > withShape(int dim0,int dim1,int dim2);
+virtual monty::rc_ptr< ::mosek::fusion::LinearDomain > __mosek_2fusion_2LinearDomain__withShape(int dim0,int dim1) ;
+monty::rc_ptr< ::mosek::fusion::LinearDomain > withShape(int dim0,int dim1);
+virtual monty::rc_ptr< ::mosek::fusion::LinearDomain > __mosek_2fusion_2LinearDomain__withShape(int dim0) ;
+monty::rc_ptr< ::mosek::fusion::LinearDomain > withShape(int dim0);
 virtual monty::rc_ptr< ::mosek::fusion::LinearDomain > __mosek_2fusion_2LinearDomain__withShape(std::shared_ptr< monty::ndarray< int,1 > > shp) ;
 monty::rc_ptr< ::mosek::fusion::LinearDomain > withShape(std::shared_ptr< monty::ndarray< int,1 > > shp);
 }; // class LinearDomain;
@@ -1813,6 +2056,128 @@ static monty::rc_ptr< ::mosek::fusion::LinearDomain > unbounded(int n);
 static monty::rc_ptr< ::mosek::fusion::LinearDomain > unbounded();
 }; // class Domain;
 
+class ExprCode : public virtual monty::RefCounted
+{
+public: p_ExprCode * _impl;
+protected: ExprCode(p_ExprCode * _impl);
+public:
+ExprCode(const ExprCode &) = delete;
+const ExprCode & operator=(const ExprCode &) = delete;
+friend class p_ExprCode;
+virtual ~ExprCode();
+virtual void destroy();
+typedef monty::rc_ptr< ExprCode > t;
+
+static void inplace_relocate(std::shared_ptr< monty::ndarray< int,1 > > code,int from_offset,int num,int const_base);
+static std::string op2str(int op);
+static void eval_add_list(std::shared_ptr< monty::ndarray< int,1 > > code,std::shared_ptr< monty::ndarray< int,1 > > ptr,std::shared_ptr< monty::ndarray< double,1 > > consts,int offset,std::shared_ptr< monty::ndarray< double,1 > > target,std::shared_ptr< monty::ndarray< double,1 > > P,monty::rc_ptr< ::mosek::fusion::WorkStack > xs);
+static void eval_add_list(std::shared_ptr< monty::ndarray< int,1 > > code,std::shared_ptr< monty::ndarray< int,1 > > ptr,std::shared_ptr< monty::ndarray< double,1 > > consts,std::shared_ptr< monty::ndarray< double,1 > > target,std::shared_ptr< monty::ndarray< double,1 > > P,monty::rc_ptr< ::mosek::fusion::WorkStack > xs);
+static int emit_sum(std::shared_ptr< monty::ndarray< int,1 > > tgt,int ofs,int num);
+static int emit_inv(std::shared_ptr< monty::ndarray< int,1 > > tgt,int ofs);
+static int emit_mul(std::shared_ptr< monty::ndarray< int,1 > > tgt,int ofs);
+static int emit_neg(std::shared_ptr< monty::ndarray< int,1 > > tgt,int ofs);
+static int emit_add(std::shared_ptr< monty::ndarray< int,1 > > tgt,int ofs);
+static int emit_constref(std::shared_ptr< monty::ndarray< int,1 > > tgt,int ofs,int i);
+static int emit_paramref(std::shared_ptr< monty::ndarray< int,1 > > tgt,int ofs,int i);
+static int emit_nop(std::shared_ptr< monty::ndarray< int,1 > > tgt,int ofs);
+}; // class ExprCode;
+
+class Param : public virtual monty::RefCounted
+{
+public: p_Param * _impl;
+protected: Param(p_Param * _impl);
+public:
+Param(const Param &) = delete;
+const Param & operator=(const Param &) = delete;
+friend class p_Param;
+virtual ~Param();
+virtual void destroy();
+typedef monty::rc_ptr< Param > t;
+
+static monty::rc_ptr< ::mosek::fusion::Parameter > repeat(monty::rc_ptr< ::mosek::fusion::Parameter > p,int n,int dim);
+static monty::rc_ptr< ::mosek::fusion::Parameter > stack(int dim,monty::rc_ptr< ::mosek::fusion::Parameter > p1,monty::rc_ptr< ::mosek::fusion::Parameter > p2,monty::rc_ptr< ::mosek::fusion::Parameter > p3);
+static monty::rc_ptr< ::mosek::fusion::Parameter > stack(int dim,monty::rc_ptr< ::mosek::fusion::Parameter > p1,monty::rc_ptr< ::mosek::fusion::Parameter > p2);
+static monty::rc_ptr< ::mosek::fusion::Parameter > stack(int dim,std::shared_ptr< monty::ndarray< monty::rc_ptr< ::mosek::fusion::Parameter >,1 > > p);
+static monty::rc_ptr< ::mosek::fusion::Parameter > stack(std::shared_ptr< monty::ndarray< std::shared_ptr< monty::ndarray< monty::rc_ptr< ::mosek::fusion::Parameter >,1 > >,1 > > p);
+static monty::rc_ptr< ::mosek::fusion::Parameter > hstack(monty::rc_ptr< ::mosek::fusion::Parameter > p1,monty::rc_ptr< ::mosek::fusion::Parameter > p2,monty::rc_ptr< ::mosek::fusion::Parameter > p3);
+static monty::rc_ptr< ::mosek::fusion::Parameter > hstack(monty::rc_ptr< ::mosek::fusion::Parameter > p1,monty::rc_ptr< ::mosek::fusion::Parameter > p2);
+static monty::rc_ptr< ::mosek::fusion::Parameter > hstack(std::shared_ptr< monty::ndarray< monty::rc_ptr< ::mosek::fusion::Parameter >,1 > > p);
+static monty::rc_ptr< ::mosek::fusion::Parameter > vstack(monty::rc_ptr< ::mosek::fusion::Parameter > p1,monty::rc_ptr< ::mosek::fusion::Parameter > p2,monty::rc_ptr< ::mosek::fusion::Parameter > p3);
+static monty::rc_ptr< ::mosek::fusion::Parameter > vstack(monty::rc_ptr< ::mosek::fusion::Parameter > p1,monty::rc_ptr< ::mosek::fusion::Parameter > p2);
+static monty::rc_ptr< ::mosek::fusion::Parameter > vstack(std::shared_ptr< monty::ndarray< monty::rc_ptr< ::mosek::fusion::Parameter >,1 > > p);
+}; // class Param;
+
+class ParameterImpl : public virtual ::mosek::fusion::Parameter
+{
+public: p_ParameterImpl * _impl;
+ParameterImpl(monty::rc_ptr< ::mosek::fusion::ParameterImpl > other,monty::rc_ptr< ::mosek::fusion::Model > model);
+ParameterImpl(monty::rc_ptr< ::mosek::fusion::Model > model,std::shared_ptr< monty::ndarray< int,1 > > shape,std::shared_ptr< monty::ndarray< long long,1 > > sp,std::shared_ptr< monty::ndarray< int,1 > > nidxs);
+protected: ParameterImpl(p_ParameterImpl * _impl);
+public:
+ParameterImpl(const ParameterImpl &) = delete;
+const ParameterImpl & operator=(const ParameterImpl &) = delete;
+friend class p_ParameterImpl;
+virtual ~ParameterImpl();
+virtual void destroy();
+typedef monty::rc_ptr< ParameterImpl > t;
+
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2ParameterImpl__clone(monty::rc_ptr< ::mosek::fusion::Model > m) ;
+monty::rc_ptr< ::mosek::fusion::Parameter > clone(monty::rc_ptr< ::mosek::fusion::Model > m);
+/* override: mosek.fusion.Parameter.clone*/
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Parameter__clone(monty::rc_ptr< ::mosek::fusion::Model > m);
+virtual /* override */ std::string toString() ;
+virtual monty::rc_ptr< ::mosek::fusion::Expression > __mosek_2fusion_2ParameterImpl__pick(std::shared_ptr< monty::ndarray< int,2 > > indexrows) ;
+monty::rc_ptr< ::mosek::fusion::Expression > pick(std::shared_ptr< monty::ndarray< int,2 > > indexrows);
+/* override: mosek.fusion.Expression.pick*/
+virtual monty::rc_ptr< ::mosek::fusion::Expression > __mosek_2fusion_2Expression__pick(std::shared_ptr< monty::ndarray< int,2 > > indexrows);
+virtual monty::rc_ptr< ::mosek::fusion::Expression > __mosek_2fusion_2ParameterImpl__pick(std::shared_ptr< monty::ndarray< int,1 > > indexes) ;
+monty::rc_ptr< ::mosek::fusion::Expression > pick(std::shared_ptr< monty::ndarray< int,1 > > indexes);
+/* override: mosek.fusion.Expression.pick*/
+virtual monty::rc_ptr< ::mosek::fusion::Expression > __mosek_2fusion_2Expression__pick(std::shared_ptr< monty::ndarray< int,1 > > indexes);
+virtual monty::rc_ptr< ::mosek::fusion::Expression > __mosek_2fusion_2ParameterImpl__index(std::shared_ptr< monty::ndarray< int,1 > > indexes) ;
+monty::rc_ptr< ::mosek::fusion::Expression > index(std::shared_ptr< monty::ndarray< int,1 > > indexes);
+/* override: mosek.fusion.Expression.index*/
+virtual monty::rc_ptr< ::mosek::fusion::Expression > __mosek_2fusion_2Expression__index(std::shared_ptr< monty::ndarray< int,1 > > indexes);
+virtual monty::rc_ptr< ::mosek::fusion::Expression > __mosek_2fusion_2ParameterImpl__index(int i) ;
+monty::rc_ptr< ::mosek::fusion::Expression > index(int i);
+/* override: mosek.fusion.Expression.index*/
+virtual monty::rc_ptr< ::mosek::fusion::Expression > __mosek_2fusion_2Expression__index(int i);
+virtual void eval(monty::rc_ptr< ::mosek::fusion::WorkStack > rs,monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs) ;
+virtual void getSp(std::shared_ptr< monty::ndarray< long long,1 > > dest,int offset) ;
+virtual bool isSparse() ;
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2ParameterImpl__slice(std::shared_ptr< monty::ndarray< int,1 > > astart,std::shared_ptr< monty::ndarray< int,1 > > astop) ;
+monty::rc_ptr< ::mosek::fusion::Parameter > slice(std::shared_ptr< monty::ndarray< int,1 > > astart,std::shared_ptr< monty::ndarray< int,1 > > astop);
+/* override: mosek.fusion.Parameter.slice*/
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Parameter__slice(std::shared_ptr< monty::ndarray< int,1 > > astart,std::shared_ptr< monty::ndarray< int,1 > > astop);
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2ParameterImpl__slice(int start,int stop) ;
+monty::rc_ptr< ::mosek::fusion::Parameter > slice(int start,int stop);
+/* override: mosek.fusion.Parameter.slice*/
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Parameter__slice(int start,int stop);
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2ParameterImpl__reshape(std::shared_ptr< monty::ndarray< int,1 > > dims) ;
+monty::rc_ptr< ::mosek::fusion::Parameter > reshape(std::shared_ptr< monty::ndarray< int,1 > > dims);
+/* override: mosek.fusion.Parameter.reshape*/
+virtual monty::rc_ptr< ::mosek::fusion::Parameter > __mosek_2fusion_2Parameter__reshape(std::shared_ptr< monty::ndarray< int,1 > > dims);
+virtual monty::rc_ptr< ::mosek::fusion::Expression > __mosek_2fusion_2ParameterImpl__asExpr() ;
+monty::rc_ptr< ::mosek::fusion::Expression > asExpr();
+/* override: mosek.fusion.Parameter.asExpr*/
+virtual monty::rc_ptr< ::mosek::fusion::Expression > __mosek_2fusion_2Parameter__asExpr();
+virtual long long getSize() ;
+virtual int getNumNonzero() ;
+virtual int getND() ;
+virtual std::shared_ptr< monty::ndarray< int,1 > > getShape() ;
+virtual int getDim(int i) ;
+virtual void getAllIndexes(std::shared_ptr< monty::ndarray< int,1 > > dst,int ofs) ;
+virtual int getIndex(int i) ;
+virtual std::shared_ptr< monty::ndarray< double,1 > > getValue() ;
+virtual void setValue(std::shared_ptr< monty::ndarray< double,2 > > values2) ;
+virtual void setValue(std::shared_ptr< monty::ndarray< double,1 > > values) ;
+virtual void setValue(double value) ;
+virtual monty::rc_ptr< ::mosek::fusion::Model > __mosek_2fusion_2ParameterImpl__getModel() ;
+monty::rc_ptr< ::mosek::fusion::Model > getModel();
+/* override: mosek.fusion.Parameter.getModel*/
+virtual monty::rc_ptr< ::mosek::fusion::Model > __mosek_2fusion_2Parameter__getModel();
+}; // class ParameterImpl;
+
 class BaseExpression : public virtual ::mosek::fusion::Expression
 {
 public: p_BaseExpression * _impl;
@@ -1827,11 +2192,6 @@ typedef monty::rc_ptr< BaseExpression > t;
 
 BaseExpression(std::shared_ptr< monty::ndarray< int,1 > > shape);
 virtual /* override */ std::string toString() ;
-virtual monty::rc_ptr< ::mosek::fusion::FlatExpr > __mosek_2fusion_2BaseExpression__eval() ;
-monty::rc_ptr< ::mosek::fusion::FlatExpr > eval();
-/* override: mosek.fusion.Expression.eval*/
-virtual monty::rc_ptr< ::mosek::fusion::FlatExpr > __mosek_2fusion_2Expression__eval();
-static void storeexpr(monty::rc_ptr< ::mosek::fusion::WorkStack > s,std::shared_ptr< monty::ndarray< int,1 > > shape,std::shared_ptr< monty::ndarray< int,1 > > ptr,std::shared_ptr< monty::ndarray< long long,1 > > sp,std::shared_ptr< monty::ndarray< long long,1 > > subj,std::shared_ptr< monty::ndarray< double,1 > > cof,std::shared_ptr< monty::ndarray< double,1 > > bfix);
 virtual void eval(monty::rc_ptr< ::mosek::fusion::WorkStack > rs,monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs)  = 0;
 virtual monty::rc_ptr< ::mosek::fusion::Expression > __mosek_2fusion_2BaseExpression__pick(std::shared_ptr< monty::ndarray< int,2 > > indexrows) ;
 monty::rc_ptr< ::mosek::fusion::Expression > pick(std::shared_ptr< monty::ndarray< int,2 > > indexrows);
@@ -1862,6 +2222,193 @@ virtual int getND() ;
 virtual int getDim(int d) ;
 virtual std::shared_ptr< monty::ndarray< int,1 > > getShape() ;
 }; // class BaseExpression;
+
+class ExprParameter : public ::mosek::fusion::BaseExpression
+{
+protected: ExprParameter(p_ExprParameter * _impl);
+public:
+ExprParameter(const ExprParameter &) = delete;
+const ExprParameter & operator=(const ExprParameter &) = delete;
+friend class p_ExprParameter;
+virtual ~ExprParameter();
+virtual void destroy();
+typedef monty::rc_ptr< ExprParameter > t;
+
+ExprParameter(monty::rc_ptr< ::mosek::fusion::Parameter > p);
+virtual /* override */ void eval(monty::rc_ptr< ::mosek::fusion::WorkStack > rs,monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs) ;
+virtual /* override */ monty::rc_ptr< ::mosek::fusion::Expression > __mosek_2fusion_2ExprParameter__slice(std::shared_ptr< monty::ndarray< int,1 > > start,std::shared_ptr< monty::ndarray< int,1 > > stop) ;
+monty::rc_ptr< ::mosek::fusion::Expression > slice(std::shared_ptr< monty::ndarray< int,1 > > start,std::shared_ptr< monty::ndarray< int,1 > > stop);
+/* override: mosek.fusion.BaseExpression.slice*/
+virtual monty::rc_ptr< ::mosek::fusion::Expression > __mosek_2fusion_2BaseExpression__slice(std::shared_ptr< monty::ndarray< int,1 > > start,std::shared_ptr< monty::ndarray< int,1 > > stop);
+virtual /* override */ monty::rc_ptr< ::mosek::fusion::Expression > __mosek_2fusion_2ExprParameter__slice(int start,int stop) ;
+monty::rc_ptr< ::mosek::fusion::Expression > slice(int start,int stop);
+/* override: mosek.fusion.BaseExpression.slice*/
+virtual monty::rc_ptr< ::mosek::fusion::Expression > __mosek_2fusion_2BaseExpression__slice(int start,int stop);
+virtual /* override */ std::string toString() ;
+}; // class ExprParameter;
+
+class ExprMulParamScalarExpr : public ::mosek::fusion::BaseExpression
+{
+protected: ExprMulParamScalarExpr(p_ExprMulParamScalarExpr * _impl);
+public:
+ExprMulParamScalarExpr(const ExprMulParamScalarExpr &) = delete;
+const ExprMulParamScalarExpr & operator=(const ExprMulParamScalarExpr &) = delete;
+friend class p_ExprMulParamScalarExpr;
+virtual ~ExprMulParamScalarExpr();
+virtual void destroy();
+typedef monty::rc_ptr< ExprMulParamScalarExpr > t;
+
+ExprMulParamScalarExpr(monty::rc_ptr< ::mosek::fusion::Parameter > p,monty::rc_ptr< ::mosek::fusion::Expression > e);
+virtual /* override */ void eval(monty::rc_ptr< ::mosek::fusion::WorkStack > rs,monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs) ;
+virtual /* override */ std::string toString() ;
+}; // class ExprMulParamScalarExpr;
+
+class ExprMulParamScalar : public ::mosek::fusion::BaseExpression
+{
+protected: ExprMulParamScalar(p_ExprMulParamScalar * _impl);
+public:
+ExprMulParamScalar(const ExprMulParamScalar &) = delete;
+const ExprMulParamScalar & operator=(const ExprMulParamScalar &) = delete;
+friend class p_ExprMulParamScalar;
+virtual ~ExprMulParamScalar();
+virtual void destroy();
+typedef monty::rc_ptr< ExprMulParamScalar > t;
+
+ExprMulParamScalar(monty::rc_ptr< ::mosek::fusion::Parameter > p,monty::rc_ptr< ::mosek::fusion::Expression > e);
+virtual /* override */ void eval(monty::rc_ptr< ::mosek::fusion::WorkStack > rs,monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs) ;
+virtual /* override */ std::string toString() ;
+}; // class ExprMulParamScalar;
+
+class ExprMulParamDiagLeft : public ::mosek::fusion::BaseExpression
+{
+protected: ExprMulParamDiagLeft(p_ExprMulParamDiagLeft * _impl);
+public:
+ExprMulParamDiagLeft(const ExprMulParamDiagLeft &) = delete;
+const ExprMulParamDiagLeft & operator=(const ExprMulParamDiagLeft &) = delete;
+friend class p_ExprMulParamDiagLeft;
+virtual ~ExprMulParamDiagLeft();
+virtual void destroy();
+typedef monty::rc_ptr< ExprMulParamDiagLeft > t;
+
+ExprMulParamDiagLeft(monty::rc_ptr< ::mosek::fusion::Parameter > p,monty::rc_ptr< ::mosek::fusion::Expression > e);
+virtual /* override */ void eval(monty::rc_ptr< ::mosek::fusion::WorkStack > rs,monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs) ;
+virtual /* override */ std::string toString() ;
+}; // class ExprMulParamDiagLeft;
+
+class ExprMulParamDiagRight : public ::mosek::fusion::BaseExpression
+{
+protected: ExprMulParamDiagRight(p_ExprMulParamDiagRight * _impl);
+public:
+ExprMulParamDiagRight(const ExprMulParamDiagRight &) = delete;
+const ExprMulParamDiagRight & operator=(const ExprMulParamDiagRight &) = delete;
+friend class p_ExprMulParamDiagRight;
+virtual ~ExprMulParamDiagRight();
+virtual void destroy();
+typedef monty::rc_ptr< ExprMulParamDiagRight > t;
+
+ExprMulParamDiagRight(monty::rc_ptr< ::mosek::fusion::Expression > e,monty::rc_ptr< ::mosek::fusion::Parameter > p);
+virtual /* override */ void eval(monty::rc_ptr< ::mosek::fusion::WorkStack > rs,monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs) ;
+virtual /* override */ std::string toString() ;
+}; // class ExprMulParamDiagRight;
+
+class ExprDotParam : public ::mosek::fusion::BaseExpression
+{
+protected: ExprDotParam(p_ExprDotParam * _impl);
+public:
+ExprDotParam(const ExprDotParam &) = delete;
+const ExprDotParam & operator=(const ExprDotParam &) = delete;
+friend class p_ExprDotParam;
+virtual ~ExprDotParam();
+virtual void destroy();
+typedef monty::rc_ptr< ExprDotParam > t;
+
+ExprDotParam(monty::rc_ptr< ::mosek::fusion::Parameter > p,monty::rc_ptr< ::mosek::fusion::Expression > e);
+virtual /* override */ void eval(monty::rc_ptr< ::mosek::fusion::WorkStack > rs,monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs) ;
+virtual /* override */ std::string toString() ;
+}; // class ExprDotParam;
+
+class ExprMulParamElem : public ::mosek::fusion::BaseExpression
+{
+protected: ExprMulParamElem(p_ExprMulParamElem * _impl);
+public:
+ExprMulParamElem(const ExprMulParamElem &) = delete;
+const ExprMulParamElem & operator=(const ExprMulParamElem &) = delete;
+friend class p_ExprMulParamElem;
+virtual ~ExprMulParamElem();
+virtual void destroy();
+typedef monty::rc_ptr< ExprMulParamElem > t;
+
+ExprMulParamElem(monty::rc_ptr< ::mosek::fusion::Parameter > p,monty::rc_ptr< ::mosek::fusion::Expression > e);
+virtual /* override */ void eval(monty::rc_ptr< ::mosek::fusion::WorkStack > rs,monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs) ;
+virtual /* override */ std::string toString() ;
+}; // class ExprMulParamElem;
+
+class ExprMulParamRight : public ::mosek::fusion::BaseExpression
+{
+protected: ExprMulParamRight(p_ExprMulParamRight * _impl);
+public:
+ExprMulParamRight(const ExprMulParamRight &) = delete;
+const ExprMulParamRight & operator=(const ExprMulParamRight &) = delete;
+friend class p_ExprMulParamRight;
+virtual ~ExprMulParamRight();
+virtual void destroy();
+typedef monty::rc_ptr< ExprMulParamRight > t;
+
+ExprMulParamRight(monty::rc_ptr< ::mosek::fusion::Expression > e,monty::rc_ptr< ::mosek::fusion::Parameter > p);
+virtual /* override */ void eval(monty::rc_ptr< ::mosek::fusion::WorkStack > rs,monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs) ;
+virtual /* override */ std::string toString() ;
+}; // class ExprMulParamRight;
+
+class ExprMulParamLeft : public ::mosek::fusion::BaseExpression
+{
+protected: ExprMulParamLeft(p_ExprMulParamLeft * _impl);
+public:
+ExprMulParamLeft(const ExprMulParamLeft &) = delete;
+const ExprMulParamLeft & operator=(const ExprMulParamLeft &) = delete;
+friend class p_ExprMulParamLeft;
+virtual ~ExprMulParamLeft();
+virtual void destroy();
+typedef monty::rc_ptr< ExprMulParamLeft > t;
+
+ExprMulParamLeft(monty::rc_ptr< ::mosek::fusion::Parameter > p,monty::rc_ptr< ::mosek::fusion::Expression > e);
+virtual /* override */ void eval(monty::rc_ptr< ::mosek::fusion::WorkStack > rs,monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs) ;
+virtual /* override */ std::string toString() ;
+}; // class ExprMulParamLeft;
+
+class ExprOptimizeCode : public ::mosek::fusion::BaseExpression
+{
+protected: ExprOptimizeCode(p_ExprOptimizeCode * _impl);
+public:
+ExprOptimizeCode(const ExprOptimizeCode &) = delete;
+const ExprOptimizeCode & operator=(const ExprOptimizeCode &) = delete;
+friend class p_ExprOptimizeCode;
+virtual ~ExprOptimizeCode();
+virtual void destroy();
+typedef monty::rc_ptr< ExprOptimizeCode > t;
+
+ExprOptimizeCode(monty::rc_ptr< ::mosek::fusion::Expression > expr);
+virtual /* override */ void eval(monty::rc_ptr< ::mosek::fusion::WorkStack > rs,monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs) ;
+virtual /* override */ std::string toString() ;
+}; // class ExprOptimizeCode;
+
+class ExprCompress : public ::mosek::fusion::BaseExpression
+{
+protected: ExprCompress(p_ExprCompress * _impl);
+public:
+ExprCompress(const ExprCompress &) = delete;
+const ExprCompress & operator=(const ExprCompress &) = delete;
+friend class p_ExprCompress;
+virtual ~ExprCompress();
+virtual void destroy();
+typedef monty::rc_ptr< ExprCompress > t;
+
+ExprCompress(monty::rc_ptr< ::mosek::fusion::Expression > expr);
+ExprCompress(monty::rc_ptr< ::mosek::fusion::Expression > expr,double epsilon);
+static void arg_sort(monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs,int perm,int nelem,int nnz,int ptr,int nidxs);
+static void merge_sort(int origperm1,int origperm2,int nelem,int nnz,int ptr_base,int nidxs_base,std::shared_ptr< monty::ndarray< int,1 > > wi32,std::shared_ptr< monty::ndarray< long long,1 > > wi64);
+virtual /* override */ void eval(monty::rc_ptr< ::mosek::fusion::WorkStack > rs,monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs) ;
+virtual /* override */ std::string toString() ;
+}; // class ExprCompress;
 
 class ExprConst : public ::mosek::fusion::BaseExpression
 {
@@ -1945,6 +2492,22 @@ virtual /* override */ void eval(monty::rc_ptr< ::mosek::fusion::WorkStack > rs,
 virtual /* override */ std::string toString() ;
 }; // class ExprTranspose;
 
+class ExprRepeat : public ::mosek::fusion::BaseExpression
+{
+protected: ExprRepeat(p_ExprRepeat * _impl);
+public:
+ExprRepeat(const ExprRepeat &) = delete;
+const ExprRepeat & operator=(const ExprRepeat &) = delete;
+friend class p_ExprRepeat;
+virtual ~ExprRepeat();
+virtual void destroy();
+typedef monty::rc_ptr< ExprRepeat > t;
+
+ExprRepeat(monty::rc_ptr< ::mosek::fusion::Expression > expr,int dim,int n);
+virtual /* override */ void eval(monty::rc_ptr< ::mosek::fusion::WorkStack > rs,monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs) ;
+virtual /* override */ std::string toString() ;
+}; // class ExprRepeat;
+
 class ExprStack : public ::mosek::fusion::BaseExpression
 {
 protected: ExprStack(p_ExprStack * _impl);
@@ -2015,7 +2578,7 @@ virtual /* override */ std::string toString() ;
 
 class ExprMulElement : public ::mosek::fusion::BaseExpression
 {
-ExprMulElement(std::shared_ptr< monty::ndarray< double,1 > > mcof,std::shared_ptr< monty::ndarray< long long,1 > > msp,monty::rc_ptr< ::mosek::fusion::Expression > expr,int validated);
+ExprMulElement(std::shared_ptr< monty::ndarray< double,1 > > cof,std::shared_ptr< monty::ndarray< long long,1 > > msp,monty::rc_ptr< ::mosek::fusion::Expression > expr,int validated);
 protected: ExprMulElement(p_ExprMulElement * _impl);
 public:
 ExprMulElement(const ExprMulElement &) = delete;
@@ -2211,6 +2774,7 @@ typedef monty::rc_ptr< ExprDenseTril > t;
 ExprDenseTril(int dim0,int dim1,monty::rc_ptr< ::mosek::fusion::Expression > expr,int unchecked_);
 ExprDenseTril(int dim0_,int dim1_,monty::rc_ptr< ::mosek::fusion::Expression > expr);
 virtual /* override */ void eval(monty::rc_ptr< ::mosek::fusion::WorkStack > rs,monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs) ;
+virtual /* override */ std::string toString() ;
 }; // class ExprDenseTril;
 
 class ExprDense : public ::mosek::fusion::BaseExpression
@@ -2243,26 +2807,8 @@ typedef monty::rc_ptr< ExprSymmetrize > t;
 ExprSymmetrize(int dim0,int dim1,monty::rc_ptr< ::mosek::fusion::Expression > expr,int unchecked_);
 ExprSymmetrize(int dim0_,int dim1_,monty::rc_ptr< ::mosek::fusion::Expression > expr);
 virtual /* override */ void eval(monty::rc_ptr< ::mosek::fusion::WorkStack > rs,monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs) ;
-}; // class ExprSymmetrize;
-
-class ExprCompress : public ::mosek::fusion::BaseExpression
-{
-protected: ExprCompress(p_ExprCompress * _impl);
-public:
-ExprCompress(const ExprCompress &) = delete;
-const ExprCompress & operator=(const ExprCompress &) = delete;
-friend class p_ExprCompress;
-virtual ~ExprCompress();
-virtual void destroy();
-typedef monty::rc_ptr< ExprCompress > t;
-
-ExprCompress(monty::rc_ptr< ::mosek::fusion::Expression > expr);
-ExprCompress(monty::rc_ptr< ::mosek::fusion::Expression > expr,double epsilon);
-virtual /* override */ void eval(monty::rc_ptr< ::mosek::fusion::WorkStack > rs,monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs) ;
-static void arg_sort(monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs,int perm,int nelem,int nnz,int ptr,int nidxs);
-static void merge_sort(int origperm1,int origperm2,int nelem,int nnz,int ptr_base,int nidxs_base,std::shared_ptr< monty::ndarray< int,1 > > wi32,std::shared_ptr< monty::ndarray< long long,1 > > wi64);
 virtual /* override */ std::string toString() ;
-}; // class ExprCompress;
+}; // class ExprSymmetrize;
 
 class ExprCondense : public ::mosek::fusion::BaseExpression
 {
@@ -2277,6 +2823,7 @@ typedef monty::rc_ptr< ExprCondense > t;
 
 ExprCondense(monty::rc_ptr< ::mosek::fusion::Expression > expr);
 virtual /* override */ void eval(monty::rc_ptr< ::mosek::fusion::WorkStack > rs,monty::rc_ptr< ::mosek::fusion::WorkStack > ws,monty::rc_ptr< ::mosek::fusion::WorkStack > xs) ;
+virtual /* override */ std::string toString() ;
 }; // class ExprCondense;
 
 class ExprFromVar : public ::mosek::fusion::BaseExpression
@@ -2331,10 +2878,6 @@ static monty::rc_ptr< ::mosek::fusion::Expression > reshape(monty::rc_ptr< ::mos
 static monty::rc_ptr< ::mosek::fusion::Expression > reshape(monty::rc_ptr< ::mosek::fusion::Expression > e,int size);
 static monty::rc_ptr< ::mosek::fusion::Expression > reshape(monty::rc_ptr< ::mosek::fusion::Expression > e,std::shared_ptr< monty::ndarray< int,1 > > newshape);
 virtual long long size() ;
-virtual /* override */ monty::rc_ptr< ::mosek::fusion::FlatExpr > __mosek_2fusion_2Expr__eval() ;
-monty::rc_ptr< ::mosek::fusion::FlatExpr > eval();
-/* override: mosek.fusion.BaseExpression.eval*/
-virtual monty::rc_ptr< ::mosek::fusion::FlatExpr > __mosek_2fusion_2BaseExpression__eval();
 static monty::rc_ptr< ::mosek::fusion::Expression > zeros(std::shared_ptr< monty::ndarray< int,1 > > shp);
 static monty::rc_ptr< ::mosek::fusion::Expression > zeros(int size);
 static monty::rc_ptr< ::mosek::fusion::Expression > ones();
@@ -2345,7 +2888,7 @@ static monty::rc_ptr< ::mosek::fusion::Expression > constTerm(monty::rc_ptr< ::m
 static monty::rc_ptr< ::mosek::fusion::Expression > constTerm(monty::rc_ptr< ::mosek::fusion::Matrix > m);
 static monty::rc_ptr< ::mosek::fusion::Expression > constTerm(double val);
 static monty::rc_ptr< ::mosek::fusion::Expression > constTerm(std::shared_ptr< monty::ndarray< int,1 > > shp,std::shared_ptr< monty::ndarray< int,2 > > sparsity,double val);
-static monty::rc_ptr< ::mosek::fusion::Expression > constTerm(std::shared_ptr< monty::ndarray< int,1 > > shp,std::shared_ptr< monty::ndarray< int,2 > > sparsity,std::shared_ptr< monty::ndarray< double,1 > > val);
+static monty::rc_ptr< ::mosek::fusion::Expression > constTerm(std::shared_ptr< monty::ndarray< int,1 > > shp,std::shared_ptr< monty::ndarray< int,2 > > sparsity,std::shared_ptr< monty::ndarray< double,1 > > vals1);
 static monty::rc_ptr< ::mosek::fusion::Expression > constTerm(std::shared_ptr< monty::ndarray< int,1 > > shp,double val);
 static monty::rc_ptr< ::mosek::fusion::Expression > constTerm(int size,double val);
 static monty::rc_ptr< ::mosek::fusion::Expression > constTerm(std::shared_ptr< monty::ndarray< double,2 > > vals2);
@@ -2354,6 +2897,10 @@ virtual long long numNonzeros() ;
 static monty::rc_ptr< ::mosek::fusion::Expression > sum(monty::rc_ptr< ::mosek::fusion::Expression > expr,int dim);
 static monty::rc_ptr< ::mosek::fusion::Expression > sum(monty::rc_ptr< ::mosek::fusion::Expression > expr);
 static monty::rc_ptr< ::mosek::fusion::Expression > neg(monty::rc_ptr< ::mosek::fusion::Expression > e);
+static monty::rc_ptr< ::mosek::fusion::Expression > mulDiag(monty::rc_ptr< ::mosek::fusion::Variable > v,monty::rc_ptr< ::mosek::fusion::Parameter > p);
+static monty::rc_ptr< ::mosek::fusion::Expression > mulDiag(monty::rc_ptr< ::mosek::fusion::Parameter > p,monty::rc_ptr< ::mosek::fusion::Variable > v);
+static monty::rc_ptr< ::mosek::fusion::Expression > mulDiag(monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::Parameter > p);
+static monty::rc_ptr< ::mosek::fusion::Expression > mulDiag(monty::rc_ptr< ::mosek::fusion::Parameter > p,monty::rc_ptr< ::mosek::fusion::Expression > expr);
 static monty::rc_ptr< ::mosek::fusion::Expression > mulDiag(monty::rc_ptr< ::mosek::fusion::Variable > v,monty::rc_ptr< ::mosek::fusion::Matrix > mx);
 static monty::rc_ptr< ::mosek::fusion::Expression > mulDiag(monty::rc_ptr< ::mosek::fusion::Matrix > mx,monty::rc_ptr< ::mosek::fusion::Variable > v);
 static monty::rc_ptr< ::mosek::fusion::Expression > mulDiag(monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::Matrix > mx);
@@ -2362,16 +2909,18 @@ static monty::rc_ptr< ::mosek::fusion::Expression > mulDiag(monty::rc_ptr< ::mos
 static monty::rc_ptr< ::mosek::fusion::Expression > mulDiag(monty::rc_ptr< ::mosek::fusion::Expression > expr,std::shared_ptr< monty::ndarray< double,2 > > a);
 static monty::rc_ptr< ::mosek::fusion::Expression > mulDiag(std::shared_ptr< monty::ndarray< double,2 > > a,monty::rc_ptr< ::mosek::fusion::Variable > v);
 static monty::rc_ptr< ::mosek::fusion::Expression > mulDiag(std::shared_ptr< monty::ndarray< double,2 > > a,monty::rc_ptr< ::mosek::fusion::Expression > expr);
-static monty::rc_ptr< ::mosek::fusion::Expression > mul(monty::rc_ptr< ::mosek::fusion::Expression > e,double c);
-static monty::rc_ptr< ::mosek::fusion::Expression > mul(double c,monty::rc_ptr< ::mosek::fusion::Expression > e);
-static monty::rc_ptr< ::mosek::fusion::Expression > mul(monty::rc_ptr< ::mosek::fusion::Expression > e,std::shared_ptr< monty::ndarray< double,1 > > a);
-static monty::rc_ptr< ::mosek::fusion::Expression > mul(std::shared_ptr< monty::ndarray< double,1 > > a,monty::rc_ptr< ::mosek::fusion::Expression > e);
-static monty::rc_ptr< ::mosek::fusion::Expression > mul(monty::rc_ptr< ::mosek::fusion::Expression > e,std::shared_ptr< monty::ndarray< double,2 > > a);
-static monty::rc_ptr< ::mosek::fusion::Expression > mul(std::shared_ptr< monty::ndarray< double,2 > > a,monty::rc_ptr< ::mosek::fusion::Expression > e);
-static monty::rc_ptr< ::mosek::fusion::Expression > mul(monty::rc_ptr< ::mosek::fusion::Expression > e,monty::rc_ptr< ::mosek::fusion::Matrix > mx);
-static monty::rc_ptr< ::mosek::fusion::Expression > mul(monty::rc_ptr< ::mosek::fusion::Matrix > mx,monty::rc_ptr< ::mosek::fusion::Expression > e);
+static monty::rc_ptr< ::mosek::fusion::Expression > mul(monty::rc_ptr< ::mosek::fusion::Expression > expr,double c);
+static monty::rc_ptr< ::mosek::fusion::Expression > mul(double c,monty::rc_ptr< ::mosek::fusion::Expression > expr);
+static monty::rc_ptr< ::mosek::fusion::Expression > mul(monty::rc_ptr< ::mosek::fusion::Expression > expr,std::shared_ptr< monty::ndarray< double,1 > > a);
+static monty::rc_ptr< ::mosek::fusion::Expression > mul(std::shared_ptr< monty::ndarray< double,1 > > a,monty::rc_ptr< ::mosek::fusion::Expression > expr);
+static monty::rc_ptr< ::mosek::fusion::Expression > mul(monty::rc_ptr< ::mosek::fusion::Expression > expr,std::shared_ptr< monty::ndarray< double,2 > > a);
+static monty::rc_ptr< ::mosek::fusion::Expression > mul(std::shared_ptr< monty::ndarray< double,2 > > a,monty::rc_ptr< ::mosek::fusion::Expression > expr);
+static monty::rc_ptr< ::mosek::fusion::Expression > mul(monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::Matrix > mx);
+static monty::rc_ptr< ::mosek::fusion::Expression > mul(monty::rc_ptr< ::mosek::fusion::Matrix > mx,monty::rc_ptr< ::mosek::fusion::Expression > expr);
 static monty::rc_ptr< ::mosek::fusion::Expression > mul(monty::rc_ptr< ::mosek::fusion::Variable > v,monty::rc_ptr< ::mosek::fusion::Matrix > mx);
 static monty::rc_ptr< ::mosek::fusion::Expression > mul(monty::rc_ptr< ::mosek::fusion::Matrix > mx,monty::rc_ptr< ::mosek::fusion::Variable > v);
+static monty::rc_ptr< ::mosek::fusion::Expression > mul(monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::Parameter > p);
+static monty::rc_ptr< ::mosek::fusion::Expression > mul(monty::rc_ptr< ::mosek::fusion::Parameter > p,monty::rc_ptr< ::mosek::fusion::Expression > expr);
 static monty::rc_ptr< ::mosek::fusion::Expression > dot(monty::rc_ptr< ::mosek::fusion::Expression > e,monty::rc_ptr< ::mosek::fusion::Matrix > m);
 static monty::rc_ptr< ::mosek::fusion::Expression > dot(monty::rc_ptr< ::mosek::fusion::Expression > e,std::shared_ptr< monty::ndarray< double,2 > > c2);
 static monty::rc_ptr< ::mosek::fusion::Expression > dot(monty::rc_ptr< ::mosek::fusion::Expression > e,monty::rc_ptr< ::mosek::fusion::NDSparseArray > nda);
@@ -2380,8 +2929,8 @@ static monty::rc_ptr< ::mosek::fusion::Expression > dot(monty::rc_ptr< ::mosek::
 static monty::rc_ptr< ::mosek::fusion::Expression > dot(monty::rc_ptr< ::mosek::fusion::NDSparseArray > nda,monty::rc_ptr< ::mosek::fusion::Expression > e);
 static monty::rc_ptr< ::mosek::fusion::Expression > dot(std::shared_ptr< monty::ndarray< double,2 > > c2,monty::rc_ptr< ::mosek::fusion::Expression > e);
 static monty::rc_ptr< ::mosek::fusion::Expression > dot(std::shared_ptr< monty::ndarray< double,1 > > c1,monty::rc_ptr< ::mosek::fusion::Expression > e);
-static monty::rc_ptr< ::mosek::fusion::Expression > outer(std::shared_ptr< monty::ndarray< double,1 > > a,monty::rc_ptr< ::mosek::fusion::Expression > e);
-static monty::rc_ptr< ::mosek::fusion::Expression > outer(monty::rc_ptr< ::mosek::fusion::Expression > e,std::shared_ptr< monty::ndarray< double,1 > > a);
+static monty::rc_ptr< ::mosek::fusion::Expression > dot(monty::rc_ptr< ::mosek::fusion::Expression > e,monty::rc_ptr< ::mosek::fusion::Parameter > p);
+static monty::rc_ptr< ::mosek::fusion::Expression > dot(monty::rc_ptr< ::mosek::fusion::Parameter > p,monty::rc_ptr< ::mosek::fusion::Expression > e);
 static monty::rc_ptr< ::mosek::fusion::Expression > outer(monty::rc_ptr< ::mosek::fusion::Matrix > m,monty::rc_ptr< ::mosek::fusion::Variable > v);
 static monty::rc_ptr< ::mosek::fusion::Expression > outer(monty::rc_ptr< ::mosek::fusion::Variable > v,monty::rc_ptr< ::mosek::fusion::Matrix > m);
 static monty::rc_ptr< ::mosek::fusion::Expression > outer(std::shared_ptr< monty::ndarray< double,1 > > a,monty::rc_ptr< ::mosek::fusion::Variable > v);
@@ -2421,6 +2970,7 @@ static monty::rc_ptr< ::mosek::fusion::Expression > stack(int dim,double a1,mont
 static monty::rc_ptr< ::mosek::fusion::Expression > stack(int dim,monty::rc_ptr< ::mosek::fusion::Expression > e1,double a2);
 static monty::rc_ptr< ::mosek::fusion::Expression > stack(int dim,monty::rc_ptr< ::mosek::fusion::Expression > e1,monty::rc_ptr< ::mosek::fusion::Expression > e2);
 static monty::rc_ptr< ::mosek::fusion::Expression > stack(int dim,std::shared_ptr< monty::ndarray< monty::rc_ptr< ::mosek::fusion::Expression >,1 > > exprs);
+static monty::rc_ptr< ::mosek::fusion::Expression > repeat(monty::rc_ptr< ::mosek::fusion::Variable > x,int n,int d);
 static monty::rc_ptr< ::mosek::fusion::Expression > repeat(monty::rc_ptr< ::mosek::fusion::Expression > e,int n,int d);
 static monty::rc_ptr< ::mosek::fusion::Expression > add(std::shared_ptr< monty::ndarray< monty::rc_ptr< ::mosek::fusion::Expression >,1 > > exps);
 static monty::rc_ptr< ::mosek::fusion::Expression > add(std::shared_ptr< monty::ndarray< monty::rc_ptr< ::mosek::fusion::Variable >,1 > > vs);
@@ -2433,6 +2983,8 @@ static monty::rc_ptr< ::mosek::fusion::Expression > mulElm(monty::rc_ptr< ::mose
 static monty::rc_ptr< ::mosek::fusion::Expression > mulElm(monty::rc_ptr< ::mosek::fusion::Expression > expr,std::shared_ptr< monty::ndarray< double,2 > > a2);
 static monty::rc_ptr< ::mosek::fusion::Expression > mulElm(monty::rc_ptr< ::mosek::fusion::Expression > expr,std::shared_ptr< monty::ndarray< double,1 > > a1);
 static monty::rc_ptr< ::mosek::fusion::Expression > mulElm(monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::NDSparseArray > spm);
+static monty::rc_ptr< ::mosek::fusion::Expression > mulElm(monty::rc_ptr< ::mosek::fusion::Parameter > p,monty::rc_ptr< ::mosek::fusion::Expression > expr);
+static monty::rc_ptr< ::mosek::fusion::Expression > mulElm(monty::rc_ptr< ::mosek::fusion::Expression > expr,monty::rc_ptr< ::mosek::fusion::Parameter > p);
 static monty::rc_ptr< ::mosek::fusion::Expression > sub(monty::rc_ptr< ::mosek::fusion::NDSparseArray > n,monty::rc_ptr< ::mosek::fusion::Expression > e2);
 static monty::rc_ptr< ::mosek::fusion::Expression > sub(monty::rc_ptr< ::mosek::fusion::Expression > e1,monty::rc_ptr< ::mosek::fusion::NDSparseArray > n);
 static monty::rc_ptr< ::mosek::fusion::Expression > sub(monty::rc_ptr< ::mosek::fusion::Matrix > m,monty::rc_ptr< ::mosek::fusion::Expression > e2);
@@ -2471,10 +3023,14 @@ friend class p_WorkStack;
 virtual ~WorkStack();
 virtual void destroy();
 typedef monty::rc_ptr< WorkStack > t;
+int get_code_base();
+void set_code_base(int val);
+int get_cconst_base();
+void set_cconst_base(int val);
+int get_codeptr_base();
+void set_codeptr_base(int val);
 int get_cof_base();
 void set_cof_base(int val);
-int get_bfix_base();
-void set_bfix_base(int val);
 int get_nidxs_base();
 void set_nidxs_base(int val);
 int get_sp_base();
@@ -2485,6 +3041,8 @@ int get_ptr_base();
 void set_ptr_base(int val);
 bool get_hassp();
 void set_hassp(bool val);
+int get_ncodeatom();
+void set_ncodeatom(int val);
 int get_nelem();
 void set_nelem(int val);
 int get_nnz();
@@ -2505,15 +3063,17 @@ std::shared_ptr< monty::ndarray< int,1 > > get_i32();
 void set_i32(std::shared_ptr< monty::ndarray< int,1 > > val);
 
 WorkStack();
+virtual std::string formatCurrent() ;
 virtual bool peek_hassp() ;
 virtual int peek_nnz() ;
 virtual int peek_nelem() ;
 virtual int peek_dim(int i) ;
 virtual int peek_nd() ;
 virtual void alloc_expr(int nd,int nelem,int nnz,bool hassp) ;
+virtual void alloc_expr(int nd,int nelem,int nnz,bool hassp,int ncodeatom) ;
+virtual void pop_expr() ;
 virtual void move_expr(monty::rc_ptr< ::mosek::fusion::WorkStack > to) ;
 virtual void peek_expr() ;
-virtual void pop_expr() ;
 virtual void ensure_sparsity() ;
 virtual void clear() ;
 virtual int allocf64(int n) ;
@@ -2557,38 +3117,6 @@ typedef monty::rc_ptr< SymmetricExpr > t;
 
 virtual /* override */ std::string toString() ;
 }; // class SymmetricExpr;
-
-class FlatExpr : public virtual monty::RefCounted
-{
-public: p_FlatExpr * _impl;
-protected: FlatExpr(p_FlatExpr * _impl);
-public:
-FlatExpr(const FlatExpr &) = delete;
-const FlatExpr & operator=(const FlatExpr &) = delete;
-friend class p_FlatExpr;
-virtual ~FlatExpr();
-virtual void destroy();
-typedef monty::rc_ptr< FlatExpr > t;
-std::shared_ptr< monty::ndarray< long long,1 > > get_inst();
-void set_inst(std::shared_ptr< monty::ndarray< long long,1 > > val);
-std::shared_ptr< monty::ndarray< int,1 > > get_shape();
-void set_shape(std::shared_ptr< monty::ndarray< int,1 > > val);
-long long get_nnz();
-void set_nnz(long long val);
-std::shared_ptr< monty::ndarray< double,1 > > get_cof();
-void set_cof(std::shared_ptr< monty::ndarray< double,1 > > val);
-std::shared_ptr< monty::ndarray< long long,1 > > get_subj();
-void set_subj(std::shared_ptr< monty::ndarray< long long,1 > > val);
-std::shared_ptr< monty::ndarray< long long,1 > > get_ptrb();
-void set_ptrb(std::shared_ptr< monty::ndarray< long long,1 > > val);
-std::shared_ptr< monty::ndarray< double,1 > > get_bfix();
-void set_bfix(std::shared_ptr< monty::ndarray< double,1 > > val);
-
-FlatExpr(monty::rc_ptr< ::mosek::fusion::FlatExpr > e);
-FlatExpr(std::shared_ptr< monty::ndarray< double,1 > > bfix_,std::shared_ptr< monty::ndarray< long long,1 > > ptrb_,std::shared_ptr< monty::ndarray< long long,1 > > subj_,std::shared_ptr< monty::ndarray< double,1 > > cof_,std::shared_ptr< monty::ndarray< int,1 > > shape_,std::shared_ptr< monty::ndarray< long long,1 > > inst_);
-virtual /* override */ std::string toString() ;
-virtual int size() ;
-}; // class FlatExpr;
 
 class SymmetricMatrix : public virtual monty::RefCounted
 {

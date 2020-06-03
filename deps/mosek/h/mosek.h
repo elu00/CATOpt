@@ -4,7 +4,7 @@
 /******************************************************************************
  ** Module : mosek.h
  **
- ** Generated 2019
+ ** Generated 2020
  **
  ** Copyright (c) MOSEK ApS, Denmark.
  **
@@ -22,8 +22,8 @@
 #include <stdio.h>
 
 #define MSK_VERSION_MAJOR    9
-#define MSK_VERSION_MINOR    0
-#define MSK_VERSION_REVISION 104
+#define MSK_VERSION_MINOR    2
+#define MSK_VERSION_REVISION 10
 #define MSK_VERSION_STATE    ""
 
 #define MSK_INFINITY 1.0e30
@@ -36,6 +36,65 @@
 
 /* Enums and constants */
 /* namespace mosek { */
+enum MSKprosta_enum {
+  MSK_PRO_STA_BEGIN                    = 0,
+  MSK_PRO_STA_END                      = 9,
+
+  MSK_PRO_STA_UNKNOWN                  = 0,
+  MSK_PRO_STA_PRIM_AND_DUAL_FEAS       = 1,
+  MSK_PRO_STA_PRIM_FEAS                = 2,
+  MSK_PRO_STA_DUAL_FEAS                = 3,
+  MSK_PRO_STA_PRIM_INFEAS              = 4,
+  MSK_PRO_STA_DUAL_INFEAS              = 5,
+  MSK_PRO_STA_PRIM_AND_DUAL_INFEAS     = 6,
+  MSK_PRO_STA_ILL_POSED                = 7,
+  MSK_PRO_STA_PRIM_INFEAS_OR_UNBOUNDED = 8
+};
+
+enum MSKpresolvemode_enum {
+  MSK_PRESOLVE_MODE_BEGIN = 0,
+  MSK_PRESOLVE_MODE_END  = 3,
+
+  MSK_PRESOLVE_MODE_OFF  = 0,
+  MSK_PRESOLVE_MODE_ON   = 1,
+  MSK_PRESOLVE_MODE_FREE = 2
+};
+
+enum MSKtranspose_enum {
+  MSK_TRANSPOSE_BEGIN = 0,
+  MSK_TRANSPOSE_END = 2,
+
+  MSK_TRANSPOSE_NO  = 0,
+  MSK_TRANSPOSE_YES = 1
+};
+
+enum MSKsimdegen_enum {
+  MSK_SIM_DEGEN_BEGIN      = 0,
+  MSK_SIM_DEGEN_END        = 5,
+
+  MSK_SIM_DEGEN_NONE       = 0,
+  MSK_SIM_DEGEN_FREE       = 1,
+  MSK_SIM_DEGEN_AGGRESSIVE = 2,
+  MSK_SIM_DEGEN_MODERATE   = 3,
+  MSK_SIM_DEGEN_MINIMUM    = 4
+};
+
+enum MSKvalue_enum {
+  MSK_LICENSE_BUFFER_LENGTH = 21,
+  MSK_MAX_STR_LEN           = 1024
+};
+
+enum MSKboundkey_enum {
+  MSK_BK_BEGIN = 0,
+  MSK_BK_END = 5,
+
+  MSK_BK_LO = 0,
+  MSK_BK_UP = 1,
+  MSK_BK_FX = 2,
+  MSK_BK_FR = 3,
+  MSK_BK_RA = 4
+};
+
 enum MSKdparam_enum {
   MSK_DPAR_BEGIN                              = 0,
   MSK_DPAR_END                                = 59,
@@ -101,24 +160,123 @@ enum MSKdparam_enum {
   MSK_DPAR_UPPER_OBJ_CUT_FINITE_TRH           = 58
 };
 
-enum MSKoptimizertype_enum {
-  MSK_OPTIMIZER_BEGIN          = 0,
-  MSK_OPTIMIZER_END            = 7,
+enum MSKsolveform_enum {
+  MSK_SOLVE_BEGIN  = 0,
+  MSK_SOLVE_END    = 3,
 
-  MSK_OPTIMIZER_CONIC          = 0,
-  MSK_OPTIMIZER_DUAL_SIMPLEX   = 1,
-  MSK_OPTIMIZER_FREE           = 2,
-  MSK_OPTIMIZER_FREE_SIMPLEX   = 3,
-  MSK_OPTIMIZER_INTPNT         = 4,
-  MSK_OPTIMIZER_MIXED_INT      = 5,
-  MSK_OPTIMIZER_PRIMAL_SIMPLEX = 6
+  MSK_SOLVE_FREE   = 0,
+  MSK_SOLVE_PRIMAL = 1,
+  MSK_SOLVE_DUAL   = 2
 };
 
-enum MSKsymmattype_enum {
-  MSK_SYMMAT_TYPE_BEGIN  = 0,
-  MSK_SYMMAT_TYPE_END    = 1,
+enum MSKscopr_enum {
+  MSK_OPR_BEGIN = 0,
+  MSK_OPR_END  = 5,
 
-  MSK_SYMMAT_TYPE_SPARSE = 0
+  MSK_OPR_ENT  = 0,
+  MSK_OPR_EXP  = 1,
+  MSK_OPR_LOG  = 2,
+  MSK_OPR_POW  = 3,
+  MSK_OPR_SQRT = 4
+};
+
+enum MSKcallbackcode_enum {
+  MSK_CALLBACK_BEGIN                      = 0,
+  MSK_CALLBACK_END                        = 93,
+
+  MSK_CALLBACK_BEGIN_BI                   = 0,
+  MSK_CALLBACK_BEGIN_CONIC                = 1,
+  MSK_CALLBACK_BEGIN_DUAL_BI              = 2,
+  MSK_CALLBACK_BEGIN_DUAL_SENSITIVITY     = 3,
+  MSK_CALLBACK_BEGIN_DUAL_SETUP_BI        = 4,
+  MSK_CALLBACK_BEGIN_DUAL_SIMPLEX         = 5,
+  MSK_CALLBACK_BEGIN_DUAL_SIMPLEX_BI      = 6,
+  MSK_CALLBACK_BEGIN_FULL_CONVEXITY_CHECK = 7,
+  MSK_CALLBACK_BEGIN_INFEAS_ANA           = 8,
+  MSK_CALLBACK_BEGIN_INTPNT               = 9,
+  MSK_CALLBACK_BEGIN_LICENSE_WAIT         = 10,
+  MSK_CALLBACK_BEGIN_MIO                  = 11,
+  MSK_CALLBACK_BEGIN_OPTIMIZER            = 12,
+  MSK_CALLBACK_BEGIN_PRESOLVE             = 13,
+  MSK_CALLBACK_BEGIN_PRIMAL_BI            = 14,
+  MSK_CALLBACK_BEGIN_PRIMAL_REPAIR        = 15,
+  MSK_CALLBACK_BEGIN_PRIMAL_SENSITIVITY   = 16,
+  MSK_CALLBACK_BEGIN_PRIMAL_SETUP_BI      = 17,
+  MSK_CALLBACK_BEGIN_PRIMAL_SIMPLEX       = 18,
+  MSK_CALLBACK_BEGIN_PRIMAL_SIMPLEX_BI    = 19,
+  MSK_CALLBACK_BEGIN_QCQO_REFORMULATE     = 20,
+  MSK_CALLBACK_BEGIN_READ                 = 21,
+  MSK_CALLBACK_BEGIN_ROOT_CUTGEN          = 22,
+  MSK_CALLBACK_BEGIN_SIMPLEX              = 23,
+  MSK_CALLBACK_BEGIN_SIMPLEX_BI           = 24,
+  MSK_CALLBACK_BEGIN_TO_CONIC             = 25,
+  MSK_CALLBACK_BEGIN_WRITE                = 26,
+  MSK_CALLBACK_CONIC                      = 27,
+  MSK_CALLBACK_DUAL_SIMPLEX               = 28,
+  MSK_CALLBACK_END_BI                     = 29,
+  MSK_CALLBACK_END_CONIC                  = 30,
+  MSK_CALLBACK_END_DUAL_BI                = 31,
+  MSK_CALLBACK_END_DUAL_SENSITIVITY       = 32,
+  MSK_CALLBACK_END_DUAL_SETUP_BI          = 33,
+  MSK_CALLBACK_END_DUAL_SIMPLEX           = 34,
+  MSK_CALLBACK_END_DUAL_SIMPLEX_BI        = 35,
+  MSK_CALLBACK_END_FULL_CONVEXITY_CHECK   = 36,
+  MSK_CALLBACK_END_INFEAS_ANA             = 37,
+  MSK_CALLBACK_END_INTPNT                 = 38,
+  MSK_CALLBACK_END_LICENSE_WAIT           = 39,
+  MSK_CALLBACK_END_MIO                    = 40,
+  MSK_CALLBACK_END_OPTIMIZER              = 41,
+  MSK_CALLBACK_END_PRESOLVE               = 42,
+  MSK_CALLBACK_END_PRIMAL_BI              = 43,
+  MSK_CALLBACK_END_PRIMAL_REPAIR          = 44,
+  MSK_CALLBACK_END_PRIMAL_SENSITIVITY     = 45,
+  MSK_CALLBACK_END_PRIMAL_SETUP_BI        = 46,
+  MSK_CALLBACK_END_PRIMAL_SIMPLEX         = 47,
+  MSK_CALLBACK_END_PRIMAL_SIMPLEX_BI      = 48,
+  MSK_CALLBACK_END_QCQO_REFORMULATE       = 49,
+  MSK_CALLBACK_END_READ                   = 50,
+  MSK_CALLBACK_END_ROOT_CUTGEN            = 51,
+  MSK_CALLBACK_END_SIMPLEX                = 52,
+  MSK_CALLBACK_END_SIMPLEX_BI             = 53,
+  MSK_CALLBACK_END_TO_CONIC               = 54,
+  MSK_CALLBACK_END_WRITE                  = 55,
+  MSK_CALLBACK_IM_BI                      = 56,
+  MSK_CALLBACK_IM_CONIC                   = 57,
+  MSK_CALLBACK_IM_DUAL_BI                 = 58,
+  MSK_CALLBACK_IM_DUAL_SENSIVITY          = 59,
+  MSK_CALLBACK_IM_DUAL_SIMPLEX            = 60,
+  MSK_CALLBACK_IM_FULL_CONVEXITY_CHECK    = 61,
+  MSK_CALLBACK_IM_INTPNT                  = 62,
+  MSK_CALLBACK_IM_LICENSE_WAIT            = 63,
+  MSK_CALLBACK_IM_LU                      = 64,
+  MSK_CALLBACK_IM_MIO                     = 65,
+  MSK_CALLBACK_IM_MIO_DUAL_SIMPLEX        = 66,
+  MSK_CALLBACK_IM_MIO_INTPNT              = 67,
+  MSK_CALLBACK_IM_MIO_PRIMAL_SIMPLEX      = 68,
+  MSK_CALLBACK_IM_ORDER                   = 69,
+  MSK_CALLBACK_IM_PRESOLVE                = 70,
+  MSK_CALLBACK_IM_PRIMAL_BI               = 71,
+  MSK_CALLBACK_IM_PRIMAL_SENSIVITY        = 72,
+  MSK_CALLBACK_IM_PRIMAL_SIMPLEX          = 73,
+  MSK_CALLBACK_IM_QO_REFORMULATE          = 74,
+  MSK_CALLBACK_IM_READ                    = 75,
+  MSK_CALLBACK_IM_ROOT_CUTGEN             = 76,
+  MSK_CALLBACK_IM_SIMPLEX                 = 77,
+  MSK_CALLBACK_IM_SIMPLEX_BI              = 78,
+  MSK_CALLBACK_INTPNT                     = 79,
+  MSK_CALLBACK_NEW_INT_MIO                = 80,
+  MSK_CALLBACK_PRIMAL_SIMPLEX             = 81,
+  MSK_CALLBACK_READ_OPF                   = 82,
+  MSK_CALLBACK_READ_OPF_SECTION           = 83,
+  MSK_CALLBACK_SOLVING_REMOTE             = 84,
+  MSK_CALLBACK_UPDATE_DUAL_BI             = 85,
+  MSK_CALLBACK_UPDATE_DUAL_SIMPLEX        = 86,
+  MSK_CALLBACK_UPDATE_DUAL_SIMPLEX_BI     = 87,
+  MSK_CALLBACK_UPDATE_PRESOLVE            = 88,
+  MSK_CALLBACK_UPDATE_PRIMAL_BI           = 89,
+  MSK_CALLBACK_UPDATE_PRIMAL_SIMPLEX      = 90,
+  MSK_CALLBACK_UPDATE_PRIMAL_SIMPLEX_BI   = 91,
+  MSK_CALLBACK_WRITE_OPF                  = 92
 };
 
 enum MSKinftype_enum {
@@ -130,9 +288,64 @@ enum MSKinftype_enum {
   MSK_INF_LINT_TYPE = 2
 };
 
-enum MSKvalue_enum {
-  MSK_LICENSE_BUFFER_LENGTH = 21,
-  MSK_MAX_STR_LEN           = 1024
+enum MSKproblemitem_enum {
+  MSK_PI_BEGIN = 0,
+  MSK_PI_END  = 3,
+
+  MSK_PI_VAR  = 0,
+  MSK_PI_CON  = 1,
+  MSK_PI_CONE = 2
+};
+
+enum MSKsimseltype_enum {
+  MSK_SIM_SELECTION_BEGIN   = 0,
+  MSK_SIM_SELECTION_END     = 6,
+
+  MSK_SIM_SELECTION_FREE    = 0,
+  MSK_SIM_SELECTION_FULL    = 1,
+  MSK_SIM_SELECTION_ASE     = 2,
+  MSK_SIM_SELECTION_DEVEX   = 3,
+  MSK_SIM_SELECTION_SE      = 4,
+  MSK_SIM_SELECTION_PARTIAL = 5
+};
+
+enum MSKrescodetype_enum {
+  MSK_RESPONSE_BEGIN = 0,
+  MSK_RESPONSE_END = 5,
+
+  MSK_RESPONSE_OK  = 0,
+  MSK_RESPONSE_WRN = 1,
+  MSK_RESPONSE_TRM = 2,
+  MSK_RESPONSE_ERR = 3,
+  MSK_RESPONSE_UNK = 4
+};
+
+enum MSKnametype_enum {
+  MSK_NAME_TYPE_BEGIN = 0,
+  MSK_NAME_TYPE_END = 3,
+
+  MSK_NAME_TYPE_GEN = 0,
+  MSK_NAME_TYPE_MPS = 1,
+  MSK_NAME_TYPE_LP  = 2
+};
+
+enum MSKcheckconvexitytype_enum {
+  MSK_CHECK_CONVEXITY_BEGIN  = 0,
+  MSK_CHECK_CONVEXITY_END    = 3,
+
+  MSK_CHECK_CONVEXITY_NONE   = 0,
+  MSK_CHECK_CONVEXITY_SIMPLE = 1,
+  MSK_CHECK_CONVEXITY_FULL   = 2
+};
+
+enum MSKparametertype_enum {
+  MSK_PAR_BEGIN        = 0,
+  MSK_PAR_END          = 4,
+
+  MSK_PAR_INVALID_TYPE = 0,
+  MSK_PAR_DOU_TYPE     = 1,
+  MSK_PAR_INT_TYPE     = 2,
+  MSK_PAR_STR_TYPE     = 3
 };
 
 enum MSKmpsformat_enum {
@@ -143,6 +356,255 @@ enum MSKmpsformat_enum {
   MSK_MPS_FORMAT_RELAXED = 1,
   MSK_MPS_FORMAT_FREE    = 2,
   MSK_MPS_FORMAT_CPLEX   = 3
+};
+
+enum MSKiparam_enum {
+  MSK_IPAR_BEGIN                              = 0,
+  MSK_IPAR_END                                = 180,
+
+  MSK_IPAR_ANA_SOL_BASIS                      = 0,
+  MSK_IPAR_ANA_SOL_PRINT_VIOLATED             = 1,
+  MSK_IPAR_AUTO_SORT_A_BEFORE_OPT             = 2,
+  MSK_IPAR_AUTO_UPDATE_SOL_INFO               = 3,
+  MSK_IPAR_BASIS_SOLVE_USE_PLUS_ONE           = 4,
+  MSK_IPAR_BI_CLEAN_OPTIMIZER                 = 5,
+  MSK_IPAR_BI_IGNORE_MAX_ITER                 = 6,
+  MSK_IPAR_BI_IGNORE_NUM_ERROR                = 7,
+  MSK_IPAR_BI_MAX_ITERATIONS                  = 8,
+  MSK_IPAR_CACHE_LICENSE                      = 9,
+  MSK_IPAR_CHECK_CONVEXITY                    = 10,
+  MSK_IPAR_COMPRESS_STATFILE                  = 11,
+  MSK_IPAR_INFEAS_GENERIC_NAMES               = 12,
+  MSK_IPAR_INFEAS_PREFER_PRIMAL               = 13,
+  MSK_IPAR_INFEAS_REPORT_AUTO                 = 14,
+  MSK_IPAR_INFEAS_REPORT_LEVEL                = 15,
+  MSK_IPAR_INTPNT_BASIS                       = 16,
+  MSK_IPAR_INTPNT_DIFF_STEP                   = 17,
+  MSK_IPAR_INTPNT_HOTSTART                    = 18,
+  MSK_IPAR_INTPNT_MAX_ITERATIONS              = 19,
+  MSK_IPAR_INTPNT_MAX_NUM_COR                 = 20,
+  MSK_IPAR_INTPNT_MAX_NUM_REFINEMENT_STEPS    = 21,
+  MSK_IPAR_INTPNT_MULTI_THREAD                = 22,
+  MSK_IPAR_INTPNT_OFF_COL_TRH                 = 23,
+  MSK_IPAR_INTPNT_ORDER_GP_NUM_SEEDS          = 24,
+  MSK_IPAR_INTPNT_ORDER_METHOD                = 25,
+  MSK_IPAR_INTPNT_PURIFY                      = 26,
+  MSK_IPAR_INTPNT_REGULARIZATION_USE          = 27,
+  MSK_IPAR_INTPNT_SCALING                     = 28,
+  MSK_IPAR_INTPNT_SOLVE_FORM                  = 29,
+  MSK_IPAR_INTPNT_STARTING_POINT              = 30,
+  MSK_IPAR_LICENSE_DEBUG                      = 31,
+  MSK_IPAR_LICENSE_PAUSE_TIME                 = 32,
+  MSK_IPAR_LICENSE_SUPPRESS_EXPIRE_WRNS       = 33,
+  MSK_IPAR_LICENSE_TRH_EXPIRY_WRN             = 34,
+  MSK_IPAR_LICENSE_WAIT                       = 35,
+  MSK_IPAR_LOG                                = 36,
+  MSK_IPAR_LOG_ANA_PRO                        = 37,
+  MSK_IPAR_LOG_BI                             = 38,
+  MSK_IPAR_LOG_BI_FREQ                        = 39,
+  MSK_IPAR_LOG_CHECK_CONVEXITY                = 40,
+  MSK_IPAR_LOG_CUT_SECOND_OPT                 = 41,
+  MSK_IPAR_LOG_EXPAND                         = 42,
+  MSK_IPAR_LOG_FEAS_REPAIR                    = 43,
+  MSK_IPAR_LOG_FILE                           = 44,
+  MSK_IPAR_LOG_INCLUDE_SUMMARY                = 45,
+  MSK_IPAR_LOG_INFEAS_ANA                     = 46,
+  MSK_IPAR_LOG_INTPNT                         = 47,
+  MSK_IPAR_LOG_LOCAL_INFO                     = 48,
+  MSK_IPAR_LOG_MIO                            = 49,
+  MSK_IPAR_LOG_MIO_FREQ                       = 50,
+  MSK_IPAR_LOG_ORDER                          = 51,
+  MSK_IPAR_LOG_PRESOLVE                       = 52,
+  MSK_IPAR_LOG_RESPONSE                       = 53,
+  MSK_IPAR_LOG_SENSITIVITY                    = 54,
+  MSK_IPAR_LOG_SENSITIVITY_OPT                = 55,
+  MSK_IPAR_LOG_SIM                            = 56,
+  MSK_IPAR_LOG_SIM_FREQ                       = 57,
+  MSK_IPAR_LOG_SIM_MINOR                      = 58,
+  MSK_IPAR_LOG_STORAGE                        = 59,
+  MSK_IPAR_MAX_NUM_WARNINGS                   = 60,
+  MSK_IPAR_MIO_BRANCH_DIR                     = 61,
+  MSK_IPAR_MIO_CONIC_OUTER_APPROXIMATION      = 62,
+  MSK_IPAR_MIO_CUT_CLIQUE                     = 63,
+  MSK_IPAR_MIO_CUT_CMIR                       = 64,
+  MSK_IPAR_MIO_CUT_GMI                        = 65,
+  MSK_IPAR_MIO_CUT_IMPLIED_BOUND              = 66,
+  MSK_IPAR_MIO_CUT_KNAPSACK_COVER             = 67,
+  MSK_IPAR_MIO_CUT_SELECTION_LEVEL            = 68,
+  MSK_IPAR_MIO_FEASPUMP_LEVEL                 = 69,
+  MSK_IPAR_MIO_HEURISTIC_LEVEL                = 70,
+  MSK_IPAR_MIO_MAX_NUM_BRANCHES               = 71,
+  MSK_IPAR_MIO_MAX_NUM_RELAXS                 = 72,
+  MSK_IPAR_MIO_MAX_NUM_ROOT_CUT_ROUNDS        = 73,
+  MSK_IPAR_MIO_MAX_NUM_SOLUTIONS              = 74,
+  MSK_IPAR_MIO_MODE                           = 75,
+  MSK_IPAR_MIO_NODE_OPTIMIZER                 = 76,
+  MSK_IPAR_MIO_NODE_SELECTION                 = 77,
+  MSK_IPAR_MIO_PERSPECTIVE_REFORMULATE        = 78,
+  MSK_IPAR_MIO_PROBING_LEVEL                  = 79,
+  MSK_IPAR_MIO_PROPAGATE_OBJECTIVE_CONSTRAINT = 80,
+  MSK_IPAR_MIO_RINS_MAX_NODES                 = 81,
+  MSK_IPAR_MIO_ROOT_OPTIMIZER                 = 82,
+  MSK_IPAR_MIO_ROOT_REPEAT_PRESOLVE_LEVEL     = 83,
+  MSK_IPAR_MIO_SEED                           = 84,
+  MSK_IPAR_MIO_VB_DETECTION_LEVEL             = 85,
+  MSK_IPAR_MT_SPINCOUNT                       = 86,
+  MSK_IPAR_NUM_THREADS                        = 87,
+  MSK_IPAR_OPF_WRITE_HEADER                   = 88,
+  MSK_IPAR_OPF_WRITE_HINTS                    = 89,
+  MSK_IPAR_OPF_WRITE_LINE_LENGTH              = 90,
+  MSK_IPAR_OPF_WRITE_PARAMETERS               = 91,
+  MSK_IPAR_OPF_WRITE_PROBLEM                  = 92,
+  MSK_IPAR_OPF_WRITE_SOL_BAS                  = 93,
+  MSK_IPAR_OPF_WRITE_SOL_ITG                  = 94,
+  MSK_IPAR_OPF_WRITE_SOL_ITR                  = 95,
+  MSK_IPAR_OPF_WRITE_SOLUTIONS                = 96,
+  MSK_IPAR_OPTIMIZER                          = 97,
+  MSK_IPAR_PARAM_READ_CASE_NAME               = 98,
+  MSK_IPAR_PARAM_READ_IGN_ERROR               = 99,
+  MSK_IPAR_PRESOLVE_ELIMINATOR_MAX_FILL       = 100,
+  MSK_IPAR_PRESOLVE_ELIMINATOR_MAX_NUM_TRIES  = 101,
+  MSK_IPAR_PRESOLVE_LEVEL                     = 102,
+  MSK_IPAR_PRESOLVE_LINDEP_ABS_WORK_TRH       = 103,
+  MSK_IPAR_PRESOLVE_LINDEP_REL_WORK_TRH       = 104,
+  MSK_IPAR_PRESOLVE_LINDEP_USE                = 105,
+  MSK_IPAR_PRESOLVE_MAX_NUM_PASS              = 106,
+  MSK_IPAR_PRESOLVE_MAX_NUM_REDUCTIONS        = 107,
+  MSK_IPAR_PRESOLVE_USE                       = 108,
+  MSK_IPAR_PRIMAL_REPAIR_OPTIMIZER            = 109,
+  MSK_IPAR_PTF_WRITE_TRANSFORM                = 110,
+  MSK_IPAR_READ_DEBUG                         = 111,
+  MSK_IPAR_READ_KEEP_FREE_CON                 = 112,
+  MSK_IPAR_READ_LP_DROP_NEW_VARS_IN_BOU       = 113,
+  MSK_IPAR_READ_LP_QUOTED_NAMES               = 114,
+  MSK_IPAR_READ_MPS_FORMAT                    = 115,
+  MSK_IPAR_READ_MPS_WIDTH                     = 116,
+  MSK_IPAR_READ_TASK_IGNORE_PARAM             = 117,
+  MSK_IPAR_REMOVE_UNUSED_SOLUTIONS            = 118,
+  MSK_IPAR_SENSITIVITY_ALL                    = 119,
+  MSK_IPAR_SENSITIVITY_OPTIMIZER              = 120,
+  MSK_IPAR_SENSITIVITY_TYPE                   = 121,
+  MSK_IPAR_SIM_BASIS_FACTOR_USE               = 122,
+  MSK_IPAR_SIM_DEGEN                          = 123,
+  MSK_IPAR_SIM_DUAL_CRASH                     = 124,
+  MSK_IPAR_SIM_DUAL_PHASEONE_METHOD           = 125,
+  MSK_IPAR_SIM_DUAL_RESTRICT_SELECTION        = 126,
+  MSK_IPAR_SIM_DUAL_SELECTION                 = 127,
+  MSK_IPAR_SIM_EXPLOIT_DUPVEC                 = 128,
+  MSK_IPAR_SIM_HOTSTART                       = 129,
+  MSK_IPAR_SIM_HOTSTART_LU                    = 130,
+  MSK_IPAR_SIM_MAX_ITERATIONS                 = 131,
+  MSK_IPAR_SIM_MAX_NUM_SETBACKS               = 132,
+  MSK_IPAR_SIM_NON_SINGULAR                   = 133,
+  MSK_IPAR_SIM_PRIMAL_CRASH                   = 134,
+  MSK_IPAR_SIM_PRIMAL_PHASEONE_METHOD         = 135,
+  MSK_IPAR_SIM_PRIMAL_RESTRICT_SELECTION      = 136,
+  MSK_IPAR_SIM_PRIMAL_SELECTION               = 137,
+  MSK_IPAR_SIM_REFACTOR_FREQ                  = 138,
+  MSK_IPAR_SIM_REFORMULATION                  = 139,
+  MSK_IPAR_SIM_SAVE_LU                        = 140,
+  MSK_IPAR_SIM_SCALING                        = 141,
+  MSK_IPAR_SIM_SCALING_METHOD                 = 142,
+  MSK_IPAR_SIM_SEED                           = 143,
+  MSK_IPAR_SIM_SOLVE_FORM                     = 144,
+  MSK_IPAR_SIM_STABILITY_PRIORITY             = 145,
+  MSK_IPAR_SIM_SWITCH_OPTIMIZER               = 146,
+  MSK_IPAR_SOL_FILTER_KEEP_BASIC              = 147,
+  MSK_IPAR_SOL_FILTER_KEEP_RANGED             = 148,
+  MSK_IPAR_SOL_READ_NAME_WIDTH                = 149,
+  MSK_IPAR_SOL_READ_WIDTH                     = 150,
+  MSK_IPAR_SOLUTION_CALLBACK                  = 151,
+  MSK_IPAR_TIMING_LEVEL                       = 152,
+  MSK_IPAR_WRITE_BAS_CONSTRAINTS              = 153,
+  MSK_IPAR_WRITE_BAS_HEAD                     = 154,
+  MSK_IPAR_WRITE_BAS_VARIABLES                = 155,
+  MSK_IPAR_WRITE_COMPRESSION                  = 156,
+  MSK_IPAR_WRITE_DATA_PARAM                   = 157,
+  MSK_IPAR_WRITE_FREE_CON                     = 158,
+  MSK_IPAR_WRITE_GENERIC_NAMES                = 159,
+  MSK_IPAR_WRITE_GENERIC_NAMES_IO             = 160,
+  MSK_IPAR_WRITE_IGNORE_INCOMPATIBLE_ITEMS    = 161,
+  MSK_IPAR_WRITE_INT_CONSTRAINTS              = 162,
+  MSK_IPAR_WRITE_INT_HEAD                     = 163,
+  MSK_IPAR_WRITE_INT_VARIABLES                = 164,
+  MSK_IPAR_WRITE_LP_FULL_OBJ                  = 165,
+  MSK_IPAR_WRITE_LP_LINE_WIDTH                = 166,
+  MSK_IPAR_WRITE_LP_QUOTED_NAMES              = 167,
+  MSK_IPAR_WRITE_LP_STRICT_FORMAT             = 168,
+  MSK_IPAR_WRITE_LP_TERMS_PER_LINE            = 169,
+  MSK_IPAR_WRITE_MPS_FORMAT                   = 170,
+  MSK_IPAR_WRITE_MPS_INT                      = 171,
+  MSK_IPAR_WRITE_PRECISION                    = 172,
+  MSK_IPAR_WRITE_SOL_BARVARIABLES             = 173,
+  MSK_IPAR_WRITE_SOL_CONSTRAINTS              = 174,
+  MSK_IPAR_WRITE_SOL_HEAD                     = 175,
+  MSK_IPAR_WRITE_SOL_IGNORE_INVALID_NAMES     = 176,
+  MSK_IPAR_WRITE_SOL_VARIABLES                = 177,
+  MSK_IPAR_WRITE_TASK_INC_SOL                 = 178,
+  MSK_IPAR_WRITE_XML_MODE                     = 179
+};
+
+enum MSKliinfitem_enum {
+  MSK_LIINF_BEGIN                    = 0,
+  MSK_LIINF_END                      = 13,
+
+  MSK_LIINF_BI_CLEAN_DUAL_DEG_ITER   = 0,
+  MSK_LIINF_BI_CLEAN_DUAL_ITER       = 1,
+  MSK_LIINF_BI_CLEAN_PRIMAL_DEG_ITER = 2,
+  MSK_LIINF_BI_CLEAN_PRIMAL_ITER     = 3,
+  MSK_LIINF_BI_DUAL_ITER             = 4,
+  MSK_LIINF_BI_PRIMAL_ITER           = 5,
+  MSK_LIINF_INTPNT_FACTOR_NUM_NZ     = 6,
+  MSK_LIINF_MIO_ANZ                  = 7,
+  MSK_LIINF_MIO_INTPNT_ITER          = 8,
+  MSK_LIINF_MIO_PRESOLVED_ANZ        = 9,
+  MSK_LIINF_MIO_SIMPLEX_ITER         = 10,
+  MSK_LIINF_RD_NUMANZ                = 11,
+  MSK_LIINF_RD_NUMQNZ                = 12
+};
+
+enum MSKmark_enum {
+  MSK_MARK_BEGIN = 0,
+  MSK_MARK_END = 2,
+
+  MSK_MARK_LO = 0,
+  MSK_MARK_UP = 1
+};
+
+enum MSKdataformat_enum {
+  MSK_DATA_FORMAT_BEGIN     = 0,
+  MSK_DATA_FORMAT_END       = 9,
+
+  MSK_DATA_FORMAT_EXTENSION = 0,
+  MSK_DATA_FORMAT_MPS       = 1,
+  MSK_DATA_FORMAT_LP        = 2,
+  MSK_DATA_FORMAT_OP        = 3,
+  MSK_DATA_FORMAT_FREE_MPS  = 4,
+  MSK_DATA_FORMAT_TASK      = 5,
+  MSK_DATA_FORMAT_PTF       = 6,
+  MSK_DATA_FORMAT_CB        = 7,
+  MSK_DATA_FORMAT_JSON_TASK = 8
+};
+
+enum MSKbasindtype_enum {
+  MSK_BI_BEGIN       = 0,
+  MSK_BI_END         = 5,
+
+  MSK_BI_NEVER       = 0,
+  MSK_BI_ALWAYS      = 1,
+  MSK_BI_NO_ERROR    = 2,
+  MSK_BI_IF_FEASIBLE = 3,
+  MSK_BI_RESERVERED  = 4
+};
+
+enum MSKstartpointtype_enum {
+  MSK_STARTING_POINT_BEGIN          = 0,
+  MSK_STARTING_POINT_END            = 4,
+
+  MSK_STARTING_POINT_FREE           = 0,
+  MSK_STARTING_POINT_GUESS          = 1,
+  MSK_STARTING_POINT_CONSTANT       = 2,
+  MSK_STARTING_POINT_SATISFY_BOUNDS = 3
 };
 
 enum MSKsolsta_enum {
@@ -161,30 +623,220 @@ enum MSKsolsta_enum {
   MSK_SOL_STA_INTEGER_OPTIMAL    = 9
 };
 
-enum MSKprosta_enum {
-  MSK_PRO_STA_BEGIN                    = 0,
-  MSK_PRO_STA_END                      = 9,
+enum MSKorderingtype_enum {
+  MSK_ORDER_METHOD_BEGIN          = 0,
+  MSK_ORDER_METHOD_END            = 6,
 
-  MSK_PRO_STA_UNKNOWN                  = 0,
-  MSK_PRO_STA_PRIM_AND_DUAL_FEAS       = 1,
-  MSK_PRO_STA_PRIM_FEAS                = 2,
-  MSK_PRO_STA_DUAL_FEAS                = 3,
-  MSK_PRO_STA_PRIM_INFEAS              = 4,
-  MSK_PRO_STA_DUAL_INFEAS              = 5,
-  MSK_PRO_STA_PRIM_AND_DUAL_INFEAS     = 6,
-  MSK_PRO_STA_ILL_POSED                = 7,
-  MSK_PRO_STA_PRIM_INFEAS_OR_UNBOUNDED = 8
+  MSK_ORDER_METHOD_FREE           = 0,
+  MSK_ORDER_METHOD_APPMINLOC      = 1,
+  MSK_ORDER_METHOD_EXPERIMENTAL   = 2,
+  MSK_ORDER_METHOD_TRY_GRAPHPAR   = 3,
+  MSK_ORDER_METHOD_FORCE_GRAPHPAR = 4,
+  MSK_ORDER_METHOD_NONE           = 5
 };
 
-enum MSKsimdegen_enum {
-  MSK_SIM_DEGEN_BEGIN      = 0,
-  MSK_SIM_DEGEN_END        = 5,
+enum MSKscalingmethod_enum {
+  MSK_SCALING_METHOD_BEGIN = 0,
+  MSK_SCALING_METHOD_END  = 2,
 
-  MSK_SIM_DEGEN_NONE       = 0,
-  MSK_SIM_DEGEN_FREE       = 1,
-  MSK_SIM_DEGEN_AGGRESSIVE = 2,
-  MSK_SIM_DEGEN_MODERATE   = 3,
-  MSK_SIM_DEGEN_MINIMUM    = 4
+  MSK_SCALING_METHOD_POW2 = 0,
+  MSK_SCALING_METHOD_FREE = 1
+};
+
+enum MSKmiomode_enum {
+  MSK_MIO_MODE_BEGIN     = 0,
+  MSK_MIO_MODE_END       = 2,
+
+  MSK_MIO_MODE_IGNORED   = 0,
+  MSK_MIO_MODE_SATISFIED = 1
+};
+
+enum MSKscalingtype_enum {
+  MSK_SCALING_BEGIN      = 0,
+  MSK_SCALING_END        = 4,
+
+  MSK_SCALING_FREE       = 0,
+  MSK_SCALING_NONE       = 1,
+  MSK_SCALING_MODERATE   = 2,
+  MSK_SCALING_AGGRESSIVE = 3
+};
+
+enum MSKintpnthotstart_enum {
+  MSK_INTPNT_HOTSTART_BEGIN       = 0,
+  MSK_INTPNT_HOTSTART_END         = 4,
+
+  MSK_INTPNT_HOTSTART_NONE        = 0,
+  MSK_INTPNT_HOTSTART_PRIMAL      = 1,
+  MSK_INTPNT_HOTSTART_DUAL        = 2,
+  MSK_INTPNT_HOTSTART_PRIMAL_DUAL = 3
+};
+
+enum MSKsymmattype_enum {
+  MSK_SYMMAT_TYPE_BEGIN  = 0,
+  MSK_SYMMAT_TYPE_END    = 1,
+
+  MSK_SYMMAT_TYPE_SPARSE = 0
+};
+
+enum MSKpurify_enum {
+  MSK_PURIFY_BEGIN       = 0,
+  MSK_PURIFY_END         = 5,
+
+  MSK_PURIFY_NONE        = 0,
+  MSK_PURIFY_PRIMAL      = 1,
+  MSK_PURIFY_DUAL        = 2,
+  MSK_PURIFY_PRIMAL_DUAL = 3,
+  MSK_PURIFY_AUTO        = 4
+};
+
+enum MSKstreamtype_enum {
+  MSK_STREAM_BEGIN = 0,
+  MSK_STREAM_END = 4,
+
+  MSK_STREAM_LOG = 0,
+  MSK_STREAM_MSG = 1,
+  MSK_STREAM_ERR = 2,
+  MSK_STREAM_WRN = 3
+};
+
+enum MSKcompresstype_enum {
+  MSK_COMPRESS_BEGIN = 0,
+  MSK_COMPRESS_END  = 4,
+
+  MSK_COMPRESS_NONE = 0,
+  MSK_COMPRESS_FREE = 1,
+  MSK_COMPRESS_GZIP = 2,
+  MSK_COMPRESS_ZSTD = 3
+};
+
+enum MSKoptimizertype_enum {
+  MSK_OPTIMIZER_BEGIN          = 0,
+  MSK_OPTIMIZER_END            = 7,
+
+  MSK_OPTIMIZER_CONIC          = 0,
+  MSK_OPTIMIZER_DUAL_SIMPLEX   = 1,
+  MSK_OPTIMIZER_FREE           = 2,
+  MSK_OPTIMIZER_FREE_SIMPLEX   = 3,
+  MSK_OPTIMIZER_INTPNT         = 4,
+  MSK_OPTIMIZER_MIXED_INT      = 5,
+  MSK_OPTIMIZER_PRIMAL_SIMPLEX = 6
+};
+
+enum MSKdinfitem_enum {
+  MSK_DINF_BEGIN                                          = 0,
+  MSK_DINF_END                                            = 90,
+
+  MSK_DINF_BI_CLEAN_DUAL_TIME                             = 0,
+  MSK_DINF_BI_CLEAN_PRIMAL_TIME                           = 1,
+  MSK_DINF_BI_CLEAN_TIME                                  = 2,
+  MSK_DINF_BI_DUAL_TIME                                   = 3,
+  MSK_DINF_BI_PRIMAL_TIME                                 = 4,
+  MSK_DINF_BI_TIME                                        = 5,
+  MSK_DINF_INTPNT_DUAL_FEAS                               = 6,
+  MSK_DINF_INTPNT_DUAL_OBJ                                = 7,
+  MSK_DINF_INTPNT_FACTOR_NUM_FLOPS                        = 8,
+  MSK_DINF_INTPNT_OPT_STATUS                              = 9,
+  MSK_DINF_INTPNT_ORDER_TIME                              = 10,
+  MSK_DINF_INTPNT_PRIMAL_FEAS                             = 11,
+  MSK_DINF_INTPNT_PRIMAL_OBJ                              = 12,
+  MSK_DINF_INTPNT_TIME                                    = 13,
+  MSK_DINF_MIO_CLIQUE_SEPARATION_TIME                     = 14,
+  MSK_DINF_MIO_CMIR_SEPARATION_TIME                       = 15,
+  MSK_DINF_MIO_CONSTRUCT_SOLUTION_OBJ                     = 16,
+  MSK_DINF_MIO_DUAL_BOUND_AFTER_PRESOLVE                  = 17,
+  MSK_DINF_MIO_GMI_SEPARATION_TIME                        = 18,
+  MSK_DINF_MIO_IMPLIED_BOUND_TIME                         = 19,
+  MSK_DINF_MIO_KNAPSACK_COVER_SEPARATION_TIME             = 20,
+  MSK_DINF_MIO_OBJ_ABS_GAP                                = 21,
+  MSK_DINF_MIO_OBJ_BOUND                                  = 22,
+  MSK_DINF_MIO_OBJ_INT                                    = 23,
+  MSK_DINF_MIO_OBJ_REL_GAP                                = 24,
+  MSK_DINF_MIO_PROBING_TIME                               = 25,
+  MSK_DINF_MIO_ROOT_CUTGEN_TIME                           = 26,
+  MSK_DINF_MIO_ROOT_OPTIMIZER_TIME                        = 27,
+  MSK_DINF_MIO_ROOT_PRESOLVE_TIME                         = 28,
+  MSK_DINF_MIO_TIME                                       = 29,
+  MSK_DINF_MIO_USER_OBJ_CUT                               = 30,
+  MSK_DINF_OPTIMIZER_TIME                                 = 31,
+  MSK_DINF_PRESOLVE_ELI_TIME                              = 32,
+  MSK_DINF_PRESOLVE_LINDEP_TIME                           = 33,
+  MSK_DINF_PRESOLVE_TIME                                  = 34,
+  MSK_DINF_PRIMAL_REPAIR_PENALTY_OBJ                      = 35,
+  MSK_DINF_QCQO_REFORMULATE_MAX_PERTURBATION              = 36,
+  MSK_DINF_QCQO_REFORMULATE_TIME                          = 37,
+  MSK_DINF_QCQO_REFORMULATE_WORST_CHOLESKY_COLUMN_SCALING = 38,
+  MSK_DINF_QCQO_REFORMULATE_WORST_CHOLESKY_DIAG_SCALING   = 39,
+  MSK_DINF_RD_TIME                                        = 40,
+  MSK_DINF_SIM_DUAL_TIME                                  = 41,
+  MSK_DINF_SIM_FEAS                                       = 42,
+  MSK_DINF_SIM_OBJ                                        = 43,
+  MSK_DINF_SIM_PRIMAL_TIME                                = 44,
+  MSK_DINF_SIM_TIME                                       = 45,
+  MSK_DINF_SOL_BAS_DUAL_OBJ                               = 46,
+  MSK_DINF_SOL_BAS_DVIOLCON                               = 47,
+  MSK_DINF_SOL_BAS_DVIOLVAR                               = 48,
+  MSK_DINF_SOL_BAS_NRM_BARX                               = 49,
+  MSK_DINF_SOL_BAS_NRM_SLC                                = 50,
+  MSK_DINF_SOL_BAS_NRM_SLX                                = 51,
+  MSK_DINF_SOL_BAS_NRM_SUC                                = 52,
+  MSK_DINF_SOL_BAS_NRM_SUX                                = 53,
+  MSK_DINF_SOL_BAS_NRM_XC                                 = 54,
+  MSK_DINF_SOL_BAS_NRM_XX                                 = 55,
+  MSK_DINF_SOL_BAS_NRM_Y                                  = 56,
+  MSK_DINF_SOL_BAS_PRIMAL_OBJ                             = 57,
+  MSK_DINF_SOL_BAS_PVIOLCON                               = 58,
+  MSK_DINF_SOL_BAS_PVIOLVAR                               = 59,
+  MSK_DINF_SOL_ITG_NRM_BARX                               = 60,
+  MSK_DINF_SOL_ITG_NRM_XC                                 = 61,
+  MSK_DINF_SOL_ITG_NRM_XX                                 = 62,
+  MSK_DINF_SOL_ITG_PRIMAL_OBJ                             = 63,
+  MSK_DINF_SOL_ITG_PVIOLBARVAR                            = 64,
+  MSK_DINF_SOL_ITG_PVIOLCON                               = 65,
+  MSK_DINF_SOL_ITG_PVIOLCONES                             = 66,
+  MSK_DINF_SOL_ITG_PVIOLITG                               = 67,
+  MSK_DINF_SOL_ITG_PVIOLVAR                               = 68,
+  MSK_DINF_SOL_ITR_DUAL_OBJ                               = 69,
+  MSK_DINF_SOL_ITR_DVIOLBARVAR                            = 70,
+  MSK_DINF_SOL_ITR_DVIOLCON                               = 71,
+  MSK_DINF_SOL_ITR_DVIOLCONES                             = 72,
+  MSK_DINF_SOL_ITR_DVIOLVAR                               = 73,
+  MSK_DINF_SOL_ITR_NRM_BARS                               = 74,
+  MSK_DINF_SOL_ITR_NRM_BARX                               = 75,
+  MSK_DINF_SOL_ITR_NRM_SLC                                = 76,
+  MSK_DINF_SOL_ITR_NRM_SLX                                = 77,
+  MSK_DINF_SOL_ITR_NRM_SNX                                = 78,
+  MSK_DINF_SOL_ITR_NRM_SUC                                = 79,
+  MSK_DINF_SOL_ITR_NRM_SUX                                = 80,
+  MSK_DINF_SOL_ITR_NRM_XC                                 = 81,
+  MSK_DINF_SOL_ITR_NRM_XX                                 = 82,
+  MSK_DINF_SOL_ITR_NRM_Y                                  = 83,
+  MSK_DINF_SOL_ITR_PRIMAL_OBJ                             = 84,
+  MSK_DINF_SOL_ITR_PVIOLBARVAR                            = 85,
+  MSK_DINF_SOL_ITR_PVIOLCON                               = 86,
+  MSK_DINF_SOL_ITR_PVIOLCONES                             = 87,
+  MSK_DINF_SOL_ITR_PVIOLVAR                               = 88,
+  MSK_DINF_TO_CONIC_TIME                                  = 89
+};
+
+enum MSKbranchdir_enum {
+  MSK_BRANCH_DIR_BEGIN      = 0,
+  MSK_BRANCH_DIR_END        = 8,
+
+  MSK_BRANCH_DIR_FREE       = 0,
+  MSK_BRANCH_DIR_UP         = 1,
+  MSK_BRANCH_DIR_DOWN       = 2,
+  MSK_BRANCH_DIR_NEAR       = 3,
+  MSK_BRANCH_DIR_FAR        = 4,
+  MSK_BRANCH_DIR_ROOT_LP    = 5,
+  MSK_BRANCH_DIR_GUIDED     = 6,
+  MSK_BRANCH_DIR_PSEUDOCOST = 7
+};
+
+enum MSKsensitivitytype_enum {
+  MSK_SENSITIVITY_TYPE_BEGIN = 0,
+  MSK_SENSITIVITY_TYPE_END   = 1,
+
+  MSK_SENSITIVITY_TYPE_BASIS = 0
 };
 
 enum MSKconetype_enum {
@@ -200,14 +852,100 @@ enum MSKconetype_enum {
   MSK_CT_ZERO  = 6
 };
 
-enum MSKmionodeseltype_enum {
-  MSK_MIO_NODE_SELECTION_BEGIN  = 0,
-  MSK_MIO_NODE_SELECTION_END    = 4,
+enum MSKsimdupvec_enum {
+  MSK_SIM_EXPLOIT_DUPVEC_BEGIN = 0,
+  MSK_SIM_EXPLOIT_DUPVEC_END  = 3,
 
-  MSK_MIO_NODE_SELECTION_FREE   = 0,
-  MSK_MIO_NODE_SELECTION_FIRST  = 1,
-  MSK_MIO_NODE_SELECTION_BEST   = 2,
-  MSK_MIO_NODE_SELECTION_PSEUDO = 3
+  MSK_SIM_EXPLOIT_DUPVEC_OFF  = 0,
+  MSK_SIM_EXPLOIT_DUPVEC_ON   = 1,
+  MSK_SIM_EXPLOIT_DUPVEC_FREE = 2
+};
+
+enum MSKfeature_enum {
+  MSK_FEATURE_BEGIN = 0,
+  MSK_FEATURE_END  = 2,
+
+  MSK_FEATURE_PTS  = 0,
+  MSK_FEATURE_PTON = 1
+};
+
+enum MSKsparam_enum {
+  MSK_SPAR_BEGIN                     = 0,
+  MSK_SPAR_END                       = 24,
+
+  MSK_SPAR_BAS_SOL_FILE_NAME         = 0,
+  MSK_SPAR_DATA_FILE_NAME            = 1,
+  MSK_SPAR_DEBUG_FILE_NAME           = 2,
+  MSK_SPAR_INT_SOL_FILE_NAME         = 3,
+  MSK_SPAR_ITR_SOL_FILE_NAME         = 4,
+  MSK_SPAR_MIO_DEBUG_STRING          = 5,
+  MSK_SPAR_PARAM_COMMENT_SIGN        = 6,
+  MSK_SPAR_PARAM_READ_FILE_NAME      = 7,
+  MSK_SPAR_PARAM_WRITE_FILE_NAME     = 8,
+  MSK_SPAR_READ_MPS_BOU_NAME         = 9,
+  MSK_SPAR_READ_MPS_OBJ_NAME         = 10,
+  MSK_SPAR_READ_MPS_RAN_NAME         = 11,
+  MSK_SPAR_READ_MPS_RHS_NAME         = 12,
+  MSK_SPAR_REMOTE_ACCESS_TOKEN       = 13,
+  MSK_SPAR_SENSITIVITY_FILE_NAME     = 14,
+  MSK_SPAR_SENSITIVITY_RES_FILE_NAME = 15,
+  MSK_SPAR_SOL_FILTER_XC_LOW         = 16,
+  MSK_SPAR_SOL_FILTER_XC_UPR         = 17,
+  MSK_SPAR_SOL_FILTER_XX_LOW         = 18,
+  MSK_SPAR_SOL_FILTER_XX_UPR         = 19,
+  MSK_SPAR_STAT_FILE_NAME            = 20,
+  MSK_SPAR_STAT_KEY                  = 21,
+  MSK_SPAR_STAT_NAME                 = 22,
+  MSK_SPAR_WRITE_LP_GEN_VAR_NAME     = 23
+};
+
+enum MSKsoltype_enum {
+  MSK_SOL_BEGIN = 0,
+  MSK_SOL_END = 3,
+
+  MSK_SOL_ITR = 0,
+  MSK_SOL_BAS = 1,
+  MSK_SOL_ITG = 2
+};
+
+enum MSKxmlwriteroutputtype_enum {
+  MSK_WRITE_XML_MODE_BEGIN = 0,
+  MSK_WRITE_XML_MODE_END = 2,
+
+  MSK_WRITE_XML_MODE_ROW = 0,
+  MSK_WRITE_XML_MODE_COL = 1
+};
+
+enum MSKsimreform_enum {
+  MSK_SIM_REFORMULATION_BEGIN      = 0,
+  MSK_SIM_REFORMULATION_END        = 4,
+
+  MSK_SIM_REFORMULATION_OFF        = 0,
+  MSK_SIM_REFORMULATION_ON         = 1,
+  MSK_SIM_REFORMULATION_FREE       = 2,
+  MSK_SIM_REFORMULATION_AGGRESSIVE = 3
+};
+
+enum MSKsolitem_enum {
+  MSK_SOL_ITEM_BEGIN = 0,
+  MSK_SOL_ITEM_END = 8,
+
+  MSK_SOL_ITEM_XC  = 0,
+  MSK_SOL_ITEM_XX  = 1,
+  MSK_SOL_ITEM_Y   = 2,
+  MSK_SOL_ITEM_SLC = 3,
+  MSK_SOL_ITEM_SUC = 4,
+  MSK_SOL_ITEM_SLX = 5,
+  MSK_SOL_ITEM_SUX = 6,
+  MSK_SOL_ITEM_SNX = 7
+};
+
+enum MSKuplo_enum {
+  MSK_UPLO_BEGIN = 0,
+  MSK_UPLO_END = 2,
+
+  MSK_UPLO_LO = 0,
+  MSK_UPLO_UP = 1
 };
 
 enum MSKiinfitem_enum {
@@ -317,190 +1055,14 @@ enum MSKiinfitem_enum {
   MSK_IINF_STO_NUM_A_REALLOC            = 100
 };
 
-enum MSKnametype_enum {
-  MSK_NAME_TYPE_BEGIN = 0,
-  MSK_NAME_TYPE_END = 3,
+enum MSKmionodeseltype_enum {
+  MSK_MIO_NODE_SELECTION_BEGIN  = 0,
+  MSK_MIO_NODE_SELECTION_END    = 4,
 
-  MSK_NAME_TYPE_GEN = 0,
-  MSK_NAME_TYPE_MPS = 1,
-  MSK_NAME_TYPE_LP  = 2
-};
-
-enum MSKintpnthotstart_enum {
-  MSK_INTPNT_HOTSTART_BEGIN       = 0,
-  MSK_INTPNT_HOTSTART_END         = 4,
-
-  MSK_INTPNT_HOTSTART_NONE        = 0,
-  MSK_INTPNT_HOTSTART_PRIMAL      = 1,
-  MSK_INTPNT_HOTSTART_DUAL        = 2,
-  MSK_INTPNT_HOTSTART_PRIMAL_DUAL = 3
-};
-
-enum MSKsparam_enum {
-  MSK_SPAR_BEGIN                     = 0,
-  MSK_SPAR_END                       = 24,
-
-  MSK_SPAR_BAS_SOL_FILE_NAME         = 0,
-  MSK_SPAR_DATA_FILE_NAME            = 1,
-  MSK_SPAR_DEBUG_FILE_NAME           = 2,
-  MSK_SPAR_INT_SOL_FILE_NAME         = 3,
-  MSK_SPAR_ITR_SOL_FILE_NAME         = 4,
-  MSK_SPAR_MIO_DEBUG_STRING          = 5,
-  MSK_SPAR_PARAM_COMMENT_SIGN        = 6,
-  MSK_SPAR_PARAM_READ_FILE_NAME      = 7,
-  MSK_SPAR_PARAM_WRITE_FILE_NAME     = 8,
-  MSK_SPAR_READ_MPS_BOU_NAME         = 9,
-  MSK_SPAR_READ_MPS_OBJ_NAME         = 10,
-  MSK_SPAR_READ_MPS_RAN_NAME         = 11,
-  MSK_SPAR_READ_MPS_RHS_NAME         = 12,
-  MSK_SPAR_REMOTE_ACCESS_TOKEN       = 13,
-  MSK_SPAR_SENSITIVITY_FILE_NAME     = 14,
-  MSK_SPAR_SENSITIVITY_RES_FILE_NAME = 15,
-  MSK_SPAR_SOL_FILTER_XC_LOW         = 16,
-  MSK_SPAR_SOL_FILTER_XC_UPR         = 17,
-  MSK_SPAR_SOL_FILTER_XX_LOW         = 18,
-  MSK_SPAR_SOL_FILTER_XX_UPR         = 19,
-  MSK_SPAR_STAT_FILE_NAME            = 20,
-  MSK_SPAR_STAT_KEY                  = 21,
-  MSK_SPAR_STAT_NAME                 = 22,
-  MSK_SPAR_WRITE_LP_GEN_VAR_NAME     = 23
-};
-
-enum MSKproblemtype_enum {
-  MSK_PROBTYPE_BEGIN = 0,
-  MSK_PROBTYPE_END   = 5,
-
-  MSK_PROBTYPE_LO    = 0,
-  MSK_PROBTYPE_QO    = 1,
-  MSK_PROBTYPE_QCQO  = 2,
-  MSK_PROBTYPE_CONIC = 3,
-  MSK_PROBTYPE_MIXED = 4
-};
-
-enum MSKrescodetype_enum {
-  MSK_RESPONSE_BEGIN = 0,
-  MSK_RESPONSE_END = 5,
-
-  MSK_RESPONSE_OK  = 0,
-  MSK_RESPONSE_WRN = 1,
-  MSK_RESPONSE_TRM = 2,
-  MSK_RESPONSE_ERR = 3,
-  MSK_RESPONSE_UNK = 4
-};
-
-enum MSKuplo_enum {
-  MSK_UPLO_BEGIN = 0,
-  MSK_UPLO_END = 2,
-
-  MSK_UPLO_LO = 0,
-  MSK_UPLO_UP = 1
-};
-
-enum MSKboundkey_enum {
-  MSK_BK_BEGIN = 0,
-  MSK_BK_END = 5,
-
-  MSK_BK_LO = 0,
-  MSK_BK_UP = 1,
-  MSK_BK_FX = 2,
-  MSK_BK_FR = 3,
-  MSK_BK_RA = 4
-};
-
-enum MSKdinfitem_enum {
-  MSK_DINF_BEGIN                                          = 0,
-  MSK_DINF_END                                            = 90,
-
-  MSK_DINF_BI_CLEAN_DUAL_TIME                             = 0,
-  MSK_DINF_BI_CLEAN_PRIMAL_TIME                           = 1,
-  MSK_DINF_BI_CLEAN_TIME                                  = 2,
-  MSK_DINF_BI_DUAL_TIME                                   = 3,
-  MSK_DINF_BI_PRIMAL_TIME                                 = 4,
-  MSK_DINF_BI_TIME                                        = 5,
-  MSK_DINF_INTPNT_DUAL_FEAS                               = 6,
-  MSK_DINF_INTPNT_DUAL_OBJ                                = 7,
-  MSK_DINF_INTPNT_FACTOR_NUM_FLOPS                        = 8,
-  MSK_DINF_INTPNT_OPT_STATUS                              = 9,
-  MSK_DINF_INTPNT_ORDER_TIME                              = 10,
-  MSK_DINF_INTPNT_PRIMAL_FEAS                             = 11,
-  MSK_DINF_INTPNT_PRIMAL_OBJ                              = 12,
-  MSK_DINF_INTPNT_TIME                                    = 13,
-  MSK_DINF_MIO_CLIQUE_SEPARATION_TIME                     = 14,
-  MSK_DINF_MIO_CMIR_SEPARATION_TIME                       = 15,
-  MSK_DINF_MIO_CONSTRUCT_SOLUTION_OBJ                     = 16,
-  MSK_DINF_MIO_DUAL_BOUND_AFTER_PRESOLVE                  = 17,
-  MSK_DINF_MIO_GMI_SEPARATION_TIME                        = 18,
-  MSK_DINF_MIO_IMPLIED_BOUND_TIME                         = 19,
-  MSK_DINF_MIO_KNAPSACK_COVER_SEPARATION_TIME             = 20,
-  MSK_DINF_MIO_OBJ_ABS_GAP                                = 21,
-  MSK_DINF_MIO_OBJ_BOUND                                  = 22,
-  MSK_DINF_MIO_OBJ_INT                                    = 23,
-  MSK_DINF_MIO_OBJ_REL_GAP                                = 24,
-  MSK_DINF_MIO_PROBING_TIME                               = 25,
-  MSK_DINF_MIO_ROOT_CUTGEN_TIME                           = 26,
-  MSK_DINF_MIO_ROOT_OPTIMIZER_TIME                        = 27,
-  MSK_DINF_MIO_ROOT_PRESOLVE_TIME                         = 28,
-  MSK_DINF_MIO_TIME                                       = 29,
-  MSK_DINF_MIO_USER_OBJ_CUT                               = 30,
-  MSK_DINF_OPTIMIZER_TIME                                 = 31,
-  MSK_DINF_PRESOLVE_ELI_TIME                              = 32,
-  MSK_DINF_PRESOLVE_LINDEP_TIME                           = 33,
-  MSK_DINF_PRESOLVE_TIME                                  = 34,
-  MSK_DINF_PRIMAL_REPAIR_PENALTY_OBJ                      = 35,
-  MSK_DINF_QCQO_REFORMULATE_MAX_PERTURBATION              = 36,
-  MSK_DINF_QCQO_REFORMULATE_TIME                          = 37,
-  MSK_DINF_QCQO_REFORMULATE_WORST_CHOLESKY_COLUMN_SCALING = 38,
-  MSK_DINF_QCQO_REFORMULATE_WORST_CHOLESKY_DIAG_SCALING   = 39,
-  MSK_DINF_RD_TIME                                        = 40,
-  MSK_DINF_SIM_DUAL_TIME                                  = 41,
-  MSK_DINF_SIM_FEAS                                       = 42,
-  MSK_DINF_SIM_OBJ                                        = 43,
-  MSK_DINF_SIM_PRIMAL_TIME                                = 44,
-  MSK_DINF_SIM_TIME                                       = 45,
-  MSK_DINF_SOL_BAS_DUAL_OBJ                               = 46,
-  MSK_DINF_SOL_BAS_DVIOLCON                               = 47,
-  MSK_DINF_SOL_BAS_DVIOLVAR                               = 48,
-  MSK_DINF_SOL_BAS_NRM_BARX                               = 49,
-  MSK_DINF_SOL_BAS_NRM_SLC                                = 50,
-  MSK_DINF_SOL_BAS_NRM_SLX                                = 51,
-  MSK_DINF_SOL_BAS_NRM_SUC                                = 52,
-  MSK_DINF_SOL_BAS_NRM_SUX                                = 53,
-  MSK_DINF_SOL_BAS_NRM_XC                                 = 54,
-  MSK_DINF_SOL_BAS_NRM_XX                                 = 55,
-  MSK_DINF_SOL_BAS_NRM_Y                                  = 56,
-  MSK_DINF_SOL_BAS_PRIMAL_OBJ                             = 57,
-  MSK_DINF_SOL_BAS_PVIOLCON                               = 58,
-  MSK_DINF_SOL_BAS_PVIOLVAR                               = 59,
-  MSK_DINF_SOL_ITG_NRM_BARX                               = 60,
-  MSK_DINF_SOL_ITG_NRM_XC                                 = 61,
-  MSK_DINF_SOL_ITG_NRM_XX                                 = 62,
-  MSK_DINF_SOL_ITG_PRIMAL_OBJ                             = 63,
-  MSK_DINF_SOL_ITG_PVIOLBARVAR                            = 64,
-  MSK_DINF_SOL_ITG_PVIOLCON                               = 65,
-  MSK_DINF_SOL_ITG_PVIOLCONES                             = 66,
-  MSK_DINF_SOL_ITG_PVIOLITG                               = 67,
-  MSK_DINF_SOL_ITG_PVIOLVAR                               = 68,
-  MSK_DINF_SOL_ITR_DUAL_OBJ                               = 69,
-  MSK_DINF_SOL_ITR_DVIOLBARVAR                            = 70,
-  MSK_DINF_SOL_ITR_DVIOLCON                               = 71,
-  MSK_DINF_SOL_ITR_DVIOLCONES                             = 72,
-  MSK_DINF_SOL_ITR_DVIOLVAR                               = 73,
-  MSK_DINF_SOL_ITR_NRM_BARS                               = 74,
-  MSK_DINF_SOL_ITR_NRM_BARX                               = 75,
-  MSK_DINF_SOL_ITR_NRM_SLC                                = 76,
-  MSK_DINF_SOL_ITR_NRM_SLX                                = 77,
-  MSK_DINF_SOL_ITR_NRM_SNX                                = 78,
-  MSK_DINF_SOL_ITR_NRM_SUC                                = 79,
-  MSK_DINF_SOL_ITR_NRM_SUX                                = 80,
-  MSK_DINF_SOL_ITR_NRM_XC                                 = 81,
-  MSK_DINF_SOL_ITR_NRM_XX                                 = 82,
-  MSK_DINF_SOL_ITR_NRM_Y                                  = 83,
-  MSK_DINF_SOL_ITR_PRIMAL_OBJ                             = 84,
-  MSK_DINF_SOL_ITR_PVIOLBARVAR                            = 85,
-  MSK_DINF_SOL_ITR_PVIOLCON                               = 86,
-  MSK_DINF_SOL_ITR_PVIOLCONES                             = 87,
-  MSK_DINF_SOL_ITR_PVIOLVAR                               = 88,
-  MSK_DINF_TO_CONIC_TIME                                  = 89
+  MSK_MIO_NODE_SELECTION_FREE   = 0,
+  MSK_MIO_NODE_SELECTION_FIRST  = 1,
+  MSK_MIO_NODE_SELECTION_BEST   = 2,
+  MSK_MIO_NODE_SELECTION_PSEUDO = 3
 };
 
 enum MSKrescode_enum {
@@ -949,6 +1511,7 @@ enum MSKrescode_enum {
   MSK_RES_ERR_SERVER_PROTOCOL                            = 8001,
   MSK_RES_ERR_SERVER_STATUS                              = 8002,
   MSK_RES_ERR_SERVER_TOKEN                               = 8003,
+  MSK_RES_ERR_SERVER_PROBLEM_SIZE                        = 8008,
   MSK_RES_TRM_MAX_ITERATIONS                             = 10000,
   MSK_RES_TRM_MAX_TIME                                   = 10001,
   MSK_RES_TRM_OBJECTIVE_RANGE                            = 10002,
@@ -961,190 +1524,6 @@ enum MSKrescode_enum {
   MSK_RES_TRM_NUMERICAL_PROBLEM                          = 10025,
   MSK_RES_TRM_INTERNAL                                   = 10030,
   MSK_RES_TRM_INTERNAL_STOP                              = 10031
-};
-
-enum MSKobjsense_enum {
-  MSK_OBJECTIVE_SENSE_BEGIN    = 0,
-  MSK_OBJECTIVE_SENSE_END      = 2,
-
-  MSK_OBJECTIVE_SENSE_MINIMIZE = 0,
-  MSK_OBJECTIVE_SENSE_MAXIMIZE = 1
-};
-
-enum MSKmiocontsoltype_enum {
-  MSK_MIO_CONT_SOL_BEGIN   = 0,
-  MSK_MIO_CONT_SOL_END     = 4,
-
-  MSK_MIO_CONT_SOL_NONE    = 0,
-  MSK_MIO_CONT_SOL_ROOT    = 1,
-  MSK_MIO_CONT_SOL_ITG     = 2,
-  MSK_MIO_CONT_SOL_ITG_REL = 3
-};
-
-enum MSKpresolvemode_enum {
-  MSK_PRESOLVE_MODE_BEGIN = 0,
-  MSK_PRESOLVE_MODE_END  = 3,
-
-  MSK_PRESOLVE_MODE_OFF  = 0,
-  MSK_PRESOLVE_MODE_ON   = 1,
-  MSK_PRESOLVE_MODE_FREE = 2
-};
-
-enum MSKmiomode_enum {
-  MSK_MIO_MODE_BEGIN     = 0,
-  MSK_MIO_MODE_END       = 2,
-
-  MSK_MIO_MODE_IGNORED   = 0,
-  MSK_MIO_MODE_SATISFIED = 1
-};
-
-enum MSKscalingmethod_enum {
-  MSK_SCALING_METHOD_BEGIN = 0,
-  MSK_SCALING_METHOD_END  = 2,
-
-  MSK_SCALING_METHOD_POW2 = 0,
-  MSK_SCALING_METHOD_FREE = 1
-};
-
-enum MSKstartpointtype_enum {
-  MSK_STARTING_POINT_BEGIN          = 0,
-  MSK_STARTING_POINT_END            = 4,
-
-  MSK_STARTING_POINT_FREE           = 0,
-  MSK_STARTING_POINT_GUESS          = 1,
-  MSK_STARTING_POINT_CONSTANT       = 2,
-  MSK_STARTING_POINT_SATISFY_BOUNDS = 3
-};
-
-enum MSKproblemitem_enum {
-  MSK_PI_BEGIN = 0,
-  MSK_PI_END  = 3,
-
-  MSK_PI_VAR  = 0,
-  MSK_PI_CON  = 1,
-  MSK_PI_CONE = 2
-};
-
-enum MSKcompresstype_enum {
-  MSK_COMPRESS_BEGIN = 0,
-  MSK_COMPRESS_END  = 4,
-
-  MSK_COMPRESS_NONE = 0,
-  MSK_COMPRESS_FREE = 1,
-  MSK_COMPRESS_GZIP = 2,
-  MSK_COMPRESS_ZSTD = 3
-};
-
-enum MSKsimdupvec_enum {
-  MSK_SIM_EXPLOIT_DUPVEC_BEGIN = 0,
-  MSK_SIM_EXPLOIT_DUPVEC_END  = 3,
-
-  MSK_SIM_EXPLOIT_DUPVEC_OFF  = 0,
-  MSK_SIM_EXPLOIT_DUPVEC_ON   = 1,
-  MSK_SIM_EXPLOIT_DUPVEC_FREE = 2
-};
-
-enum MSKparametertype_enum {
-  MSK_PAR_BEGIN        = 0,
-  MSK_PAR_END          = 4,
-
-  MSK_PAR_INVALID_TYPE = 0,
-  MSK_PAR_DOU_TYPE     = 1,
-  MSK_PAR_INT_TYPE     = 2,
-  MSK_PAR_STR_TYPE     = 3
-};
-
-enum MSKsimhotstart_enum {
-  MSK_SIM_HOTSTART_BEGIN       = 0,
-  MSK_SIM_HOTSTART_END         = 3,
-
-  MSK_SIM_HOTSTART_NONE        = 0,
-  MSK_SIM_HOTSTART_FREE        = 1,
-  MSK_SIM_HOTSTART_STATUS_KEYS = 2
-};
-
-enum MSKsolitem_enum {
-  MSK_SOL_ITEM_BEGIN = 0,
-  MSK_SOL_ITEM_END = 8,
-
-  MSK_SOL_ITEM_XC  = 0,
-  MSK_SOL_ITEM_XX  = 1,
-  MSK_SOL_ITEM_Y   = 2,
-  MSK_SOL_ITEM_SLC = 3,
-  MSK_SOL_ITEM_SUC = 4,
-  MSK_SOL_ITEM_SLX = 5,
-  MSK_SOL_ITEM_SUX = 6,
-  MSK_SOL_ITEM_SNX = 7
-};
-
-enum MSKsensitivitytype_enum {
-  MSK_SENSITIVITY_TYPE_BEGIN = 0,
-  MSK_SENSITIVITY_TYPE_END   = 1,
-
-  MSK_SENSITIVITY_TYPE_BASIS = 0
-};
-
-enum MSKpurify_enum {
-  MSK_PURIFY_BEGIN       = 0,
-  MSK_PURIFY_END         = 5,
-
-  MSK_PURIFY_NONE        = 0,
-  MSK_PURIFY_PRIMAL      = 1,
-  MSK_PURIFY_DUAL        = 2,
-  MSK_PURIFY_PRIMAL_DUAL = 3,
-  MSK_PURIFY_AUTO        = 4
-};
-
-enum MSKbasindtype_enum {
-  MSK_BI_BEGIN       = 0,
-  MSK_BI_END         = 5,
-
-  MSK_BI_NEVER       = 0,
-  MSK_BI_ALWAYS      = 1,
-  MSK_BI_NO_ERROR    = 2,
-  MSK_BI_IF_FEASIBLE = 3,
-  MSK_BI_RESERVERED  = 4
-};
-
-enum MSKbranchdir_enum {
-  MSK_BRANCH_DIR_BEGIN      = 0,
-  MSK_BRANCH_DIR_END        = 8,
-
-  MSK_BRANCH_DIR_FREE       = 0,
-  MSK_BRANCH_DIR_UP         = 1,
-  MSK_BRANCH_DIR_DOWN       = 2,
-  MSK_BRANCH_DIR_NEAR       = 3,
-  MSK_BRANCH_DIR_FAR        = 4,
-  MSK_BRANCH_DIR_ROOT_LP    = 5,
-  MSK_BRANCH_DIR_GUIDED     = 6,
-  MSK_BRANCH_DIR_PSEUDOCOST = 7
-};
-
-enum MSKscopr_enum {
-  MSK_OPR_BEGIN = 0,
-  MSK_OPR_END  = 5,
-
-  MSK_OPR_ENT  = 0,
-  MSK_OPR_EXP  = 1,
-  MSK_OPR_LOG  = 2,
-  MSK_OPR_POW  = 3,
-  MSK_OPR_SQRT = 4
-};
-
-enum MSKtranspose_enum {
-  MSK_TRANSPOSE_BEGIN = 0,
-  MSK_TRANSPOSE_END = 2,
-
-  MSK_TRANSPOSE_NO  = 0,
-  MSK_TRANSPOSE_YES = 1
-};
-
-enum MSKmark_enum {
-  MSK_MARK_BEGIN = 0,
-  MSK_MARK_END = 2,
-
-  MSK_MARK_LO = 0,
-  MSK_MARK_UP = 1
 };
 
 enum MSKstakey_enum {
@@ -1169,238 +1548,21 @@ enum MSKiomode_enum {
   MSK_IOMODE_READWRITE = 2
 };
 
-enum MSKcheckconvexitytype_enum {
-  MSK_CHECK_CONVEXITY_BEGIN  = 0,
-  MSK_CHECK_CONVEXITY_END    = 3,
+enum MSKvariabletype_enum {
+  MSK_VAR_BEGIN     = 0,
+  MSK_VAR_END       = 2,
 
-  MSK_CHECK_CONVEXITY_NONE   = 0,
-  MSK_CHECK_CONVEXITY_SIMPLE = 1,
-  MSK_CHECK_CONVEXITY_FULL   = 2
+  MSK_VAR_TYPE_CONT = 0,
+  MSK_VAR_TYPE_INT  = 1
 };
 
-enum MSKscalingtype_enum {
-  MSK_SCALING_BEGIN      = 0,
-  MSK_SCALING_END        = 4,
+enum MSKsimhotstart_enum {
+  MSK_SIM_HOTSTART_BEGIN       = 0,
+  MSK_SIM_HOTSTART_END         = 3,
 
-  MSK_SCALING_FREE       = 0,
-  MSK_SCALING_NONE       = 1,
-  MSK_SCALING_MODERATE   = 2,
-  MSK_SCALING_AGGRESSIVE = 3
-};
-
-enum MSKiparam_enum {
-  MSK_IPAR_BEGIN                              = 0,
-  MSK_IPAR_END                                = 180,
-
-  MSK_IPAR_ANA_SOL_BASIS                      = 0,
-  MSK_IPAR_ANA_SOL_PRINT_VIOLATED             = 1,
-  MSK_IPAR_AUTO_SORT_A_BEFORE_OPT             = 2,
-  MSK_IPAR_AUTO_UPDATE_SOL_INFO               = 3,
-  MSK_IPAR_BASIS_SOLVE_USE_PLUS_ONE           = 4,
-  MSK_IPAR_BI_CLEAN_OPTIMIZER                 = 5,
-  MSK_IPAR_BI_IGNORE_MAX_ITER                 = 6,
-  MSK_IPAR_BI_IGNORE_NUM_ERROR                = 7,
-  MSK_IPAR_BI_MAX_ITERATIONS                  = 8,
-  MSK_IPAR_CACHE_LICENSE                      = 9,
-  MSK_IPAR_CHECK_CONVEXITY                    = 10,
-  MSK_IPAR_COMPRESS_STATFILE                  = 11,
-  MSK_IPAR_INFEAS_GENERIC_NAMES               = 12,
-  MSK_IPAR_INFEAS_PREFER_PRIMAL               = 13,
-  MSK_IPAR_INFEAS_REPORT_AUTO                 = 14,
-  MSK_IPAR_INFEAS_REPORT_LEVEL                = 15,
-  MSK_IPAR_INTPNT_BASIS                       = 16,
-  MSK_IPAR_INTPNT_DIFF_STEP                   = 17,
-  MSK_IPAR_INTPNT_HOTSTART                    = 18,
-  MSK_IPAR_INTPNT_MAX_ITERATIONS              = 19,
-  MSK_IPAR_INTPNT_MAX_NUM_COR                 = 20,
-  MSK_IPAR_INTPNT_MAX_NUM_REFINEMENT_STEPS    = 21,
-  MSK_IPAR_INTPNT_MULTI_THREAD                = 22,
-  MSK_IPAR_INTPNT_OFF_COL_TRH                 = 23,
-  MSK_IPAR_INTPNT_ORDER_GP_NUM_SEEDS          = 24,
-  MSK_IPAR_INTPNT_ORDER_METHOD                = 25,
-  MSK_IPAR_INTPNT_PURIFY                      = 26,
-  MSK_IPAR_INTPNT_REGULARIZATION_USE          = 27,
-  MSK_IPAR_INTPNT_SCALING                     = 28,
-  MSK_IPAR_INTPNT_SOLVE_FORM                  = 29,
-  MSK_IPAR_INTPNT_STARTING_POINT              = 30,
-  MSK_IPAR_LICENSE_DEBUG                      = 31,
-  MSK_IPAR_LICENSE_PAUSE_TIME                 = 32,
-  MSK_IPAR_LICENSE_SUPPRESS_EXPIRE_WRNS       = 33,
-  MSK_IPAR_LICENSE_TRH_EXPIRY_WRN             = 34,
-  MSK_IPAR_LICENSE_WAIT                       = 35,
-  MSK_IPAR_LOG                                = 36,
-  MSK_IPAR_LOG_ANA_PRO                        = 37,
-  MSK_IPAR_LOG_BI                             = 38,
-  MSK_IPAR_LOG_BI_FREQ                        = 39,
-  MSK_IPAR_LOG_CHECK_CONVEXITY                = 40,
-  MSK_IPAR_LOG_CUT_SECOND_OPT                 = 41,
-  MSK_IPAR_LOG_EXPAND                         = 42,
-  MSK_IPAR_LOG_FEAS_REPAIR                    = 43,
-  MSK_IPAR_LOG_FILE                           = 44,
-  MSK_IPAR_LOG_INCLUDE_SUMMARY                = 45,
-  MSK_IPAR_LOG_INFEAS_ANA                     = 46,
-  MSK_IPAR_LOG_INTPNT                         = 47,
-  MSK_IPAR_LOG_LOCAL_INFO                     = 48,
-  MSK_IPAR_LOG_MIO                            = 49,
-  MSK_IPAR_LOG_MIO_FREQ                       = 50,
-  MSK_IPAR_LOG_ORDER                          = 51,
-  MSK_IPAR_LOG_PRESOLVE                       = 52,
-  MSK_IPAR_LOG_RESPONSE                       = 53,
-  MSK_IPAR_LOG_SENSITIVITY                    = 54,
-  MSK_IPAR_LOG_SENSITIVITY_OPT                = 55,
-  MSK_IPAR_LOG_SIM                            = 56,
-  MSK_IPAR_LOG_SIM_FREQ                       = 57,
-  MSK_IPAR_LOG_SIM_MINOR                      = 58,
-  MSK_IPAR_LOG_STORAGE                        = 59,
-  MSK_IPAR_MAX_NUM_WARNINGS                   = 60,
-  MSK_IPAR_MIO_BRANCH_DIR                     = 61,
-  MSK_IPAR_MIO_CONIC_OUTER_APPROXIMATION      = 62,
-  MSK_IPAR_MIO_CUT_CLIQUE                     = 63,
-  MSK_IPAR_MIO_CUT_CMIR                       = 64,
-  MSK_IPAR_MIO_CUT_GMI                        = 65,
-  MSK_IPAR_MIO_CUT_IMPLIED_BOUND              = 66,
-  MSK_IPAR_MIO_CUT_KNAPSACK_COVER             = 67,
-  MSK_IPAR_MIO_CUT_SELECTION_LEVEL            = 68,
-  MSK_IPAR_MIO_FEASPUMP_LEVEL                 = 69,
-  MSK_IPAR_MIO_HEURISTIC_LEVEL                = 70,
-  MSK_IPAR_MIO_MAX_NUM_BRANCHES               = 71,
-  MSK_IPAR_MIO_MAX_NUM_RELAXS                 = 72,
-  MSK_IPAR_MIO_MAX_NUM_ROOT_CUT_ROUNDS        = 73,
-  MSK_IPAR_MIO_MAX_NUM_SOLUTIONS              = 74,
-  MSK_IPAR_MIO_MODE                           = 75,
-  MSK_IPAR_MIO_NODE_OPTIMIZER                 = 76,
-  MSK_IPAR_MIO_NODE_SELECTION                 = 77,
-  MSK_IPAR_MIO_PERSPECTIVE_REFORMULATE        = 78,
-  MSK_IPAR_MIO_PROBING_LEVEL                  = 79,
-  MSK_IPAR_MIO_PROPAGATE_OBJECTIVE_CONSTRAINT = 80,
-  MSK_IPAR_MIO_RINS_MAX_NODES                 = 81,
-  MSK_IPAR_MIO_ROOT_OPTIMIZER                 = 82,
-  MSK_IPAR_MIO_ROOT_REPEAT_PRESOLVE_LEVEL     = 83,
-  MSK_IPAR_MIO_SEED                           = 84,
-  MSK_IPAR_MIO_VB_DETECTION_LEVEL             = 85,
-  MSK_IPAR_MT_SPINCOUNT                       = 86,
-  MSK_IPAR_NUM_THREADS                        = 87,
-  MSK_IPAR_OPF_WRITE_HEADER                   = 88,
-  MSK_IPAR_OPF_WRITE_HINTS                    = 89,
-  MSK_IPAR_OPF_WRITE_LINE_LENGTH              = 90,
-  MSK_IPAR_OPF_WRITE_PARAMETERS               = 91,
-  MSK_IPAR_OPF_WRITE_PROBLEM                  = 92,
-  MSK_IPAR_OPF_WRITE_SOL_BAS                  = 93,
-  MSK_IPAR_OPF_WRITE_SOL_ITG                  = 94,
-  MSK_IPAR_OPF_WRITE_SOL_ITR                  = 95,
-  MSK_IPAR_OPF_WRITE_SOLUTIONS                = 96,
-  MSK_IPAR_OPTIMIZER                          = 97,
-  MSK_IPAR_PARAM_READ_CASE_NAME               = 98,
-  MSK_IPAR_PARAM_READ_IGN_ERROR               = 99,
-  MSK_IPAR_PRESOLVE_ELIMINATOR_MAX_FILL       = 100,
-  MSK_IPAR_PRESOLVE_ELIMINATOR_MAX_NUM_TRIES  = 101,
-  MSK_IPAR_PRESOLVE_LEVEL                     = 102,
-  MSK_IPAR_PRESOLVE_LINDEP_ABS_WORK_TRH       = 103,
-  MSK_IPAR_PRESOLVE_LINDEP_REL_WORK_TRH       = 104,
-  MSK_IPAR_PRESOLVE_LINDEP_USE                = 105,
-  MSK_IPAR_PRESOLVE_MAX_NUM_PASS              = 106,
-  MSK_IPAR_PRESOLVE_MAX_NUM_REDUCTIONS        = 107,
-  MSK_IPAR_PRESOLVE_USE                       = 108,
-  MSK_IPAR_PRIMAL_REPAIR_OPTIMIZER            = 109,
-  MSK_IPAR_PTF_WRITE_TRANSFORM                = 110,
-  MSK_IPAR_READ_DEBUG                         = 111,
-  MSK_IPAR_READ_KEEP_FREE_CON                 = 112,
-  MSK_IPAR_READ_LP_DROP_NEW_VARS_IN_BOU       = 113,
-  MSK_IPAR_READ_LP_QUOTED_NAMES               = 114,
-  MSK_IPAR_READ_MPS_FORMAT                    = 115,
-  MSK_IPAR_READ_MPS_WIDTH                     = 116,
-  MSK_IPAR_READ_TASK_IGNORE_PARAM             = 117,
-  MSK_IPAR_REMOVE_UNUSED_SOLUTIONS            = 118,
-  MSK_IPAR_SENSITIVITY_ALL                    = 119,
-  MSK_IPAR_SENSITIVITY_OPTIMIZER              = 120,
-  MSK_IPAR_SENSITIVITY_TYPE                   = 121,
-  MSK_IPAR_SIM_BASIS_FACTOR_USE               = 122,
-  MSK_IPAR_SIM_DEGEN                          = 123,
-  MSK_IPAR_SIM_DUAL_CRASH                     = 124,
-  MSK_IPAR_SIM_DUAL_PHASEONE_METHOD           = 125,
-  MSK_IPAR_SIM_DUAL_RESTRICT_SELECTION        = 126,
-  MSK_IPAR_SIM_DUAL_SELECTION                 = 127,
-  MSK_IPAR_SIM_EXPLOIT_DUPVEC                 = 128,
-  MSK_IPAR_SIM_HOTSTART                       = 129,
-  MSK_IPAR_SIM_HOTSTART_LU                    = 130,
-  MSK_IPAR_SIM_MAX_ITERATIONS                 = 131,
-  MSK_IPAR_SIM_MAX_NUM_SETBACKS               = 132,
-  MSK_IPAR_SIM_NON_SINGULAR                   = 133,
-  MSK_IPAR_SIM_PRIMAL_CRASH                   = 134,
-  MSK_IPAR_SIM_PRIMAL_PHASEONE_METHOD         = 135,
-  MSK_IPAR_SIM_PRIMAL_RESTRICT_SELECTION      = 136,
-  MSK_IPAR_SIM_PRIMAL_SELECTION               = 137,
-  MSK_IPAR_SIM_REFACTOR_FREQ                  = 138,
-  MSK_IPAR_SIM_REFORMULATION                  = 139,
-  MSK_IPAR_SIM_SAVE_LU                        = 140,
-  MSK_IPAR_SIM_SCALING                        = 141,
-  MSK_IPAR_SIM_SCALING_METHOD                 = 142,
-  MSK_IPAR_SIM_SEED                           = 143,
-  MSK_IPAR_SIM_SOLVE_FORM                     = 144,
-  MSK_IPAR_SIM_STABILITY_PRIORITY             = 145,
-  MSK_IPAR_SIM_SWITCH_OPTIMIZER               = 146,
-  MSK_IPAR_SOL_FILTER_KEEP_BASIC              = 147,
-  MSK_IPAR_SOL_FILTER_KEEP_RANGED             = 148,
-  MSK_IPAR_SOL_READ_NAME_WIDTH                = 149,
-  MSK_IPAR_SOL_READ_WIDTH                     = 150,
-  MSK_IPAR_SOLUTION_CALLBACK                  = 151,
-  MSK_IPAR_TIMING_LEVEL                       = 152,
-  MSK_IPAR_WRITE_BAS_CONSTRAINTS              = 153,
-  MSK_IPAR_WRITE_BAS_HEAD                     = 154,
-  MSK_IPAR_WRITE_BAS_VARIABLES                = 155,
-  MSK_IPAR_WRITE_COMPRESSION                  = 156,
-  MSK_IPAR_WRITE_DATA_PARAM                   = 157,
-  MSK_IPAR_WRITE_FREE_CON                     = 158,
-  MSK_IPAR_WRITE_GENERIC_NAMES                = 159,
-  MSK_IPAR_WRITE_GENERIC_NAMES_IO             = 160,
-  MSK_IPAR_WRITE_IGNORE_INCOMPATIBLE_ITEMS    = 161,
-  MSK_IPAR_WRITE_INT_CONSTRAINTS              = 162,
-  MSK_IPAR_WRITE_INT_HEAD                     = 163,
-  MSK_IPAR_WRITE_INT_VARIABLES                = 164,
-  MSK_IPAR_WRITE_LP_FULL_OBJ                  = 165,
-  MSK_IPAR_WRITE_LP_LINE_WIDTH                = 166,
-  MSK_IPAR_WRITE_LP_QUOTED_NAMES              = 167,
-  MSK_IPAR_WRITE_LP_STRICT_FORMAT             = 168,
-  MSK_IPAR_WRITE_LP_TERMS_PER_LINE            = 169,
-  MSK_IPAR_WRITE_MPS_FORMAT                   = 170,
-  MSK_IPAR_WRITE_MPS_INT                      = 171,
-  MSK_IPAR_WRITE_PRECISION                    = 172,
-  MSK_IPAR_WRITE_SOL_BARVARIABLES             = 173,
-  MSK_IPAR_WRITE_SOL_CONSTRAINTS              = 174,
-  MSK_IPAR_WRITE_SOL_HEAD                     = 175,
-  MSK_IPAR_WRITE_SOL_IGNORE_INVALID_NAMES     = 176,
-  MSK_IPAR_WRITE_SOL_VARIABLES                = 177,
-  MSK_IPAR_WRITE_TASK_INC_SOL                 = 178,
-  MSK_IPAR_WRITE_XML_MODE                     = 179
-};
-
-enum MSKstreamtype_enum {
-  MSK_STREAM_BEGIN = 0,
-  MSK_STREAM_END = 4,
-
-  MSK_STREAM_LOG = 0,
-  MSK_STREAM_MSG = 1,
-  MSK_STREAM_ERR = 2,
-  MSK_STREAM_WRN = 3
-};
-
-enum MSKsimreform_enum {
-  MSK_SIM_REFORMULATION_BEGIN      = 0,
-  MSK_SIM_REFORMULATION_END        = 4,
-
-  MSK_SIM_REFORMULATION_OFF        = 0,
-  MSK_SIM_REFORMULATION_ON         = 1,
-  MSK_SIM_REFORMULATION_FREE       = 2,
-  MSK_SIM_REFORMULATION_AGGRESSIVE = 3
-};
-
-enum MSKsoltype_enum {
-  MSK_SOL_BEGIN = 0,
-  MSK_SOL_END = 3,
-
-  MSK_SOL_ITR = 0,
-  MSK_SOL_BAS = 1,
-  MSK_SOL_ITG = 2
+  MSK_SIM_HOTSTART_NONE        = 0,
+  MSK_SIM_HOTSTART_FREE        = 1,
+  MSK_SIM_HOTSTART_STATUS_KEYS = 2
 };
 
 enum MSKonoffkey_enum {
@@ -1411,194 +1573,33 @@ enum MSKonoffkey_enum {
   MSK_ON  = 1
 };
 
-enum MSKsolveform_enum {
-  MSK_SOLVE_BEGIN  = 0,
-  MSK_SOLVE_END    = 3,
+enum MSKobjsense_enum {
+  MSK_OBJECTIVE_SENSE_BEGIN    = 0,
+  MSK_OBJECTIVE_SENSE_END      = 2,
 
-  MSK_SOLVE_FREE   = 0,
-  MSK_SOLVE_PRIMAL = 1,
-  MSK_SOLVE_DUAL   = 2
+  MSK_OBJECTIVE_SENSE_MINIMIZE = 0,
+  MSK_OBJECTIVE_SENSE_MAXIMIZE = 1
 };
 
-enum MSKcallbackcode_enum {
-  MSK_CALLBACK_BEGIN                      = 0,
-  MSK_CALLBACK_END                        = 93,
+enum MSKproblemtype_enum {
+  MSK_PROBTYPE_BEGIN = 0,
+  MSK_PROBTYPE_END   = 5,
 
-  MSK_CALLBACK_BEGIN_BI                   = 0,
-  MSK_CALLBACK_BEGIN_CONIC                = 1,
-  MSK_CALLBACK_BEGIN_DUAL_BI              = 2,
-  MSK_CALLBACK_BEGIN_DUAL_SENSITIVITY     = 3,
-  MSK_CALLBACK_BEGIN_DUAL_SETUP_BI        = 4,
-  MSK_CALLBACK_BEGIN_DUAL_SIMPLEX         = 5,
-  MSK_CALLBACK_BEGIN_DUAL_SIMPLEX_BI      = 6,
-  MSK_CALLBACK_BEGIN_FULL_CONVEXITY_CHECK = 7,
-  MSK_CALLBACK_BEGIN_INFEAS_ANA           = 8,
-  MSK_CALLBACK_BEGIN_INTPNT               = 9,
-  MSK_CALLBACK_BEGIN_LICENSE_WAIT         = 10,
-  MSK_CALLBACK_BEGIN_MIO                  = 11,
-  MSK_CALLBACK_BEGIN_OPTIMIZER            = 12,
-  MSK_CALLBACK_BEGIN_PRESOLVE             = 13,
-  MSK_CALLBACK_BEGIN_PRIMAL_BI            = 14,
-  MSK_CALLBACK_BEGIN_PRIMAL_REPAIR        = 15,
-  MSK_CALLBACK_BEGIN_PRIMAL_SENSITIVITY   = 16,
-  MSK_CALLBACK_BEGIN_PRIMAL_SETUP_BI      = 17,
-  MSK_CALLBACK_BEGIN_PRIMAL_SIMPLEX       = 18,
-  MSK_CALLBACK_BEGIN_PRIMAL_SIMPLEX_BI    = 19,
-  MSK_CALLBACK_BEGIN_QCQO_REFORMULATE     = 20,
-  MSK_CALLBACK_BEGIN_READ                 = 21,
-  MSK_CALLBACK_BEGIN_ROOT_CUTGEN          = 22,
-  MSK_CALLBACK_BEGIN_SIMPLEX              = 23,
-  MSK_CALLBACK_BEGIN_SIMPLEX_BI           = 24,
-  MSK_CALLBACK_BEGIN_TO_CONIC             = 25,
-  MSK_CALLBACK_BEGIN_WRITE                = 26,
-  MSK_CALLBACK_CONIC                      = 27,
-  MSK_CALLBACK_DUAL_SIMPLEX               = 28,
-  MSK_CALLBACK_END_BI                     = 29,
-  MSK_CALLBACK_END_CONIC                  = 30,
-  MSK_CALLBACK_END_DUAL_BI                = 31,
-  MSK_CALLBACK_END_DUAL_SENSITIVITY       = 32,
-  MSK_CALLBACK_END_DUAL_SETUP_BI          = 33,
-  MSK_CALLBACK_END_DUAL_SIMPLEX           = 34,
-  MSK_CALLBACK_END_DUAL_SIMPLEX_BI        = 35,
-  MSK_CALLBACK_END_FULL_CONVEXITY_CHECK   = 36,
-  MSK_CALLBACK_END_INFEAS_ANA             = 37,
-  MSK_CALLBACK_END_INTPNT                 = 38,
-  MSK_CALLBACK_END_LICENSE_WAIT           = 39,
-  MSK_CALLBACK_END_MIO                    = 40,
-  MSK_CALLBACK_END_OPTIMIZER              = 41,
-  MSK_CALLBACK_END_PRESOLVE               = 42,
-  MSK_CALLBACK_END_PRIMAL_BI              = 43,
-  MSK_CALLBACK_END_PRIMAL_REPAIR          = 44,
-  MSK_CALLBACK_END_PRIMAL_SENSITIVITY     = 45,
-  MSK_CALLBACK_END_PRIMAL_SETUP_BI        = 46,
-  MSK_CALLBACK_END_PRIMAL_SIMPLEX         = 47,
-  MSK_CALLBACK_END_PRIMAL_SIMPLEX_BI      = 48,
-  MSK_CALLBACK_END_QCQO_REFORMULATE       = 49,
-  MSK_CALLBACK_END_READ                   = 50,
-  MSK_CALLBACK_END_ROOT_CUTGEN            = 51,
-  MSK_CALLBACK_END_SIMPLEX                = 52,
-  MSK_CALLBACK_END_SIMPLEX_BI             = 53,
-  MSK_CALLBACK_END_TO_CONIC               = 54,
-  MSK_CALLBACK_END_WRITE                  = 55,
-  MSK_CALLBACK_IM_BI                      = 56,
-  MSK_CALLBACK_IM_CONIC                   = 57,
-  MSK_CALLBACK_IM_DUAL_BI                 = 58,
-  MSK_CALLBACK_IM_DUAL_SENSIVITY          = 59,
-  MSK_CALLBACK_IM_DUAL_SIMPLEX            = 60,
-  MSK_CALLBACK_IM_FULL_CONVEXITY_CHECK    = 61,
-  MSK_CALLBACK_IM_INTPNT                  = 62,
-  MSK_CALLBACK_IM_LICENSE_WAIT            = 63,
-  MSK_CALLBACK_IM_LU                      = 64,
-  MSK_CALLBACK_IM_MIO                     = 65,
-  MSK_CALLBACK_IM_MIO_DUAL_SIMPLEX        = 66,
-  MSK_CALLBACK_IM_MIO_INTPNT              = 67,
-  MSK_CALLBACK_IM_MIO_PRIMAL_SIMPLEX      = 68,
-  MSK_CALLBACK_IM_ORDER                   = 69,
-  MSK_CALLBACK_IM_PRESOLVE                = 70,
-  MSK_CALLBACK_IM_PRIMAL_BI               = 71,
-  MSK_CALLBACK_IM_PRIMAL_SENSIVITY        = 72,
-  MSK_CALLBACK_IM_PRIMAL_SIMPLEX          = 73,
-  MSK_CALLBACK_IM_QO_REFORMULATE          = 74,
-  MSK_CALLBACK_IM_READ                    = 75,
-  MSK_CALLBACK_IM_ROOT_CUTGEN             = 76,
-  MSK_CALLBACK_IM_SIMPLEX                 = 77,
-  MSK_CALLBACK_IM_SIMPLEX_BI              = 78,
-  MSK_CALLBACK_INTPNT                     = 79,
-  MSK_CALLBACK_NEW_INT_MIO                = 80,
-  MSK_CALLBACK_PRIMAL_SIMPLEX             = 81,
-  MSK_CALLBACK_READ_OPF                   = 82,
-  MSK_CALLBACK_READ_OPF_SECTION           = 83,
-  MSK_CALLBACK_SOLVING_REMOTE             = 84,
-  MSK_CALLBACK_UPDATE_DUAL_BI             = 85,
-  MSK_CALLBACK_UPDATE_DUAL_SIMPLEX        = 86,
-  MSK_CALLBACK_UPDATE_DUAL_SIMPLEX_BI     = 87,
-  MSK_CALLBACK_UPDATE_PRESOLVE            = 88,
-  MSK_CALLBACK_UPDATE_PRIMAL_BI           = 89,
-  MSK_CALLBACK_UPDATE_PRIMAL_SIMPLEX      = 90,
-  MSK_CALLBACK_UPDATE_PRIMAL_SIMPLEX_BI   = 91,
-  MSK_CALLBACK_WRITE_OPF                  = 92
+  MSK_PROBTYPE_LO    = 0,
+  MSK_PROBTYPE_QO    = 1,
+  MSK_PROBTYPE_QCQO  = 2,
+  MSK_PROBTYPE_CONIC = 3,
+  MSK_PROBTYPE_MIXED = 4
 };
 
-enum MSKvariabletype_enum {
-  MSK_VAR_BEGIN     = 0,
-  MSK_VAR_END       = 2,
+enum MSKmiocontsoltype_enum {
+  MSK_MIO_CONT_SOL_BEGIN   = 0,
+  MSK_MIO_CONT_SOL_END     = 4,
 
-  MSK_VAR_TYPE_CONT = 0,
-  MSK_VAR_TYPE_INT  = 1
-};
-
-enum MSKorderingtype_enum {
-  MSK_ORDER_METHOD_BEGIN          = 0,
-  MSK_ORDER_METHOD_END            = 6,
-
-  MSK_ORDER_METHOD_FREE           = 0,
-  MSK_ORDER_METHOD_APPMINLOC      = 1,
-  MSK_ORDER_METHOD_EXPERIMENTAL   = 2,
-  MSK_ORDER_METHOD_TRY_GRAPHPAR   = 3,
-  MSK_ORDER_METHOD_FORCE_GRAPHPAR = 4,
-  MSK_ORDER_METHOD_NONE           = 5
-};
-
-enum MSKdataformat_enum {
-  MSK_DATA_FORMAT_BEGIN     = 0,
-  MSK_DATA_FORMAT_END       = 9,
-
-  MSK_DATA_FORMAT_EXTENSION = 0,
-  MSK_DATA_FORMAT_MPS       = 1,
-  MSK_DATA_FORMAT_LP        = 2,
-  MSK_DATA_FORMAT_OP        = 3,
-  MSK_DATA_FORMAT_FREE_MPS  = 4,
-  MSK_DATA_FORMAT_TASK      = 5,
-  MSK_DATA_FORMAT_PTF       = 6,
-  MSK_DATA_FORMAT_CB        = 7,
-  MSK_DATA_FORMAT_JSON_TASK = 8
-};
-
-enum MSKsimseltype_enum {
-  MSK_SIM_SELECTION_BEGIN   = 0,
-  MSK_SIM_SELECTION_END     = 6,
-
-  MSK_SIM_SELECTION_FREE    = 0,
-  MSK_SIM_SELECTION_FULL    = 1,
-  MSK_SIM_SELECTION_ASE     = 2,
-  MSK_SIM_SELECTION_DEVEX   = 3,
-  MSK_SIM_SELECTION_SE      = 4,
-  MSK_SIM_SELECTION_PARTIAL = 5
-};
-
-enum MSKfeature_enum {
-  MSK_FEATURE_BEGIN = 0,
-  MSK_FEATURE_END  = 2,
-
-  MSK_FEATURE_PTS  = 0,
-  MSK_FEATURE_PTON = 1
-};
-
-enum MSKxmlwriteroutputtype_enum {
-  MSK_WRITE_XML_MODE_BEGIN = 0,
-  MSK_WRITE_XML_MODE_END = 2,
-
-  MSK_WRITE_XML_MODE_ROW = 0,
-  MSK_WRITE_XML_MODE_COL = 1
-};
-
-enum MSKliinfitem_enum {
-  MSK_LIINF_BEGIN                    = 0,
-  MSK_LIINF_END                      = 13,
-
-  MSK_LIINF_BI_CLEAN_DUAL_DEG_ITER   = 0,
-  MSK_LIINF_BI_CLEAN_DUAL_ITER       = 1,
-  MSK_LIINF_BI_CLEAN_PRIMAL_DEG_ITER = 2,
-  MSK_LIINF_BI_CLEAN_PRIMAL_ITER     = 3,
-  MSK_LIINF_BI_DUAL_ITER             = 4,
-  MSK_LIINF_BI_PRIMAL_ITER           = 5,
-  MSK_LIINF_INTPNT_FACTOR_NUM_NZ     = 6,
-  MSK_LIINF_MIO_ANZ                  = 7,
-  MSK_LIINF_MIO_INTPNT_ITER          = 8,
-  MSK_LIINF_MIO_PRESOLVED_ANZ        = 9,
-  MSK_LIINF_MIO_SIMPLEX_ITER         = 10,
-  MSK_LIINF_RD_NUMANZ                = 11,
-  MSK_LIINF_RD_NUMQNZ                = 12
+  MSK_MIO_CONT_SOL_NONE    = 0,
+  MSK_MIO_CONT_SOL_ROOT    = 1,
+  MSK_MIO_CONT_SOL_ITG     = 2,
+  MSK_MIO_CONT_SOL_ITG_REL = 3
 };
 
 /* } namespace mosek; */
@@ -2109,123 +2110,123 @@ typedef signed   long long __mskint64;
 
 /* Enumeration typedefs */
 #ifndef MSK_NO_ENUMS
-typedef enum MSKdparam_enum          MSKdparame;
-typedef int                     MSKoptimizertypee;
-typedef enum MSKsymmattype_enum      MSKsymmattypee;
-typedef enum MSKinftype_enum         MSKinftypee;
-typedef int                     MSKvaluee;
-typedef int                     MSKmpsformate;
-typedef enum MSKsolsta_enum          MSKsolstae;
 typedef enum MSKprosta_enum          MSKprostae;
-typedef enum MSKsimdegen_enum        MSKsimdegene;
-typedef enum MSKconetype_enum        MSKconetypee;
-typedef int                     MSKmionodeseltypee;
-typedef enum MSKiinfitem_enum        MSKiinfiteme;
-typedef enum MSKnametype_enum        MSKnametypee;
-typedef enum MSKintpnthotstart_enum  MSKintpnthotstarte;
-typedef enum MSKsparam_enum          MSKsparame;
-typedef enum MSKproblemtype_enum     MSKproblemtypee;
-typedef enum MSKrescodetype_enum     MSKrescodetypee;
-typedef enum MSKuplo_enum            MSKuploe;
-typedef enum MSKboundkey_enum        MSKboundkeye;
-typedef enum MSKdinfitem_enum        MSKdinfiteme;
-typedef enum MSKrescode_enum         MSKrescodee;
-typedef enum MSKobjsense_enum        MSKobjsensee;
-typedef int                     MSKmiocontsoltypee;
 typedef int                     MSKpresolvemodee;
-typedef int                     MSKmiomodee;
-typedef int                     MSKscalingmethode;
-typedef int                     MSKstartpointtypee;
-typedef enum MSKproblemitem_enum     MSKproblemiteme;
-typedef int                     MSKcompresstypee;
-typedef enum MSKsimdupvec_enum       MSKsimdupvece;
-typedef enum MSKparametertype_enum   MSKparametertypee;
-typedef enum MSKsimhotstart_enum     MSKsimhotstarte;
-typedef enum MSKsolitem_enum         MSKsoliteme;
-typedef int                     MSKsensitivitytypee;
-typedef enum MSKpurify_enum          MSKpurifye;
-typedef int                     MSKbasindtypee;
-typedef int                     MSKbranchdire;
-typedef enum MSKscopr_enum           MSKscopre;
 typedef enum MSKtranspose_enum       MSKtransposee;
+typedef enum MSKsimdegen_enum        MSKsimdegene;
+typedef int                     MSKvaluee;
+typedef enum MSKboundkey_enum        MSKboundkeye;
+typedef enum MSKdparam_enum          MSKdparame;
+typedef int                     MSKsolveforme;
+typedef enum MSKscopr_enum           MSKscopre;
+typedef enum MSKcallbackcode_enum    MSKcallbackcodee;
+typedef enum MSKinftype_enum         MSKinftypee;
+typedef enum MSKproblemitem_enum     MSKproblemiteme;
+typedef int                     MSKsimseltypee;
+typedef enum MSKrescodetype_enum     MSKrescodetypee;
+typedef enum MSKnametype_enum        MSKnametypee;
+typedef int                     MSKcheckconvexitytypee;
+typedef enum MSKparametertype_enum   MSKparametertypee;
+typedef int                     MSKmpsformate;
+typedef enum MSKiparam_enum          MSKiparame;
+typedef enum MSKliinfitem_enum       MSKliinfiteme;
 typedef enum MSKmark_enum            MSKmarke;
+typedef int                     MSKdataformate;
+typedef int                     MSKbasindtypee;
+typedef int                     MSKstartpointtypee;
+typedef enum MSKsolsta_enum          MSKsolstae;
+typedef int                     MSKorderingtypee;
+typedef int                     MSKscalingmethode;
+typedef int                     MSKmiomodee;
+typedef int                     MSKscalingtypee;
+typedef enum MSKintpnthotstart_enum  MSKintpnthotstarte;
+typedef enum MSKsymmattype_enum      MSKsymmattypee;
+typedef enum MSKpurify_enum          MSKpurifye;
+typedef enum MSKstreamtype_enum      MSKstreamtypee;
+typedef int                     MSKcompresstypee;
+typedef int                     MSKoptimizertypee;
+typedef enum MSKdinfitem_enum        MSKdinfiteme;
+typedef int                     MSKbranchdire;
+typedef int                     MSKsensitivitytypee;
+typedef enum MSKconetype_enum        MSKconetypee;
+typedef enum MSKsimdupvec_enum       MSKsimdupvece;
+typedef enum MSKfeature_enum         MSKfeaturee;
+typedef enum MSKsparam_enum          MSKsparame;
+typedef enum MSKsoltype_enum         MSKsoltypee;
+typedef enum MSKxmlwriteroutputtype_enum MSKxmlwriteroutputtypee;
+typedef enum MSKsimreform_enum       MSKsimreforme;
+typedef enum MSKsolitem_enum         MSKsoliteme;
+typedef enum MSKuplo_enum            MSKuploe;
+typedef enum MSKiinfitem_enum        MSKiinfiteme;
+typedef int                     MSKmionodeseltypee;
+typedef enum MSKrescode_enum         MSKrescodee;
 typedef enum MSKstakey_enum          MSKstakeye;
 typedef int                     MSKiomodee;
-typedef int                     MSKcheckconvexitytypee;
-typedef int                     MSKscalingtypee;
-typedef enum MSKiparam_enum          MSKiparame;
-typedef enum MSKstreamtype_enum      MSKstreamtypee;
-typedef enum MSKsimreform_enum       MSKsimreforme;
-typedef enum MSKsoltype_enum         MSKsoltypee;
-typedef int                     MSKonoffkeye;
-typedef int                     MSKsolveforme;
-typedef enum MSKcallbackcode_enum    MSKcallbackcodee;
 typedef enum MSKvariabletype_enum    MSKvariabletypee;
-typedef int                     MSKorderingtypee;
-typedef int                     MSKdataformate;
-typedef int                     MSKsimseltypee;
-typedef enum MSKfeature_enum         MSKfeaturee;
-typedef enum MSKxmlwriteroutputtype_enum MSKxmlwriteroutputtypee;
-typedef enum MSKliinfitem_enum       MSKliinfiteme;
-#else
-typedef int                     MSKdparame;
-typedef int                     MSKoptimizertypee;
-typedef int                     MSKsymmattypee;
-typedef int                     MSKinftypee;
-typedef int                     MSKvaluee;
-typedef int                     MSKmpsformate;
-typedef int                     MSKsolstae;
-typedef int                     MSKprostae;
-typedef int                     MSKsimdegene;
-typedef int                     MSKconetypee;
-typedef int                     MSKmionodeseltypee;
-typedef int                     MSKiinfiteme;
-typedef int                     MSKnametypee;
-typedef int                     MSKintpnthotstarte;
-typedef int                     MSKsparame;
-typedef int                     MSKproblemtypee;
-typedef int                     MSKrescodetypee;
-typedef int                     MSKuploe;
-typedef int                     MSKboundkeye;
-typedef int                     MSKdinfiteme;
-typedef int                     MSKrescodee;
-typedef int                     MSKobjsensee;
+typedef enum MSKsimhotstart_enum     MSKsimhotstarte;
+typedef int                     MSKonoffkeye;
+typedef enum MSKobjsense_enum        MSKobjsensee;
+typedef enum MSKproblemtype_enum     MSKproblemtypee;
 typedef int                     MSKmiocontsoltypee;
+#else
+typedef int                     MSKprostae;
 typedef int                     MSKpresolvemodee;
-typedef int                     MSKmiomodee;
-typedef int                     MSKscalingmethode;
-typedef int                     MSKstartpointtypee;
-typedef int                     MSKproblemiteme;
-typedef int                     MSKcompresstypee;
-typedef int                     MSKsimdupvece;
-typedef int                     MSKparametertypee;
-typedef int                     MSKsimhotstarte;
-typedef int                     MSKsoliteme;
-typedef int                     MSKsensitivitytypee;
-typedef int                     MSKpurifye;
-typedef int                     MSKbasindtypee;
-typedef int                     MSKbranchdire;
-typedef int                     MSKscopre;
 typedef int                     MSKtransposee;
+typedef int                     MSKsimdegene;
+typedef int                     MSKvaluee;
+typedef int                     MSKboundkeye;
+typedef int                     MSKdparame;
+typedef int                     MSKsolveforme;
+typedef int                     MSKscopre;
+typedef int                     MSKcallbackcodee;
+typedef int                     MSKinftypee;
+typedef int                     MSKproblemiteme;
+typedef int                     MSKsimseltypee;
+typedef int                     MSKrescodetypee;
+typedef int                     MSKnametypee;
+typedef int                     MSKcheckconvexitytypee;
+typedef int                     MSKparametertypee;
+typedef int                     MSKmpsformate;
+typedef int                     MSKiparame;
+typedef int                     MSKliinfiteme;
 typedef int                     MSKmarke;
+typedef int                     MSKdataformate;
+typedef int                     MSKbasindtypee;
+typedef int                     MSKstartpointtypee;
+typedef int                     MSKsolstae;
+typedef int                     MSKorderingtypee;
+typedef int                     MSKscalingmethode;
+typedef int                     MSKmiomodee;
+typedef int                     MSKscalingtypee;
+typedef int                     MSKintpnthotstarte;
+typedef int                     MSKsymmattypee;
+typedef int                     MSKpurifye;
+typedef int                     MSKstreamtypee;
+typedef int                     MSKcompresstypee;
+typedef int                     MSKoptimizertypee;
+typedef int                     MSKdinfiteme;
+typedef int                     MSKbranchdire;
+typedef int                     MSKsensitivitytypee;
+typedef int                     MSKconetypee;
+typedef int                     MSKsimdupvece;
+typedef int                     MSKfeaturee;
+typedef int                     MSKsparame;
+typedef int                     MSKsoltypee;
+typedef int                     MSKxmlwriteroutputtypee;
+typedef int                     MSKsimreforme;
+typedef int                     MSKsoliteme;
+typedef int                     MSKuploe;
+typedef int                     MSKiinfiteme;
+typedef int                     MSKmionodeseltypee;
+typedef int                     MSKrescodee;
 typedef int                     MSKstakeye;
 typedef int                     MSKiomodee;
-typedef int                     MSKcheckconvexitytypee;
-typedef int                     MSKscalingtypee;
-typedef int                     MSKiparame;
-typedef int                     MSKstreamtypee;
-typedef int                     MSKsimreforme;
-typedef int                     MSKsoltypee;
-typedef int                     MSKonoffkeye;
-typedef int                     MSKsolveforme;
-typedef int                     MSKcallbackcodee;
 typedef int                     MSKvariabletypee;
-typedef int                     MSKorderingtypee;
-typedef int                     MSKdataformate;
-typedef int                     MSKsimseltypee;
-typedef int                     MSKfeaturee;
-typedef int                     MSKxmlwriteroutputtypee;
-typedef int                     MSKliinfiteme;
+typedef int                     MSKsimhotstarte;
+typedef int                     MSKonoffkeye;
+typedef int                     MSKobjsensee;
+typedef int                     MSKproblemtypee;
+typedef int                     MSKmiocontsoltypee;
 #endif
 
 /* Simple typedefs */
@@ -2308,6 +2309,324 @@ typedef size_t  (MSKAPI * MSKhwritefunc) (
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* MSK_isinfinity */
+MSKbooleant (MSKAPI MSK_isinfinity) (
+	MSKrealt value);
+
+/* MSK_checkoutlicense */
+MSKrescodee (MSKAPI MSK_checkoutlicense) (
+	MSKenv_t env,
+	MSKfeaturee feature);
+
+/* MSK_checkinlicense */
+MSKrescodee (MSKAPI MSK_checkinlicense) (
+	MSKenv_t env,
+	MSKfeaturee feature);
+
+/* MSK_checkinall */
+MSKrescodee (MSKAPI MSK_checkinall) (
+	MSKenv_t env);
+
+/* MSK_setupthreads */
+MSKrescodee (MSKAPI MSK_setupthreads) (
+	MSKenv_t env,
+	MSKint32t numthreads);
+
+/* MSK_getbuildinfo */
+MSKrescodee (MSKAPI MSK_getbuildinfo) (
+	char * buildstate,
+	char * builddate);
+
+/* MSK_getresponseclass */
+MSKrescodee (MSKAPI MSK_getresponseclass) (
+	MSKrescodee r,
+	MSKrescodetypee * rc);
+
+/* MSK_callocenv */
+void * (MSKAPI MSK_callocenv) (
+	MSKenv_t env,
+	const size_t number,
+	const size_t size);
+
+/* MSK_callocdbgenv */
+void * (MSKAPI MSK_callocdbgenv) (
+	MSKenv_t env,
+	const size_t number,
+	const size_t size,
+	const char * file,
+	const unsigned line);
+
+/* MSK_deleteenv */
+MSKrescodee (MSKAPI MSK_deleteenv) (
+	MSKenv_t * env);
+
+/* MSK_echoenv */
+MSKrescodee (MSKAPIVA MSK_echoenv) (
+	MSKenv_t env,
+	MSKstreamtypee whichstream,
+	const char * format,
+	...);
+
+/* MSK_echointro */
+MSKrescodee (MSKAPI MSK_echointro) (
+	MSKenv_t env,
+	MSKint32t longver);
+
+/* MSK_freeenv */
+void (MSKAPI MSK_freeenv) (
+	MSKenv_t env,
+	void * buffer);
+
+/* MSK_freedbgenv */
+void (MSKAPI MSK_freedbgenv) (
+	MSKenv_t env,
+	void * buffer,
+	const char * file,
+	const unsigned line);
+
+/* MSK_getcodedesc */
+MSKrescodee (MSKAPI MSK_getcodedesc) (
+	MSKrescodee code,
+	char * symname,
+	char * str);
+
+/* MSK_getsymbcondim */
+MSKrescodee (MSKAPI MSK_getsymbcondim) (
+	MSKenv_t env,
+	MSKint32t * num,
+	size_t * maxlen);
+
+/* MSK_getversion */
+MSKrescodee (MSKAPI MSK_getversion) (
+	MSKint32t * major,
+	MSKint32t * minor,
+	MSKint32t * revision);
+
+/* MSK_checkversion */
+MSKrescodee (MSKAPI MSK_checkversion) (
+	MSKenv_t env,
+	MSKint32t major,
+	MSKint32t minor,
+	MSKint32t revision);
+
+/* MSK_iparvaltosymnam */
+MSKrescodee (MSKAPI MSK_iparvaltosymnam) (
+	MSKenv_t env,
+	MSKiparame whichparam,
+	MSKint32t whichvalue,
+	char * symbolicname);
+
+/* MSK_linkfiletoenvstream */
+MSKrescodee (MSKAPI MSK_linkfiletoenvstream) (
+	MSKenv_t env,
+	MSKstreamtypee whichstream,
+	const char * filename,
+	MSKint32t append);
+
+/* MSK_linkfunctoenvstream */
+MSKrescodee (MSKAPI MSK_linkfunctoenvstream) (
+	MSKenv_t env,
+	MSKstreamtypee whichstream,
+	MSKuserhandle_t handle,
+	MSKstreamfunc func);
+
+/* MSK_unlinkfuncfromenvstream */
+MSKrescodee (MSKAPI MSK_unlinkfuncfromenvstream) (
+	MSKenv_t env,
+	MSKstreamtypee whichstream);
+
+/* MSK_makeenv */
+MSKrescodee (MSKAPI MSK_makeenv) (
+	MSKenv_t * env,
+	const char * dbgfile);
+
+/* MSK_makeenvalloc */
+MSKrescodee (MSKAPI MSK_makeenvalloc) (
+	MSKenv_t * env,
+	MSKuserhandle_t usrptr,
+	MSKmallocfunc usrmalloc,
+	MSKcallocfunc usrcalloc,
+	MSKreallocfunc usrrealloc,
+	MSKfreefunc usrfree,
+	const char * dbgfile);
+
+/* MSK_putlicensedebug */
+MSKrescodee (MSKAPI MSK_putlicensedebug) (
+	MSKenv_t env,
+	MSKint32t licdebug);
+
+/* MSK_putlicensecode */
+MSKrescodee (MSKAPI MSK_putlicensecode) (
+	MSKenv_t env,
+	const MSKint32t * code);
+
+/* MSK_putlicensewait */
+MSKrescodee (MSKAPI MSK_putlicensewait) (
+	MSKenv_t env,
+	MSKint32t licwait);
+
+/* MSK_putlicensepath */
+MSKrescodee (MSKAPI MSK_putlicensepath) (
+	MSKenv_t env,
+	const char * licensepath);
+
+/* MSK_maketask */
+MSKrescodee (MSKAPI MSK_maketask) (
+	MSKenv_t env,
+	MSKint32t maxnumcon,
+	MSKint32t maxnumvar,
+	MSKtask_t * task);
+
+/* MSK_makeemptytask */
+MSKrescodee (MSKAPI MSK_makeemptytask) (
+	MSKenv_t env,
+	MSKtask_t * task);
+
+/* MSK_putexitfunc */
+MSKrescodee (MSKAPI MSK_putexitfunc) (
+	MSKenv_t env,
+	MSKexitfunc exitfunc,
+	MSKuserhandle_t handle);
+
+/* MSK_utf8towchar */
+MSKrescodee (MSKAPI MSK_utf8towchar) (
+	const size_t outputlen,
+	size_t * len,
+	size_t * conv,
+	MSKwchart * output,
+	const char * input);
+
+/* MSK_wchartoutf8 */
+MSKrescodee (MSKAPI MSK_wchartoutf8) (
+	const size_t outputlen,
+	size_t * len,
+	size_t * conv,
+	char * output,
+	const MSKwchart * input);
+
+/* MSK_checkmemenv */
+MSKrescodee (MSKAPI MSK_checkmemenv) (
+	MSKenv_t env,
+	const char * file,
+	MSKint32t line);
+
+/* MSK_symnamtovalue */
+MSKbooleant (MSKAPI MSK_symnamtovalue) (
+	const char * name,
+	char * value);
+
+/* MSK_axpy */
+MSKrescodee (MSKAPI MSK_axpy) (
+	MSKenv_t env,
+	MSKint32t n,
+	MSKrealt alpha,
+	const MSKrealt * x,
+	MSKrealt * y);
+
+/* MSK_dot */
+MSKrescodee (MSKAPI MSK_dot) (
+	MSKenv_t env,
+	MSKint32t n,
+	const MSKrealt * x,
+	const MSKrealt * y,
+	MSKrealt * xty);
+
+/* MSK_gemv */
+MSKrescodee (MSKAPI MSK_gemv) (
+	MSKenv_t env,
+	MSKtransposee transa,
+	MSKint32t m,
+	MSKint32t n,
+	MSKrealt alpha,
+	const MSKrealt * a,
+	const MSKrealt * x,
+	MSKrealt beta,
+	MSKrealt * y);
+
+/* MSK_gemm */
+MSKrescodee (MSKAPI MSK_gemm) (
+	MSKenv_t env,
+	MSKtransposee transa,
+	MSKtransposee transb,
+	MSKint32t m,
+	MSKint32t n,
+	MSKint32t k,
+	MSKrealt alpha,
+	const MSKrealt * a,
+	const MSKrealt * b,
+	MSKrealt beta,
+	MSKrealt * c);
+
+/* MSK_syrk */
+MSKrescodee (MSKAPI MSK_syrk) (
+	MSKenv_t env,
+	MSKuploe uplo,
+	MSKtransposee trans,
+	MSKint32t n,
+	MSKint32t k,
+	MSKrealt alpha,
+	const MSKrealt * a,
+	MSKrealt beta,
+	MSKrealt * c);
+
+/* MSK_computesparsecholesky */
+MSKrescodee (MSKAPI MSK_computesparsecholesky) (
+	MSKenv_t env,
+	MSKint32t multithread,
+	MSKint32t ordermethod,
+	MSKrealt tolsingular,
+	MSKint32t n,
+	const MSKint32t * anzc,
+	const MSKint64t * aptrc,
+	const MSKint32t * asubc,
+	const MSKrealt * avalc,
+	MSKint32t ** perm,
+	MSKrealt ** diag,
+	MSKint32t ** lnzc,
+	MSKint64t ** lptrc,
+	MSKint64t * lensubnval,
+	MSKint32t ** lsubc,
+	MSKrealt ** lvalc);
+
+/* MSK_sparsetriangularsolvedense */
+MSKrescodee (MSKAPI MSK_sparsetriangularsolvedense) (
+	MSKenv_t env,
+	MSKtransposee transposed,
+	MSKint32t n,
+	const MSKint32t * lnzc,
+	const MSKint64t * lptrc,
+	MSKint64t lensubnval,
+	const MSKint32t * lsubc,
+	const MSKrealt * lvalc,
+	MSKrealt * b);
+
+/* MSK_potrf */
+MSKrescodee (MSKAPI MSK_potrf) (
+	MSKenv_t env,
+	MSKuploe uplo,
+	MSKint32t n,
+	MSKrealt * a);
+
+/* MSK_syeig */
+MSKrescodee (MSKAPI MSK_syeig) (
+	MSKenv_t env,
+	MSKuploe uplo,
+	MSKint32t n,
+	const MSKrealt * a,
+	MSKrealt * w);
+
+/* MSK_syevd */
+MSKrescodee (MSKAPI MSK_syevd) (
+	MSKenv_t env,
+	MSKuploe uplo,
+	MSKint32t n,
+	MSKrealt * a,
+	MSKrealt * w);
+
+/* MSK_licensecleanup */
+MSKrescodee (MSKAPI MSK_licensecleanup) (
+void);
 
 /* MSK_analyzeproblem */
 MSKrescodee (MSKAPI MSK_analyzeproblem) (
@@ -4736,323 +5055,10 @@ MSKrescodee (MSKAPI MSK_asyncgetresult) (
 	MSKrescodee * resp,
 	MSKrescodee * trm);
 
-/* MSK_isinfinity */
-MSKbooleant (MSKAPI MSK_isinfinity) (
-	MSKrealt value);
-
-/* MSK_checkoutlicense */
-MSKrescodee (MSKAPI MSK_checkoutlicense) (
-	MSKenv_t env,
-	MSKfeaturee feature);
-
-/* MSK_checkinlicense */
-MSKrescodee (MSKAPI MSK_checkinlicense) (
-	MSKenv_t env,
-	MSKfeaturee feature);
-
-/* MSK_checkinall */
-MSKrescodee (MSKAPI MSK_checkinall) (
-	MSKenv_t env);
-
-/* MSK_setupthreads */
-MSKrescodee (MSKAPI MSK_setupthreads) (
-	MSKenv_t env,
-	MSKint32t numthreads);
-
-/* MSK_getbuildinfo */
-MSKrescodee (MSKAPI MSK_getbuildinfo) (
-	char * buildstate,
-	char * builddate);
-
-/* MSK_getresponseclass */
-MSKrescodee (MSKAPI MSK_getresponseclass) (
-	MSKrescodee r,
-	MSKrescodetypee * rc);
-
-/* MSK_callocenv */
-void * (MSKAPI MSK_callocenv) (
-	MSKenv_t env,
-	const size_t number,
-	const size_t size);
-
-/* MSK_callocdbgenv */
-void * (MSKAPI MSK_callocdbgenv) (
-	MSKenv_t env,
-	const size_t number,
-	const size_t size,
-	const char * file,
-	const unsigned line);
-
-/* MSK_deleteenv */
-MSKrescodee (MSKAPI MSK_deleteenv) (
-	MSKenv_t * env);
-
-/* MSK_echoenv */
-MSKrescodee (MSKAPIVA MSK_echoenv) (
-	MSKenv_t env,
-	MSKstreamtypee whichstream,
-	const char * format,
-	...);
-
-/* MSK_echointro */
-MSKrescodee (MSKAPI MSK_echointro) (
-	MSKenv_t env,
-	MSKint32t longver);
-
-/* MSK_freeenv */
-void (MSKAPI MSK_freeenv) (
-	MSKenv_t env,
-	void * buffer);
-
-/* MSK_freedbgenv */
-void (MSKAPI MSK_freedbgenv) (
-	MSKenv_t env,
-	void * buffer,
-	const char * file,
-	const unsigned line);
-
-/* MSK_getcodedesc */
-MSKrescodee (MSKAPI MSK_getcodedesc) (
-	MSKrescodee code,
-	char * symname,
-	char * str);
-
-/* MSK_getsymbcondim */
-MSKrescodee (MSKAPI MSK_getsymbcondim) (
-	MSKenv_t env,
-	MSKint32t * num,
-	size_t * maxlen);
-
-/* MSK_getversion */
-MSKrescodee (MSKAPI MSK_getversion) (
-	MSKint32t * major,
-	MSKint32t * minor,
-	MSKint32t * revision);
-
-/* MSK_checkversion */
-MSKrescodee (MSKAPI MSK_checkversion) (
-	MSKenv_t env,
-	MSKint32t major,
-	MSKint32t minor,
-	MSKint32t revision);
-
-/* MSK_iparvaltosymnam */
-MSKrescodee (MSKAPI MSK_iparvaltosymnam) (
-	MSKenv_t env,
-	MSKiparame whichparam,
-	MSKint32t whichvalue,
-	char * symbolicname);
-
-/* MSK_linkfiletoenvstream */
-MSKrescodee (MSKAPI MSK_linkfiletoenvstream) (
-	MSKenv_t env,
-	MSKstreamtypee whichstream,
-	const char * filename,
-	MSKint32t append);
-
-/* MSK_linkfunctoenvstream */
-MSKrescodee (MSKAPI MSK_linkfunctoenvstream) (
-	MSKenv_t env,
-	MSKstreamtypee whichstream,
-	MSKuserhandle_t handle,
-	MSKstreamfunc func);
-
-/* MSK_unlinkfuncfromenvstream */
-MSKrescodee (MSKAPI MSK_unlinkfuncfromenvstream) (
-	MSKenv_t env,
-	MSKstreamtypee whichstream);
-
-/* MSK_makeenv */
-MSKrescodee (MSKAPI MSK_makeenv) (
-	MSKenv_t * env,
-	const char * dbgfile);
-
-/* MSK_makeenvalloc */
-MSKrescodee (MSKAPI MSK_makeenvalloc) (
-	MSKenv_t * env,
-	MSKuserhandle_t usrptr,
-	MSKmallocfunc usrmalloc,
-	MSKcallocfunc usrcalloc,
-	MSKreallocfunc usrrealloc,
-	MSKfreefunc usrfree,
-	const char * dbgfile);
-
-/* MSK_putlicensedebug */
-MSKrescodee (MSKAPI MSK_putlicensedebug) (
-	MSKenv_t env,
-	MSKint32t licdebug);
-
-/* MSK_putlicensecode */
-MSKrescodee (MSKAPI MSK_putlicensecode) (
-	MSKenv_t env,
-	const MSKint32t * code);
-
-/* MSK_putlicensewait */
-MSKrescodee (MSKAPI MSK_putlicensewait) (
-	MSKenv_t env,
-	MSKint32t licwait);
-
-/* MSK_putlicensepath */
-MSKrescodee (MSKAPI MSK_putlicensepath) (
-	MSKenv_t env,
-	const char * licensepath);
-
-/* MSK_maketask */
-MSKrescodee (MSKAPI MSK_maketask) (
-	MSKenv_t env,
-	MSKint32t maxnumcon,
-	MSKint32t maxnumvar,
-	MSKtask_t * task);
-
-/* MSK_makeemptytask */
-MSKrescodee (MSKAPI MSK_makeemptytask) (
-	MSKenv_t env,
-	MSKtask_t * task);
-
-/* MSK_putexitfunc */
-MSKrescodee (MSKAPI MSK_putexitfunc) (
-	MSKenv_t env,
-	MSKexitfunc exitfunc,
-	MSKuserhandle_t handle);
-
-/* MSK_utf8towchar */
-MSKrescodee (MSKAPI MSK_utf8towchar) (
-	const size_t outputlen,
-	size_t * len,
-	size_t * conv,
-	MSKwchart * output,
-	const char * input);
-
-/* MSK_wchartoutf8 */
-MSKrescodee (MSKAPI MSK_wchartoutf8) (
-	const size_t outputlen,
-	size_t * len,
-	size_t * conv,
-	char * output,
-	const MSKwchart * input);
-
-/* MSK_checkmemenv */
-MSKrescodee (MSKAPI MSK_checkmemenv) (
-	MSKenv_t env,
-	const char * file,
-	MSKint32t line);
-
-/* MSK_symnamtovalue */
-MSKbooleant (MSKAPI MSK_symnamtovalue) (
-	const char * name,
-	char * value);
-
-/* MSK_axpy */
-MSKrescodee (MSKAPI MSK_axpy) (
-	MSKenv_t env,
-	MSKint32t n,
-	MSKrealt alpha,
-	const MSKrealt * x,
-	MSKrealt * y);
-
-/* MSK_dot */
-MSKrescodee (MSKAPI MSK_dot) (
-	MSKenv_t env,
-	MSKint32t n,
-	const MSKrealt * x,
-	const MSKrealt * y,
-	MSKrealt * xty);
-
-/* MSK_gemv */
-MSKrescodee (MSKAPI MSK_gemv) (
-	MSKenv_t env,
-	MSKtransposee transa,
-	MSKint32t m,
-	MSKint32t n,
-	MSKrealt alpha,
-	const MSKrealt * a,
-	const MSKrealt * x,
-	MSKrealt beta,
-	MSKrealt * y);
-
-/* MSK_gemm */
-MSKrescodee (MSKAPI MSK_gemm) (
-	MSKenv_t env,
-	MSKtransposee transa,
-	MSKtransposee transb,
-	MSKint32t m,
-	MSKint32t n,
-	MSKint32t k,
-	MSKrealt alpha,
-	const MSKrealt * a,
-	const MSKrealt * b,
-	MSKrealt beta,
-	MSKrealt * c);
-
-/* MSK_syrk */
-MSKrescodee (MSKAPI MSK_syrk) (
-	MSKenv_t env,
-	MSKuploe uplo,
-	MSKtransposee trans,
-	MSKint32t n,
-	MSKint32t k,
-	MSKrealt alpha,
-	const MSKrealt * a,
-	MSKrealt beta,
-	MSKrealt * c);
-
-/* MSK_computesparsecholesky */
-MSKrescodee (MSKAPI MSK_computesparsecholesky) (
-	MSKenv_t env,
-	MSKint32t multithread,
-	MSKint32t ordermethod,
-	MSKrealt tolsingular,
-	MSKint32t n,
-	const MSKint32t * anzc,
-	const MSKint64t * aptrc,
-	const MSKint32t * asubc,
-	const MSKrealt * avalc,
-	MSKint32t ** perm,
-	MSKrealt ** diag,
-	MSKint32t ** lnzc,
-	MSKint64t ** lptrc,
-	MSKint64t * lensubnval,
-	MSKint32t ** lsubc,
-	MSKrealt ** lvalc);
-
-/* MSK_sparsetriangularsolvedense */
-MSKrescodee (MSKAPI MSK_sparsetriangularsolvedense) (
-	MSKenv_t env,
-	MSKtransposee transposed,
-	MSKint32t n,
-	const MSKint32t * lnzc,
-	const MSKint64t * lptrc,
-	MSKint64t lensubnval,
-	const MSKint32t * lsubc,
-	const MSKrealt * lvalc,
-	MSKrealt * b);
-
-/* MSK_potrf */
-MSKrescodee (MSKAPI MSK_potrf) (
-	MSKenv_t env,
-	MSKuploe uplo,
-	MSKint32t n,
-	MSKrealt * a);
-
-/* MSK_syeig */
-MSKrescodee (MSKAPI MSK_syeig) (
-	MSKenv_t env,
-	MSKuploe uplo,
-	MSKint32t n,
-	const MSKrealt * a,
-	MSKrealt * w);
-
-/* MSK_syevd */
-MSKrescodee (MSKAPI MSK_syevd) (
-	MSKenv_t env,
-	MSKuploe uplo,
-	MSKint32t n,
-	MSKrealt * a,
-	MSKrealt * w);
-
-/* MSK_licensecleanup */
-MSKrescodee (MSKAPI MSK_licensecleanup) (
-void);
+/* MSK_putoptserverhost */
+MSKrescodee (MSKAPI MSK_putoptserverhost) (
+	MSKtask_t task,
+	const char * host);
 
 
 

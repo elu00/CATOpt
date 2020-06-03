@@ -38,8 +38,8 @@ SET(HEADERS
 
 # Create a single library for the project
 add_library(mosek STATIC ${SRCS} ${HEADERS})
-target_link_libraries(mosek PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/libfusion64.so.9.0)
-target_link_libraries(mosek PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/libmosek64.so.9.0)
+target_link_libraries(mosek PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/libfusion64.so.9.2)
+target_link_libraries(mosek PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/libmosek64.so.9.2)
 add_definitions(-DNOMINMAX)
 
 

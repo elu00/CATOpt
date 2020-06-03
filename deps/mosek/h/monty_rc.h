@@ -21,22 +21,31 @@ namespace monty
     //typedef typename T::_descended_from_RefCounted _validate_descended_from_RefCounted; // make sure we are descended from RefCounted
     T * ref;
     template<typename S> friend class rc_ptr; // Should be for T <: S, but we cant write that
+
+    template<typename Y>
+    using _Convertible = typename std::enable_if<std::is_constructible<T*,Y*>::value,rc_ptr<T> >::type;
   public:
     typedef T * pointer;
     typedef T & reference;
 
     rc_ptr();
     rc_ptr(pointer ptr); // from pointer
-    rc_ptr(rc_ptr<T> && ptr); 
+    rc_ptr(rc_ptr<T> && ptr);
     rc_ptr(const rc_ptr<T> & that); // const copy
+    // To allow construction when S <: T like
+    //   rc_ptr<S> s;
+    //   rc_ptr<T> t(s);
+    template<typename Y, typename = _Convertible<Y>>
+    rc_ptr(const rc_ptr<Y> & r) noexcept : rc_ptr<T>(r.ref) { }
 
-    
+
     ~rc_ptr();
 
     reference operator*()  const;
     pointer   operator->() const;
     rc_ptr<T> operator=(const rc_ptr<T> & other);
     rc_ptr<T> operator=(pointer other);
+
     bool      operator==(const rc_ptr<T> & other);
 
     pointer get() const;
@@ -83,23 +92,23 @@ namespace monty
     rc_reserve(RefCounted * ref) : ref(ref) { ref->refincr(); }
     ~rc_reserve() { ref->refdecr(); }
   };
-  
+
   //----------------------------------
   // rc_ptr implementation
 
   // constructors
-  template<typename T> rc_ptr<T>::rc_ptr(pointer that)           : ref(that)      
-  { 
-    if (ref) ref->refincr(); 
+  template<typename T> rc_ptr<T>::rc_ptr(pointer that)           : ref(that)
+  {
+    if (ref) ref->refincr();
   }
   //template<typename T>
-  //template<typename S> rc_ptr<T>::rc_ptr(const rc_ptr<S> & that) : ref(that.ref)  
-  //{ 
-  //  if (ref) ref->refincr(); 
+  //template<typename S> rc_ptr<T>::rc_ptr(const rc_ptr<S> & that) : ref(that.ref)
+  //{
+  //  if (ref) ref->refincr();
   // }
-  template<typename T> rc_ptr<T>::rc_ptr(const rc_ptr<T> & that) : ref(that.ref)             
-  { 
-    if (ref) ref->refincr(); 
+  template<typename T> rc_ptr<T>::rc_ptr(const rc_ptr<T> & that) : ref(that.ref)
+  {
+    if (ref) ref->refincr();
   }
 
   template<typename T> rc_ptr<T>::rc_ptr(rc_ptr<T> && that) : ref(that.ref)
@@ -108,24 +117,25 @@ namespace monty
   }
 
   template<typename T> rc_ptr<T>::rc_ptr() : ref(nullptr)
-  { 
+  {
   }
 
+
   // destructor
-  template<typename T> rc_ptr<T>::~rc_ptr()                                       
-  { 
-    if (ref && ref->refdecr() == 0) delete ref; 
+  template<typename T> rc_ptr<T>::~rc_ptr()
+  {
+    if (ref && ref->refdecr() == 0) delete ref;
   }
 
   // members
 
   template<typename T> typename rc_ptr<T>::reference rc_ptr<T>::operator*() const { return *ref; }
   template<typename T> typename rc_ptr<T>::pointer rc_ptr<T>::operator->()  const { return  ref; }
-  template<typename T> void     rc_ptr<T>::reset()                                
-  { 
+  template<typename T> void     rc_ptr<T>::reset()
+  {
     if (ref)
-      if (ref->refdecr() == 0) 
-        delete ref; 
+      if (ref->refdecr() == 0)
+        delete ref;
     ref = NULL;
   }
   template<typename T> typename rc_ptr<T>::pointer rc_ptr<T>::get() const         { return ref; }

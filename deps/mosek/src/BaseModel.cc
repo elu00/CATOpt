@@ -7,17 +7,17 @@
 #include <map>
 #include <memory>
 #include <cassert>
-#include "SolverInfo.h"
+#include <SolverInfo.h>
 
 #include "mosektask_p.h"
 
 
-namespace mosek 
-{ 
+namespace mosek
+{
   namespace fusion
   {
     //-----------------------------
-    BaseModel::BaseModel(p_BaseModel * _impl) : _impl(_impl) 
+    BaseModel::BaseModel(p_BaseModel * _impl) : _impl(_impl)
     {
     }
     BaseModel::~BaseModel()
@@ -110,10 +110,10 @@ namespace mosek
     }
 
     int  p_BaseModel::task_append_con(int num) { return task->appendcons(num); }
-    
+
     int  p_BaseModel::task_append_var(int num)  { return task->appendvars(num); }
     int  p_BaseModel::task_barvardim(int index) { return task->getbarvardim(index);  }
-    
+
     int  p_BaseModel::task_numbarvar()          { return task->getnumbarvar(); }
     int  p_BaseModel::task_numcon()             { return task->getnumcon(); }
     int  p_BaseModel::task_numcone()            { return task->getnumcone(); }
@@ -172,11 +172,11 @@ namespace mosek
     }
 
 
-    
+
     void p_BaseModel::task_put_param(const std::string & name, double value) { task->putparam(name,value); }
     void p_BaseModel::task_put_param(const std::string & name, int    value) { task->putparam(name,value); }
     void p_BaseModel::task_put_param(const std::string & name, const std::string & value) { task->putparam(name,value); }
-    
+
     double p_BaseModel::task_get_dinf (const std::string & name)
     {
       MSKdinfiteme key;
@@ -194,7 +194,7 @@ namespace mosek
       else
         throw NameError("Invalid integer information item name");
     }
-    
+
     long long p_BaseModel::task_get_liinf(const std::string & name)
     {
       MSKliinfiteme key;
@@ -204,28 +204,43 @@ namespace mosek
         throw NameError("Invalid long integer information item name");
     }
 
-    
+
     void p_BaseModel::task_putaijlist
-      ( const std::shared_ptr<monty::ndarray<int,1>>    & subi, 
-        const std::shared_ptr<monty::ndarray<int,1>>    & subj, 
-        const std::shared_ptr<monty::ndarray<double,1>> & cof, 
+      ( const std::shared_ptr<monty::ndarray<int,1>>    & subi,
+        const std::shared_ptr<monty::ndarray<int,1>>    & subj,
+        const std::shared_ptr<monty::ndarray<double,1>> & cof,
         long long                        num )
     { task->putaijlist(subi->raw(),subj->raw(),cof->raw(),num); }
 
     void p_BaseModel::task_putarowlist
       ( const std::shared_ptr<monty::ndarray<int,1>>       & idxs,
         const std::shared_ptr<monty::ndarray<long long,1>> & ptrb,
-        const std::shared_ptr<monty::ndarray<int,1>>       & subj, 
-        const std::shared_ptr<monty::ndarray<double,1>>    & cof) 
-    { 
+        const std::shared_ptr<monty::ndarray<int,1>>       & subj,
+        const std::shared_ptr<monty::ndarray<double,1>>    & cof)
+    {
         assert(ptrb->size() == idxs->size()+1);
         for (auto i = ptrb->flat_begin(), e = ptrb->flat_end(); i != e; ++i)
-        {            
+        {
             assert(*i <= subj->size());
             assert(*i <= cof->size());
         }
-        task->putarowlist((int)idxs->size(), idxs->raw(), ptrb->raw(),subj->raw(),cof->raw()); 
+        task->putarowlist((int)idxs->size(), idxs->raw(), ptrb->raw(),subj->raw(),cof->raw());
     }
+
+    void p_BaseModel::task_cleararowlist ( const std::shared_ptr<monty::ndarray<int,1>> & idxs) {
+        std::vector<long long> ptrb(idxs->size()+1); // zeros
+        double cof;
+        int subj;
+        task->putarowlist((int)idxs->size(), idxs->raw(), ptrb.data(),&subj,&cof);
+    }
+
+    void p_BaseModel::task_clearacollist ( const std::shared_ptr<monty::ndarray<int,1>> & idxs) {
+        std::vector<long long> ptrb(idxs->size()+1); // zeros
+        double cof;
+        int subj;
+        task->putacollist((int)idxs->size(), idxs->raw(), ptrb.data(),&subj,&cof);
+    }
+
 
 
 
@@ -260,7 +275,7 @@ namespace mosek
                             matidx->raw(),
                             weight.data());
     }
-  
+
     void p_BaseModel::task_putbarc
     ( const std::shared_ptr<monty::ndarray<int,1>>    subj,
       const std::shared_ptr<monty::ndarray<int,1>>    subk,
@@ -272,12 +287,12 @@ namespace mosek
                       subl->raw(),
                       val->raw());
     }
-  
+
     std::shared_ptr<monty::ndarray<long long,1>> p_BaseModel::task_appendsymmatlist
-      ( const std::shared_ptr<monty::ndarray<int,1>> & dim, 
-        const std::shared_ptr<monty::ndarray<long long,1>> & nz, 
-        const std::shared_ptr<monty::ndarray<int,1>> & subk, 
-        const std::shared_ptr<monty::ndarray<int,1>> & subl, 
+      ( const std::shared_ptr<monty::ndarray<int,1>> & dim,
+        const std::shared_ptr<monty::ndarray<long long,1>> & nz,
+        const std::shared_ptr<monty::ndarray<int,1>> & subk,
+        const std::shared_ptr<monty::ndarray<int,1>> & subl,
         const std::shared_ptr<monty::ndarray<double,1>> & val) {
         std::shared_ptr<monty::ndarray<long long,1>> r = std::shared_ptr<monty::ndarray<long long,1>>(new monty::ndarray<long long,1>(dim->size()));
         task->appendsymmatlist(dim->size(),
@@ -289,7 +304,7 @@ namespace mosek
                                r->raw());
         return r;
     }
-    
+
     //-----------------------------------------
     void p_BaseModel::task_append_zerocones (int numcone) { task->appendcones(numcone); }
     void p_BaseModel::task_clear_cones   ( const std::shared_ptr<monty::ndarray<int,1>> & idxs ) { task->putcones(MSK_CT_ZERO, idxs->raw(), 0, idxs->size(), NULL, NULL); }
@@ -305,8 +320,8 @@ namespace mosek
     void p_BaseModel::task_con_putboundlist_lo(const std::shared_ptr<monty::ndarray<int,1>> idxs, const std::shared_ptr<monty::ndarray<double,1>> & rhs) { task->conboundlist(idxs->size(), idxs->raw(), MSK_BK_LO, rhs->raw(),rhs->raw()); }
     void p_BaseModel::task_con_putboundlist_up(const std::shared_ptr<monty::ndarray<int,1>> idxs, const std::shared_ptr<monty::ndarray<double,1>> & rhs) { task->conboundlist(idxs->size(), idxs->raw(), MSK_BK_UP, rhs->raw(),rhs->raw()); }
     void p_BaseModel::task_con_putboundlist_fx(const std::shared_ptr<monty::ndarray<int,1>> idxs, const std::shared_ptr<monty::ndarray<double,1>> & rhs) { task->conboundlist(idxs->size(), idxs->raw(), MSK_BK_FX, rhs->raw(),rhs->raw()); }
-    void p_BaseModel::task_con_putboundlist_ra(const std::shared_ptr<monty::ndarray<int,1>> idxs, 
-                                               const std::shared_ptr<monty::ndarray<double,1>> & lb , 
+    void p_BaseModel::task_con_putboundlist_ra(const std::shared_ptr<monty::ndarray<int,1>> idxs,
+                                               const std::shared_ptr<monty::ndarray<double,1>> & lb ,
                                                const std::shared_ptr<monty::ndarray<double,1>> & ub ) {
         task->conboundlist(idxs->size(), idxs->raw(), MSK_BK_RA,lb->raw(),ub->raw());
     }
@@ -315,8 +330,8 @@ namespace mosek
     void p_BaseModel::task_var_putboundlist_lo(const std::shared_ptr<monty::ndarray<int,1>> idxs, const std::shared_ptr<monty::ndarray<double,1>> & rhs) {task->varboundlist(idxs->size(), idxs->raw(), MSK_BK_LO, rhs->raw(),rhs->raw()); }
     void p_BaseModel::task_var_putboundlist_up(const std::shared_ptr<monty::ndarray<int,1>> idxs, const std::shared_ptr<monty::ndarray<double,1>> & rhs) {task->varboundlist(idxs->size(), idxs->raw(), MSK_BK_UP, rhs->raw(),rhs->raw()); }
     void p_BaseModel::task_var_putboundlist_fx(const std::shared_ptr<monty::ndarray<int,1>> idxs, const std::shared_ptr<monty::ndarray<double,1>> & rhs) {task->varboundlist(idxs->size(), idxs->raw(), MSK_BK_FX, rhs->raw(),rhs->raw()); }
-    void p_BaseModel::task_var_putboundlist_ra(const std::shared_ptr<monty::ndarray<int,1>> idxs, 
-                                               const std::shared_ptr<monty::ndarray<double,1>> & lb , 
+    void p_BaseModel::task_var_putboundlist_ra(const std::shared_ptr<monty::ndarray<int,1>> idxs,
+                                               const std::shared_ptr<monty::ndarray<double,1>> & lb ,
                                                const std::shared_ptr<monty::ndarray<double,1>> & ub )
     {
         task->varboundlist(idxs->size(), idxs->raw(), MSK_BK_RA, lb->raw(),ub->raw());
@@ -333,7 +348,7 @@ namespace mosek
     {
         std::vector<double> c(task->getnumvar());
         std::vector<int>    cidx(task->getnumvar());
-        
+
         for (ptrdiff_t i = 0; i < cidx.size();  ++i) cidx[i] = i;
         for (ptrdiff_t i = 0; i < subj->size(); ++i) c[(*subj)[i]] += (*cof)[i];
 
@@ -375,13 +390,18 @@ namespace mosek
         task->breakOptimize();
     }
 
-    void p_BaseModel::task_solve() 
-    { 
+    void p_BaseModel::task_putoptserver_host(const std::string & addr)
+    {
+      task->putoptserverhost(addr);
+    }
+
+    void p_BaseModel::task_solve(bool remote, const std::string & server, const std::string & port)
+    {
       synched = false;
       bool ok = false;
 
-      monty::finally([&]() 
-        {  
+      monty::finally([&]()
+        {
           if (! ok) // means exception before we reached end
           {
             sol_itr = nullptr;
@@ -391,8 +411,11 @@ namespace mosek
         });
 
       try
-      {     
-        task->optimize();
+      {
+        if (remote)
+          task->optimizermt(server, port);
+        else
+          task->optimize();
         task->solutionsummary(MSK_STREAM_LOG);
       }
       catch (mosek::MosekException e)
@@ -423,12 +446,12 @@ namespace mosek
       }
 
       if (sol_itr_def)
-      {    
+      {
         sol_itr = new SolutionStruct(numvar,numcon,numcone,barvarveclen);
         p_SolutionStruct * sol_ptr = p_SolutionStruct::_get_impl(sol_itr);
 
 #if 0
-        std::cout 
+        std::cout
           << "numvar    = " << numvar << std::endl
           << "numcon    = " << numcon << std::endl
           << "numcone   = " << numcone << std::endl
@@ -464,7 +487,7 @@ namespace mosek
         else
           for (int i = 0; i < numvar; ++i)
               (*sol_ptr->yx)[i] = (*sol_ptr->slx)[i] - (*sol_ptr->sux)[i];
-        
+
         if (numbarvar > 0) {
             task->getbarxslice(MSK_SOL_ITR,0,numbarvar,barvarveclen,sol_ptr->barx->raw());
             task->getbarsslice(MSK_SOL_ITR,0,numbarvar,barvarveclen,sol_ptr->bars->raw());
@@ -476,7 +499,7 @@ namespace mosek
       }
 
       if (sol_bas_def)
-      {    
+      {
         sol_bas = new SolutionStruct(numvar,numcon,numcone,barvarveclen);
         p_SolutionStruct * sol_ptr = p_SolutionStruct::_get_impl(sol_bas);
         task->getsolution(
@@ -502,7 +525,7 @@ namespace mosek
         convertSolutionStatus(MSK_SOL_BAS, sol_ptr, solsta,prosta);
       }
       if (sol_itg_def)
-      {    
+      {
         sol_itg = new SolutionStruct(numvar,numcon,numcone,barvarveclen);
         p_SolutionStruct * sol_ptr = p_SolutionStruct::_get_impl(sol_itg);
         task->getsolution( MSK_SOL_ITG,
@@ -524,22 +547,22 @@ namespace mosek
         }
 
         sol_ptr->pobj = task->getprimalobj(MSK_SOL_ITG);
-        
+
         convertSolutionStatus(MSK_SOL_ITG, sol_ptr, solsta,prosta);
       }
 
       ok = true;
       synched = true;
     }
-    
+
     void p_BaseModel::task_var_putintlist(const std::shared_ptr<monty::ndarray<int,1>> & idxs) { task->putintlist(idxs->size(), idxs->raw()); }
     void p_BaseModel::task_var_putcontlist(const std::shared_ptr<monty::ndarray<int,1>> & idxs) { task->putcontlist(idxs->size(), idxs->raw()); }
 
-    void p_BaseModel::task_write(const std::string & filename) 
-    { 
+    void p_BaseModel::task_write(const std::string & filename)
+    {
       task->putparam("MSK_IPAR_OPF_WRITE_SOLUTIONS",1);
       task->putparam("MSK_IPAR_WRITE_IGNORE_INCOMPATIBLE_ITEMS",1);
-      task->write(filename); 
+      task->write(filename);
     }
 
     void p_BaseModel::task_putxx_slice(SolutionType which, int first, int last, std::shared_ptr<monty::ndarray<double,1>> & xx)
@@ -563,8 +586,8 @@ namespace mosek
     }
 
 
-    void p_BaseModel::task_cleanup (int inumvar, int inumcon, int inumcone, int inumbarvar) 
-    { 
+    void p_BaseModel::task_cleanup (int inumvar, int inumcon, int inumcone, int inumbarvar)
+    {
         task->fixvars(inumcone);
         task->revert(task->getnumvar(),inumcon,inumcone,inumbarvar);
     }
@@ -604,7 +627,7 @@ namespace mosek
     void p_BaseModel::env_putlicensecode (std::shared_ptr<monty::ndarray<int,1>> code) { putlicensecode(code->raw()); }
     void p_BaseModel::env_putlicensepath (const std::string & path) { putlicensepath(path); }
     void p_BaseModel::env_putlicensewait (int wait) { putlicensewait(wait); }
-    
+
     std::string p_BaseModel::env_getversion() {
        int major; int minor; int revision;
        char buf[20];
@@ -617,27 +640,27 @@ namespace mosek
     {
       switch (status)
       {
-      case MSK_SOL_STA_OPTIMAL: 
+      case MSK_SOL_STA_OPTIMAL:
         sol->pstatus = SolutionStatus::Optimal;
         sol->dstatus = SolutionStatus::Optimal;
         break;
-      case MSK_SOL_STA_INTEGER_OPTIMAL: 
+      case MSK_SOL_STA_INTEGER_OPTIMAL:
         sol->pstatus = SolutionStatus::Optimal;
         sol->dstatus = SolutionStatus::Unknown;
         break;
-      case MSK_SOL_STA_PRIM_AND_DUAL_FEAS: 
+      case MSK_SOL_STA_PRIM_AND_DUAL_FEAS:
         sol->pstatus = SolutionStatus::Feasible;
         sol->dstatus = SolutionStatus::Feasible;
         break;
-      case MSK_SOL_STA_PRIM_FEAS: 
+      case MSK_SOL_STA_PRIM_FEAS:
         sol->pstatus = SolutionStatus::Feasible;
         sol->dstatus = SolutionStatus::Unknown;
         break;
-      case MSK_SOL_STA_DUAL_FEAS: 
+      case MSK_SOL_STA_DUAL_FEAS:
         sol->pstatus = SolutionStatus::Unknown;
         sol->dstatus = SolutionStatus::Feasible;
         break;
-      case MSK_SOL_STA_PRIM_INFEAS_CER: 
+      case MSK_SOL_STA_PRIM_INFEAS_CER:
         sol->pstatus = SolutionStatus::Unknown;
         sol->dstatus = SolutionStatus::Certificate;
         break;
@@ -645,7 +668,7 @@ namespace mosek
         sol->pstatus = SolutionStatus::Certificate;
         sol->dstatus = SolutionStatus::Unknown;
         break;
-      case MSK_SOL_STA_PRIM_ILLPOSED_CER: 
+      case MSK_SOL_STA_PRIM_ILLPOSED_CER:
         sol->pstatus = SolutionStatus::Unknown;
         sol->dstatus = SolutionStatus::IllposedCert;
         break;
@@ -658,7 +681,7 @@ namespace mosek
         sol->pstatus = SolutionStatus::Unknown;
         sol->dstatus = SolutionStatus::Unknown;
       }
-    
+
      switch (prosta)
      {
         case MSK_PRO_STA_UNKNOWN  :                   sol->probstatus = ProblemStatus::Unknown; break;
@@ -677,5 +700,4 @@ namespace mosek
 
 
   }
-} 
-
+}

@@ -121,10 +121,13 @@ namespace mosek
   {
     MSKrescodee lastres;
     MSKint32t   len = 0;
+    char        symname[MSK_MAX_STR_LEN];    
     MSK_getlasterror(task, & lastres, 0, &len, NULL);
+    MSK_getcodedesc(lastres, symname, NULL);
     std::vector<char> buf(len+1);
     MSK_getlasterror(task, & lastres, len, NULL, &buf[0]);
-    return std::string(&buf[0]);
+    std::string desc = std::string(symname) + "(" + std::to_string(lastres) + "): " + std::string(&buf[0]);
+    return desc;
   }
 
   // mosektask.h
@@ -235,7 +238,7 @@ namespace mosek
               MSK(putcone, coneidxs[i], ct, 0.0, conesize, membs+k);
           }
   }
-  
+
 
 
 void Task::varbound(int idx, MSKboundkeye bk, double lb, double ub) { MSK(putvarbound, idx, bk, lb, ub); }
@@ -248,7 +251,7 @@ void Task::conbound(int idx, MSKboundkeye bk, double lb, double ub) { MSK(putcon
       const double       * lb,
       const double       * ub)
   {
-      std::vector<MSKboundkeye> bks(num, bk); 
+      std::vector<MSKboundkeye> bks(num, bk);
       MSK(putvarboundlist,num,sub,bks.data(),lb,ub);
   }
   void Task::conboundlist
@@ -258,7 +261,7 @@ void Task::conbound(int idx, MSKboundkeye bk, double lb, double ub) { MSK(putcon
       const double       * lb,
       const double       * ub)
   {
-      std::vector<MSKboundkeye> bks(num, bk); 
+      std::vector<MSKboundkeye> bks(num, bk);
       MSK(putconboundlist,num,sub,bks.data(),lb,ub);
   }
 
@@ -283,6 +286,16 @@ void Task::conbound(int idx, MSKboundkeye bk, double lb, double ub) { MSK(putcon
       MSK(putarowlist64,num,idxs, ptrb,ptrb+1,subj,cof);
   }
 
+  void Task::putacollist
+  ( int num,
+    const int *       idxs,
+    const long long * ptrb,
+    const int       * subi,
+    const double    * cof)
+  {
+      MSK(putacollist64,num,idxs, ptrb,ptrb+1,subi,cof);
+  }
+
 
   void Task::putbararowlist(int num,
                             const int       * subi,
@@ -295,10 +308,10 @@ void Task::conbound(int idx, MSKboundkeye bk, double lb, double ub) { MSK(putcon
           nummat[i] = 1;
           alpha[i] = 1.0;
       }
-          
+
       MSK(putbararowlist,num,subi,ptr,ptr+1,subj,nummat.data(),matidx,alpha.data());
   }
-  
+
   void Task::putbarc(long long num,
                      const int * subj,
                      const int * subk,
@@ -358,6 +371,19 @@ void Task::conbound(int idx, MSKboundkeye bk, double lb, double ub) { MSK(putcon
     breakflag = false;
     MSK(optimizetrm, &r);
     return r;
+  }
+
+  MSKrescodee Task::optimizermt(const std::string & server, const std::string & port)
+  {
+    MSKrescodee r = MSK_RES_OK;
+    breakflag = false;
+    MSK(optimizermt, server.c_str(), port.c_str(), &r);
+    return r;
+  }
+
+  void Task::putoptserverhost(const std::string & addr)
+  {
+    MSK(putoptserverhost, addr.c_str());
   }
 
   void Task::solutionsummary(MSKstreamtypee strm)

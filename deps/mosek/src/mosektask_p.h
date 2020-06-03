@@ -109,6 +109,11 @@ namespace mosek
                       const long long * ptrb,
                       const int       * subj,
                       const double    * cof);
+    void putacollist( int num,
+                      const int       * idxs,
+                      const long long * ptrb,
+                      const int       * subi,
+                      const double    * cof);
     // putacolslice
     void putaijlist(const int    * subi,
                     const int    * subj,
@@ -154,6 +159,8 @@ namespace mosek
     
     void breakOptimize();
     MSKrescodee optimize();
+    MSKrescodee optimizermt(const std::string & server, const std::string & port);
+    void putoptserverhost(const std::string & addr);
 
     void solutionsummary(MSKstreamtypee strm);
     bool solutiondef(MSKsoltypee sol);

@@ -1,5 +1,5 @@
 MSKMAJORVER=9
-MSKMINORVER=0
+MSKMINORVER=2
 CXX=g++ -std=c++11
 LD=g++ -std=c++11
 AR=ar
