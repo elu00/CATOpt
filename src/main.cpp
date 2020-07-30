@@ -25,6 +25,7 @@ using namespace geometrycentral::surface;
 using std::cout;
 using std::endl;
 using std::unique_ptr;
+using std::max;
 
 using namespace mosek::fusion;
 using namespace monty;
@@ -62,7 +63,7 @@ vector<double> rhs;
 vector<double> ineqRHS0;
 vector<double> ineqRHS1;
 
-size_t subdiv_level = 8;
+size_t subdiv_level = 4;
 vector<Vector3> subdiv_points;
 //vector<Vector3> grad;
 std::map<std::tuple<Face, size_t, size_t>, size_t> indexing;
@@ -71,8 +72,8 @@ vector<tuple<size_t, size_t, double>> correct_dist;
 Eigen::SparseMatrix<double> bendingMatrix;
 double alpha = 0.2;
 double beta = 0.5;
-double ep = 1e-4;
-double bendingWeight = 1e-4;
+double ep = 8e-3;
+double bendingWeight = 1e-8;
 vector<Vector3> fin;
 
 // Polyscope visualization handle, to quickly add data to the surface
@@ -150,7 +151,7 @@ void generateConstraints() {
     auto inRHS1 = new_array_ptr(ineqRHS1);
     // sum is greater than 0
     M->constraint("ineq0 constraints", Expr::mul(Mineq, x), Domain::greaterThan(inRHS0));
-    // sum is less thatn 2pi
+    // sum is less than 2pi
     M->constraint("ineq1 constraints", Expr::mul(Mineq, x), Domain::lessThan(inRHS1));
 
     auto ones =  std::make_shared<ndarray<double,1>>(shape(nEdges),1.);
@@ -187,7 +188,15 @@ inline Vector3 bary (Face f, double a, double b, double c) {
 inline size_t get_index(Face f, int j, int k) {
     auto key = make_tuple(f, j, k);
     auto i = indexing.find(key);
-    return i == indexing.end() ? -1 : i->second;
+    return i == indexing.end() ? -1 : i -> second;
+    /*
+    if( i == indexing.end() ) {
+        cout << j << "," << k << endl;
+        throw 20;
+    } else {
+        return i->second;
+    }
+    */
 }
 inline double i_coord(size_t j, size_t k) {
     return 1.-((double)(j+k))/subdiv_level;
@@ -268,6 +277,36 @@ void initializeEdgeLengths() {
                 }
             }
         }
+        // DEBUG: Why are we breaking the triangle inequality?
+        for (size_t j = 0; j < subdiv_level; j++) {
+            for (size_t k = 0; k < subdiv_level - j; k++) {
+                size_t index1 = get_index(f, j, k);
+                // right and up 1
+                size_t index2 = get_index(f, j, k + 1);
+                // right 1
+                size_t index3 = get_index(f, j + 1, k);
+                // right and down
+                size_t index4 = get_index(f, j + 1, k - 1);
+                // triangle 1, 3, 2
+                double dist13 = sqrt(l2DistSquared(ij, jk, ki, a_ij, a_jk, a_ki, i_coord(j,k), to_bary(j), to_bary(k), i_coord(j + 1, k), to_bary(j + 1), to_bary(k)));
+                double dist12 = sqrt(l2DistSquared(ij, jk, ki, a_ij, a_jk, a_ki, i_coord(j,k), to_bary(j), to_bary(k), i_coord(j, k + 1), to_bary(j), to_bary(k + 1)));
+                double dist32 = sqrt(l2DistSquared(ij, jk, ki, a_ij, a_jk, a_ki, i_coord(j + 1,k), to_bary(j + 1), to_bary(k), i_coord(j, k + 1), to_bary(j), to_bary(k + 1)));
+                if (max(dist13, max(dist12, dist32)) > (dist13+dist12+dist32) / 2 || !std::isfinite(dist13 + dist12 + dist32)) {
+                    cout << "BAD," << j << "," << k << "," << a_ij + a_jk + a_ki << endl;
+                    cout << "LENGTHS ARE:" << dist13 << "," << dist12 << "," << dist32 << endl;
+                    cout << l2DistSquared(ij, jk, ki, a_ij, a_jk, a_ki, i_coord(j,k), to_bary(j), to_bary(k), i_coord(j + 1, k), to_bary(j + 1), to_bary(k)) << endl; 
+                    cout << ij << "," << jk << "," << ki << "," << a_ij << "," << a_jk << "," << a_ki << endl;
+                }
+                
+                if (index4 != -1) {
+                    double dist14 = sqrt(l2DistSquared(ij, jk, ki, a_ij, a_jk, a_ki, i_coord(j,k), to_bary(j), to_bary(k), i_coord(j + 1, k-1), to_bary(j + 1), to_bary(k-1)));
+                    double dist34 = sqrt(l2DistSquared(ij, jk, ki, a_ij, a_jk, a_ki, i_coord(j+1,k), to_bary(j+1), to_bary(k), i_coord(j + 1, k-1), to_bary(j + 1), to_bary(k-1)));
+                    if (max(dist14, max(dist34, dist13)) > (dist14+dist14+dist34) / 2 || !std::isfinite(dist13 + dist12 + dist32)) {
+                    cout << "BAD," << j << "," << k << "," << a_ij + a_jk + a_ki << endl;
+                }
+            } 
+        }
+    }
     }
 }
 void subdivision() {
@@ -442,9 +481,9 @@ double objective(const VectorXd &x1, const VectorXd &x2, const VectorXd &x3) {
         result += diff * diff;
     }
     // bending energy
-    //result += 0.5 * bendingWeight * (x1.transpose() * bendingMatrix * x1)(0,0);
-    //result += 0.5 * bendingWeight * (x2.transpose() * bendingMatrix * x2)(0,0);
-    //result += 0.5 * bendingWeight * (x3.transpose() * bendingMatrix * x3)(0,0);
+    result += 0.5 * bendingWeight * (x1.transpose() * bendingMatrix * x1)(0,0);
+    result += 0.5 * bendingWeight * (x2.transpose() * bendingMatrix * x2)(0,0);
+    result += 0.5 * bendingWeight * (x3.transpose() * bendingMatrix * x3)(0,0);
     return result;
 }
 tuple<VectorXd, VectorXd, VectorXd> gradient(const VectorXd &x1, const VectorXd &x2, const VectorXd &x3) {
@@ -471,9 +510,9 @@ tuple<VectorXd, VectorXd, VectorXd> gradient(const VectorXd &x1, const VectorXd 
 
     }
     // bending energy
-    //grad1 += bendingWeight * bendingMatrix * x1; 
-    //grad2 += bendingWeight * bendingMatrix * x2; 
-    //grad3 += bendingWeight * bendingMatrix * x3; 
+    grad1 += bendingWeight * bendingMatrix * x1; 
+    grad2 += bendingWeight * bendingMatrix * x2; 
+    grad3 += bendingWeight * bendingMatrix * x3; 
     return make_tuple(grad1, grad2, grad3);
 }
 
@@ -491,14 +530,28 @@ vector<Vector3> descent() {
     Eigen::SparseMatrix<double> L = intrinsicGeometry->cotanLaplacian;
     for (int k=0; k<L.outerSize(); ++k) {
           for (Eigen::SparseMatrix<double>::InnerIterator it(L,k); it; ++it) {
-              if(!std::isfinite(it.value())) it.valueRef() = 0;
+              if(!std::isfinite(it.value())) {
+                  cout << "stuff broke" << endl;
+                  it.valueRef() = 0;
+              }
           }
     }
     cout << "Laplacian: " << L.norm();
     Eigen::SparseMatrix<double> M = intrinsicGeometry->vertexLumpedMassMatrix.cwiseInverse();
     cout << "Mass: " << M.norm();
-    //for (Face f : intrinsicGeometry->mesh.faces()) 
-     //   if (intrinsicGeometry->faceAreas[f] <= 0) cout << "AAAAAA" << endl;
+    for (Face f : intrinsicGeometry->mesh.faces()) { 
+        if (intrinsicGeometry->faceAreas[f] <= 0) {
+            cout << "AAAAAA" << endl; 
+            double ij, jk, ki;
+            Halfedge h = f.halfedge();
+            ij = intrinsicGeometry->edgeLengths[h.edge()];
+            h = h.next();
+            jk = intrinsicGeometry->edgeLengths[h.edge()];
+            h = h.next();
+            ki = intrinsicGeometry->edgeLengths[h.edge()];
+            cout << ij << "," << jk << "," << ki << endl;
+        }
+    }
     bendingMatrix = L.transpose() * M * L;
     cout << "bending matrix made" << endl;
 
@@ -638,10 +691,14 @@ int main(int argc, char **argv) {
     initializeQuantities();
     generateConstraints();
     subdivision();
+    /*
 
     vector<Vector3> x = subdiv_points;
     fin = descent();
     buildNewMesh();
+    */
+
+
     //generateVisualization();
     //generateSVGs();
     // Give control to the polyscope gui
