@@ -71,7 +71,7 @@ std::map<std::tuple<Face, size_t, size_t>, size_t> indexing;
 std::map<size_t, std::map<size_t, Edge>> intrinsicEdgeMap;
 vector<tuple<size_t, size_t, double>> correct_dist;
 Eigen::SparseMatrix<double> bendingMatrix;
-double alpha = 0.2;
+double alpha = 0.1;
 double beta = 0.5;
 double ep = 1e-1;
 double bendingWeight = 1e-8;
@@ -539,6 +539,7 @@ void buildNewMesh() {
 /*
  * Optimization code
  */
+inline double sqr(double x) { return x*x; }
 double objective(const VectorXd &x1, const VectorXd &x2, const VectorXd &x3) {
     double result = 0.;
     int i1, i2;
@@ -547,17 +548,15 @@ double objective(const VectorXd &x1, const VectorXd &x2, const VectorXd &x3) {
         i1 = std::get<0>(t);
         i2 = std::get<1>(t);
         distsq = std::get<2>(t);
-        actualDistsq = ((x1[i1] - x1[i2]) * (x1[i1] - x1[i2]) +
-                    (x2[i1] - x2[i2]) * (x2[i1] - x2[i2]) +
-                    (x3[i1] - x3[i2]) * (x3[i1] - x3[i2]));
-        result += pow(log(actualDistsq/distsq), 2)/2;
+        actualDistsq = (sqr(x1[i1] - x1[i2])+
+                    sqr(x2[i1] - x2[i2])  +
+                    sqr(x3[i1] - x3[i2]));
+        result += sqr(log(actualDistsq/distsq))/2;
     }
     // bending energy
-    /*
     result += 0.5 * bendingWeight * (x1.transpose() * bendingMatrix * x1)(0, 0);
     result += 0.5 * bendingWeight * (x2.transpose() * bendingMatrix * x2)(0, 0);
     result += 0.5 * bendingWeight * (x3.transpose() * bendingMatrix * x3)(0, 0);
-    */
     return result;
 }
 tuple<VectorXd, VectorXd, VectorXd> gradient(const VectorXd &x1, const VectorXd &x2, const VectorXd &x3) {
@@ -570,9 +569,9 @@ tuple<VectorXd, VectorXd, VectorXd> gradient(const VectorXd &x1, const VectorXd 
         i1 = std::get<0>(t);
         i2 = std::get<1>(t);
         distsq = std::get<2>(t);
-        actualDistsq = (x1[i1] - x1[i2]) * (x1[i1] - x1[i2]) +
-                    (x2[i1] - x2[i2]) * (x2[i1] - x2[i2]) +
-                    (x3[i1] - x3[i2]) * (x3[i1] - x3[i2]);
+        actualDistsq = (sqr(x1[i1] - x1[i2])+
+                    sqr(x2[i1] - x2[i2])  +
+                    sqr(x3[i1] - x3[i2]));
         diff = 2 * log(sqrt(actualDistsq)/sqrt(distsq))/actualDistsq;
         // update gradient
         grad1[i1] += diff * (x1[i1] - x1[i2]);
@@ -583,11 +582,9 @@ tuple<VectorXd, VectorXd, VectorXd> gradient(const VectorXd &x1, const VectorXd 
         grad3[i2] += diff * (x3[i2] - x3[i1]);
     }
     // bending energy
-    /*
     grad1 += bendingWeight * bendingMatrix * x1;
     grad2 += bendingWeight * bendingMatrix * x2;
     grad3 += bendingWeight * bendingMatrix * x3;
-    */
     return make_tuple(grad1, grad2, grad3);
 }
 
@@ -660,10 +657,10 @@ void step(int n) {
         x3 = x3_new;
         if (iter % 100 == 0) {
             
-            /*
             cout << "Starting iteration " << iter << endl;
             cout << "grad size squared:" << grad_size << endl;
             cout << "objective:" << result << endl;
+            /*
            cout << "updating";
             for (int i = 0; i < subdiv_points.size(); i++) {
                 subdiv_points[i].x = x1[i];
@@ -676,9 +673,9 @@ void step(int n) {
             }
         iter++;
     }
-    cout << "iteration count: " << iter << endl;
-    cout << "grad size:" << sqrt(grad_size) << endl;
-    cout << "objective:" << objective(x1, x2, x3) << endl;
+    //cout << "iteration count: " << iter << endl;
+    //cout << "grad size:" << sqrt(grad_size) << endl;
+    //cout << "objective:" << objective(x1, x2, x3) << endl;
     //vector<Vector3> pos = subdiv_points;
     for (int i = 0; i < subdiv_points.size(); i++) {
         subdiv_points[i].x = x1[i];

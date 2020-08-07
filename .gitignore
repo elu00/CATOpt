@@ -1,6 +1,8 @@
 # Build directories
 build/
 build_debug/
+.polyscope.ini
+imgui.ini
 
 # Editor and OS things
 .DS_Store
