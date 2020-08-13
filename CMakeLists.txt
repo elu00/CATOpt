@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.10.0)
 
 project(catopt)
 
+find_package(CGAL)
+
 ### Configure output locations
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -76,6 +78,7 @@ add_subdirectory(deps/catviz)
 # == Build our project stuff
 
 set(SRCS 
+  deps/catviz/src/triangle.c
   src/main.cpp
 )
 
@@ -83,4 +86,4 @@ add_executable(catopt "${SRCS}")
 target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/" )
 target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/catviz/src" )
 target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/catviz/deps/glm" )
-target_link_libraries(catopt PUBLIC geometry-central polyscope mosek)
+target_link_libraries(catopt PUBLIC geometry-central polyscope mosek CGAL::CGAL)
