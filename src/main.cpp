@@ -214,10 +214,10 @@ void subdivision() {
 
 
         // DEBUGGGG
-        std::ofstream s ("tri" + std::to_string(index) + ".svg", std::ofstream::out);
-        s << CAT(ij*500, jk*500, ki*500, a_ij, a_jk, a_ki, true).triangulation_svg(subdiv_level);
-        s.close();
-        int which_f = fInd[f], which_e;
+        //std::ofstream s ("tri" + std::to_string(index) + ".svg", std::ofstream::out);
+        //s << CAT(ij*500, jk*500, ki*500, a_ij, a_jk, a_ki, true).triangulation_svg(subdiv_level);
+        //s.close();
+        //int which_f = fInd[f], which_e;
 
 
 
@@ -254,7 +254,7 @@ void subdivision() {
 
         // edge ij
         size_t start;
-        which_e = eInd[it.edge()];
+        //which_e = eInd[it.edge()];
         if (eStart[it.edge()] == -1) {
             eStart[it.edge()] = index;
             start = index;
@@ -277,7 +277,7 @@ void subdivision() {
         it = it.next();
 
         // edge jk
-        which_e = eInd[it.edge()];
+        //which_e = eInd[it.edge()];
         if (eStart[it.edge()] == -1) {
             eStart[it.edge()] = index;
             start = index;
@@ -300,7 +300,7 @@ void subdivision() {
         it = it.next();
 
         // edge ki
-        which_e = eInd[it.edge()];
+        //which_e = eInd[it.edge()];
         if (eStart[it.edge()] == -1) {
             eStart[it.edge()] = index;
             start = index;
@@ -566,7 +566,7 @@ int main(int argc, char **argv) {
 
     polyscope::state::userCallback = myCallback;
     // Load mesh
-    std::tie(mesh, geometry) = readManifoldSurfaceMesh("/home/elu/repos/CATOpt/meshes/spot.obj");
+    std::tie(mesh, geometry) = readManifoldSurfaceMesh("/home/elu/repos/CATOpt/meshes/tetrahedron.obj");
 
     // Register the mesh with polyscope
     psMesh = polyscope::registerSurfaceMesh(
