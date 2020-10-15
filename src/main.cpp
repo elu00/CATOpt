@@ -8,6 +8,13 @@
 #include "polyscope/surface_mesh.h"
 #include "polyscope/point_cloud.h"
 
+#include "Bff.h"
+#include "MeshIO.h"
+#include "HoleFiller.h"
+#include "Generators.h"
+#include "ConePlacement.h"
+#include "Cutter.h"
+
 #include "args/args.hxx"
 #include "imgui.h"
 
@@ -35,6 +42,7 @@ using std::tuple;
 using std::vector;
 
 // == Geometry-central data
+string inputMeshPath;
 unique_ptr<ManifoldSurfaceMesh> mesh;
 unique_ptr<VertexPositionGeometry> geometry;
 
@@ -55,7 +63,6 @@ CornerData<double> cornerAngles;
 VertexData<double> angleDefects;
 
 // Optimization Stuff
-// SparseMatrix<double> constraints;
 // Vector<double> x_init;
 vector<double> sol;
 vector<double> rhs;
@@ -63,16 +70,21 @@ vector<double> ineqRHS0;
 vector<double> ineqRHS1;
 
 size_t iter = 0;
-
+// specifies number of 
 size_t subdiv_level = 5;
 vector<Vector3> subdiv_points;
 //vector<Vector3> grad;
 vector<tuple<size_t, size_t, double>> correct_dist;
 Eigen::SparseMatrix<double> bendingMatrix;
+// tuning parameters for gradient descent
 double alpha = 0.1;
 double beta = 0.5;
-double ep = 1e-5;
+double ep = 1e-3;
+// weight for the bending energy
 double bendingWeight = 1e-8;
+
+//stuff for bff
+bff::Model model;
 
 // Polyscope visualization handle, to quickly add data to the surface
 polyscope::SurfaceMesh *psMesh;
@@ -180,7 +192,6 @@ inline Vector3 bary(Face f, double a, double b, double c) {
     Vector3 k = geometry->inputVertexPositions[it.vertex()];
     return a * i + b * j + c * k;
 }
-
 
 void subdivision() {
     EdgeData<size_t> eStart(*mesh, -1);
@@ -475,8 +486,8 @@ void step(int n) {
     VectorXd x1_new = x1;
     VectorXd x2_new = x2;
     VectorXd x3_new = x3;
-    //for (int m = 0; m < n; m++){
-    while (sqrt(grad_size) > ep) {
+    for (int m = 0; m < n; m++){
+    //while (sqrt(grad_size) > ep) {
         double result = objective(x1, x2, x3);
         std::tie(grad1, grad2, grad3) = gradient(x1, x2, x3);
         grad_size = grad_norm_sq(grad1, grad2, grad3);
@@ -515,22 +526,181 @@ void step(int n) {
     //cout << "grad size:" << sqrt(grad_size) << endl;
     //cout << "objective:" << objective(x1, x2, x3) << endl;
     //vector<Vector3> pos = subdiv_points;
+    VertexData<Vector3> positions(*CATmesh);
     for (int i = 0; i < subdiv_points.size(); i++) {
         subdiv_points[i].x = x1[i];
         subdiv_points[i].y = x2[i];
         subdiv_points[i].z = x3[i];
+        positions[i] = subdiv_points[i];
     }
     //return pos;
     CATpsMesh->updateVertexPositions(subdiv_points);
+    //auto embedded = VertexPositionGeometry(*CATmesh, positions);
+    auto embedded = std::unique_ptr<VertexPositionGeometry>(new VertexPositionGeometry(*CATmesh, positions));
+    writeSurfaceMesh(*CATmesh, *embedded, "embedded_opt.obj"); 
 }
 void myCallback() {
   if (ImGui::Button("do work")) {
     step(100);
   }
 }
+
+
+double confObjective(VectorXd &x) {
+    double result = 0.;
+
+    return result;
+}
+VectorXd confGradient(VectorXd &x) {
+    return {};
+}
+void confStep(int n) {
+    //for (auto& v : subdiv_points) v *= 1.1;
+    cout << "Starting descent" << endl;
+    VectorXd grad;
+    double grad_size = 1.;
+    VectorXd x(subdiv_points.size());
+    VectorXd x_new = x;
+
+    for (int m = 0; m < n; m++){
+    //while (sqrt(grad_size) > ep) {
+        double result = confObjective(x);
+        grad = confGradient(x);
+        grad_size = 1.0; // change this
+        double t = 1.;
+        x_new = x - t * grad;
+        //while (objective(x_new) > result - alpha * t * grad_size) {
+            t = beta * t;
+            x_new = x - t * grad;
+        //}
+        x = x_new;
+        if (iter % 100 == 0) {
+            cout << "Starting iteration " << iter << endl;
+            cout << "grad size squared:" << grad_size << endl;
+            cout << "objective:" << result << endl;
+            }
+        iter++;
+    }
+    //cout << "iteration count: " << iter << endl;
+    //cout << "grad size:" << sqrt(grad_size) << endl;
+    //cout << "objective:" << objective(x1, x2, x3) << endl;
+    //vector<Vector3> pos = subdiv_points;
+}
+void loadModel(const std::string& inputPath, bff::Model& model,
+			   std::vector<bool>& surfaceIsClosed)
+{
+	std::string error;
+	if (bff::MeshIO::read(inputPath, model, error)) {
+		int nMeshes = model.size();
+        assert(nMeshes == 1);
+		surfaceIsClosed.resize(nMeshes, false);
+
+		for (int i = 0; i < nMeshes; i++) {
+			bff::Mesh& mesh = model[i];
+			int nBoundaries = (int)mesh.boundaries.size();
+
+			if (nBoundaries >= 1) {
+				// mesh has boundaries
+				int eulerPlusBoundaries = mesh.eulerCharacteristic() + nBoundaries;
+
+				if (eulerPlusBoundaries == 2) {
+					// fill holes if mesh has more than 1 boundary
+					if (nBoundaries > 1) {
+						if (bff::HoleFiller::fill(mesh)) {
+							// all holes were filled
+							surfaceIsClosed[i] = true;
+						}
+					}
+
+				} else {
+					// mesh probably has holes and handles
+					bff::HoleFiller::fill(mesh, true);
+					bff::Generators::compute(mesh);
+				}
+
+			} else if (nBoundaries == 0) {
+				if (mesh.eulerCharacteristic() == 2) {
+					// mesh is closed
+					surfaceIsClosed[i] = true;
+
+				} else {
+					// mesh has handles
+					bff::Generators::compute(mesh);
+				}
+			}
+		}
+
+	} else {
+		std::cerr << "Unable to load file: " << inputPath << ". " << error << std::endl;
+		exit(EXIT_FAILURE);
+	}
+}
+
+void flatten(bff::Model& model, const std::vector<bool>& surfaceIsClosed,
+			 int nCones, bool flattenToDisk, bool mapToSphere)
+{
+	int nMeshes = model.size();
+	for (int i = 0; i < nMeshes; i++) {
+		bff::Mesh& mesh = model[i];
+		bff::BFF bff(mesh);
+
+		if (nCones > 0) {
+			std::vector<bff::VertexIter> cones;
+			bff::DenseMatrix coneAngles(bff.data->iN);
+			int S = std::min(nCones, (int)mesh.vertices.size() - bff.data->bN);
+
+			if (bff::ConePlacement::findConesAndPrescribeAngles(S, cones, coneAngles, bff.data, mesh)
+				== bff::ConePlacement::ErrorCode::ok) {
+				if (!surfaceIsClosed[i] || cones.size() > 0) {
+					bff::Cutter::cut(cones, mesh);
+					bff.flattenWithCones(coneAngles, true);
+				}
+			}
+		} else {
+			if (surfaceIsClosed[i]) {
+
+					std::cerr << "Surface is closed. Either specify nCones or mapToSphere." << std::endl;
+					exit(EXIT_FAILURE);
+
+			} else {
+				
+					bff::DenseMatrix u(bff.data->bN);
+					bff.flatten(u, true);
+			}
+		}
+	}
+}
+
+
+void conformalFlatten() {
+	// parse command line options
+	std::string inputPath = inputMeshPath;
+	int nCones = 0;
+	bool flattenToDisk = false;
+	bool mapToSphere = false;
+	bool normalizeUVs = false;
+	// load model
+	std::vector<bool> surfaceIsClosed;
+	loadModel(inputPath, model, surfaceIsClosed);
+
+	// set nCones to 8 for closed surfaces`
+    if (surfaceIsClosed[0] && !mapToSphere && nCones < 3) {
+        std::cout << "Setting nCones to 8." << std::endl;
+        nCones = 8;
+    }
+
+    // flatten
+    flatten(model, surfaceIsClosed, nCones, flattenToDisk, mapToSphere);
+    for (bff::VertexCIter v = model[0].vertices.begin(); v != model[0].vertices.end(); v++) {
+            v->wedge()->uv;
+    }
+    for (bff::WedgeCIter w: model[0].cutBoundary()) {
+            w->uv;
+    }
+}
+
 int main(int argc, char **argv) {
 
-    /*
     // Configure the argument parser
     args::ArgumentParser parser("geometry-central & Polyscope example project");
     args::Positional<std::string> inputFilename(parser, "mesh", "A mesh file.");
@@ -555,10 +725,12 @@ int main(int argc, char **argv) {
     // Make sure a mesh name was given
     if (!inputFilename)
     {
-        std::cerr << "Please specify a mesh file as argument" << std::endl;
-        return EXIT_FAILURE;
+        inputMeshPath = "/home/elu/repos/catopt/meshes/spot.obj";
+        //std::cerr << "Please specify a mesh file as argument" << std::endl;
+        //return EXIT_FAILURE;
+    } else {
+        inputMeshPath = args::get(inputFilename);
     }
-    */
     // Initialize polyscope
     cout << "Initialized" << endl;
     //polyscope::init("openGL_mock");
@@ -566,7 +738,7 @@ int main(int argc, char **argv) {
 
     polyscope::state::userCallback = myCallback;
     // Load mesh
-    std::tie(mesh, geometry) = readManifoldSurfaceMesh("/home/elu/repos/CATOpt/meshes/tetrahedron.obj");
+    std::tie(mesh, geometry) = readManifoldSurfaceMesh(inputMeshPath);
 
     // Register the mesh with polyscope
     psMesh = polyscope::registerSurfaceMesh(
@@ -576,9 +748,15 @@ int main(int argc, char **argv) {
     cout << "starting optimization" << endl;
     initializeQuantities();
     generateConstraints();
-    subdivision();
-    buildNewMesh();
+
+    //subdivision();
+    //buildNewMesh();
+
     //fin = descent();
+
+    //////////////////////////////////////////
+    // BFF stuff
+    conformalFlatten();
 
     //generateVisualization();
     // Give control to the polyscope gui

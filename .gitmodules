@@ -8,3 +8,6 @@
 [submodule "deps/catviz"]
 	path = deps/catviz
 	url = https://github.com/elu00/catviz
+[submodule "deps/boundary-first-flattening"]
+	path = deps/boundary-first-flattening
+	url = https://github.com/GeometryCollective/boundary-first-flattening

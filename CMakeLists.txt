@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.10.0)
 
 project(catopt)
 
-find_package(CGAL)
 
 ### Configure output locations
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -74,6 +73,7 @@ add_subdirectory(deps/geometry-central)
 add_subdirectory(deps/polyscope)
 add_subdirectory(deps/mosek)
 add_subdirectory(deps/catviz)
+add_subdirectory(deps/boundary-first-flattening)
 
 # == Build our project stuff
 
@@ -86,4 +86,9 @@ add_executable(catopt "${SRCS}")
 target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/" )
 target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/catviz/src" )
 target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/catviz/deps/glm" )
-target_link_libraries(catopt PUBLIC geometry-central polyscope mosek CGAL::CGAL)
+target_include_directories(catopt PUBLIC "${SuiteSparse_INCLUDE_DIRS}")
+
+target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/boundary-first-flattening/project/include" )
+target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/boundary-first-flattening/mesh/include" )
+target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/boundary-first-flattening/linear-algebra/include" )
+target_link_libraries(catopt PUBLIC geometry-central polyscope mosek bff)
