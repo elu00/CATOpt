@@ -84,13 +84,18 @@ double ep = 1e-3;
 double bendingWeight = 1e-8;
 
 //stuff for bff
+bff::Mesh bffMesh;
 bff::Model model;
+vector<bff::Vector> flattened;
+vector<double> alphas;
+CornerData<double> targetAngles;
 
 // Polyscope visualization handle, to quickly add data to the surface
 polyscope::SurfaceMesh *psMesh;
 polyscope::SurfaceMesh *CATpsMesh;
 
 inline double sqr(double x) { return x*x; }
+
 void initializeQuantities() {
     // Initialization
     nVertices = mesh->nVertices();
@@ -107,6 +112,7 @@ void initializeQuantities() {
     sol = vector<double>(nEdges);
 }
 
+// calls mosek to generate optimal alphas, and places them into sol
 void generateConstraints() {
     // Model initialization
     Model::t M = new Model();
@@ -135,7 +141,7 @@ void generateConstraints() {
     auto Meq = Matrix::sparse(nVertices, nEdges, r, c, v);
     auto eqRHS = new_array_ptr(rhs);
     M->constraint("eq constraints", Expr::mul(Meq, x), Domain::equalsTo(eqRHS));
-    cout << "eq generated" << endl;
+    //cout << "eq generated" << endl;
     // inequality constraints
     ineqRHS0 = vector<double>(nCorners);
     ineqRHS1 = vector<double>(nCorners);
@@ -165,13 +171,13 @@ void generateConstraints() {
     M->constraint("ineq1 constraints", Expr::mul(Mineq, x), Domain::lessThan(inRHS1));
 
     auto ones = std::make_shared<ndarray<double, 1>>(shape(nEdges), 1.);
-    cout << "ineq generated" << endl;
+    //cout << "ineq generated" << endl;
     Variable::t t = M->variable("t", 1, Domain::unbounded());
     M->constraint(Expr::vstack(t, x), Domain::inQCone());
     M->objective(ObjectiveSense::Minimize, t);
     M->solve();
     cout << M->getProblemStatus() << endl;
-    cout << x->level() << endl;
+    //cout << x->level() << endl;
     cout << "Optimization Done" << endl;
     auto xsize = x->getSize();
     auto xVal = x->level();
@@ -179,7 +185,6 @@ void generateConstraints() {
     for (int i = 0; i < xsize; ++i) {
         (sol)[i] = (*xVal)[i];
     }
-    return;
 }
 
 inline Vector3 bary(Face f, double a, double b, double c) {
@@ -193,6 +198,7 @@ inline Vector3 bary(Face f, double a, double b, double c) {
     return a * i + b * j + c * k;
 }
 
+// initializes CATMesh, handles all subdivision energy initialization
 void subdivision() {
     EdgeData<size_t> eStart(*mesh, -1);
     VertexData<size_t> v(*mesh, -1);
@@ -224,12 +230,11 @@ void subdivision() {
         f_points[f] = finalPoints;
 
 
-        // DEBUGGGG
+        // DEBUG
         //std::ofstream s ("tri" + std::to_string(index) + ".svg", std::ofstream::out);
         //s << CAT(ij*500, jk*500, ki*500, a_ij, a_jk, a_ki, true).triangulation_svg(subdiv_level);
         //s.close();
         //int which_f = fInd[f], which_e;
-
 
 
         auto it = f.halfedge();
@@ -386,14 +391,15 @@ void subdivision() {
     intrinsicGeometry->requireVertexLumpedMassMatrix();
     Eigen::SparseMatrix<double> L = intrinsicGeometry->cotanLaplacian;
 
-    cout << "Laplacian: " << L.norm();
+    //cout << "Laplacian: " << L.norm();
     Eigen::SparseMatrix<double> M = intrinsicGeometry->vertexLumpedMassMatrix.cwiseInverse();
-    cout << "Mass: " << M.norm();
+    //cout << "Mass: " << M.norm();
     bendingMatrix = L.transpose() * M * L;
-    cout << "bending matrix made" << endl;
+    //cout << "bending matrix made" << endl;
 
 }
 
+// registers subdiv_points to the polyscope view
 void buildNewMesh() {
     //VertexData<Vector3> positions(*CATmesh);
     //for (size_t i = 0; i < subdiv_points.size(); i++) {
@@ -408,6 +414,7 @@ void buildNewMesh() {
 /*
  * Optimization code
  */
+// returns \sum (dist^2 - dist_actual^2) + bending energy
 double objective(const VectorXd &x1, const VectorXd &x2, const VectorXd &x3) {
     double result = 0.;
     int i1, i2;
@@ -427,12 +434,13 @@ double objective(const VectorXd &x1, const VectorXd &x2, const VectorXd &x3) {
     result += 0.5 * bendingWeight * (x3.transpose() * bendingMatrix * x3)(0, 0);
     return result;
 }
-tuple<VectorXd, VectorXd, VectorXd> gradient(const VectorXd &x1, const VectorXd &x2, const VectorXd &x3) {
+// gradient of metric embedding + bending energy
+tuple<VectorXd, VectorXd, VectorXd> gradient(const VectorXd &x1, const VectorXd &x2, const VectorXd &x3, VectorXd &grad1, VectorXd &grad2, VectorXd &grad3) {
     int i1, i2;
     double distsq, actualDistsq, diff;
-    VectorXd grad1 = VectorXd::Zero(subdiv_points.size());
-    VectorXd grad2 = VectorXd::Zero(subdiv_points.size());
-    VectorXd grad3 = VectorXd::Zero(subdiv_points.size());
+    grad1.setZero(subdiv_points.size());
+    grad2.setZero(subdiv_points.size());
+    grad3.setZero(subdiv_points.size()); 
     for (auto t : correct_dist) {
         i1 = std::get<0>(t);
         i2 = std::get<1>(t);
@@ -456,10 +464,11 @@ tuple<VectorXd, VectorXd, VectorXd> gradient(const VectorXd &x1, const VectorXd 
     return make_tuple(grad1, grad2, grad3);
 }
 
+// convenience function to return square of norm of gradient
 double grad_norm_sq(const VectorXd &grad1, const VectorXd &grad2, const VectorXd &grad3) {
     return grad1.squaredNorm() + grad2.squaredNorm() + grad3.squaredNorm();
 }
-
+/*
 void generateVisualization() {
     // Visualization
     psMesh->addEdgeScalarQuantity("Final Solution", sol);
@@ -467,13 +476,14 @@ void generateVisualization() {
                                     geometry->vertexGaussianCurvatures);
     cout << "No of subdivision points:" << subdiv_points.size();
 }
-
+*/
+// runs the actual optimization, updating subdiv_points and the polyscope view
 void step(int n) {
     //for (auto& v : subdiv_points) v *= 1.1;
     cout << "Starting descent" << endl;
-    VectorXd grad1;
-    VectorXd grad2;
-    VectorXd grad3;
+    VectorXd grad1 = VectorXd::Zero(subdiv_points.size());
+    VectorXd grad2 = VectorXd::Zero(subdiv_points.size());
+    VectorXd grad3 = VectorXd::Zero(subdiv_points.size());
     double grad_size = 1.;
     VectorXd x1(subdiv_points.size());
     VectorXd x2(subdiv_points.size());
@@ -489,7 +499,7 @@ void step(int n) {
     for (int m = 0; m < n; m++){
     //while (sqrt(grad_size) > ep) {
         double result = objective(x1, x2, x3);
-        std::tie(grad1, grad2, grad3) = gradient(x1, x2, x3);
+        gradient(x1, x2, x3, grad1, grad2, grad3);
         grad_size = grad_norm_sq(grad1, grad2, grad3);
         double t = 1.;
         x1_new = x1 - t * grad1;
@@ -539,46 +549,139 @@ void step(int n) {
     auto embedded = std::unique_ptr<VertexPositionGeometry>(new VertexPositionGeometry(*CATmesh, positions));
     writeSurfaceMesh(*CATmesh, *embedded, "embedded_opt.obj"); 
 }
+// imgui wrapper
 void myCallback() {
   if (ImGui::Button("do work")) {
     step(100);
   }
 }
-
-
-double confObjective(VectorXd &x) {
-    double result = 0.;
-
-    return result;
+void dbgOutput(string filename) {
+    std::ofstream s(filename, std::ofstream::out);
+    s << nVertices << " " << nEdges << endl;
+    for (Vertex v : mesh->vertices()) {
+        auto thing = flattened[vInd[v]];
+        s << thing.x << " " << thing.y << "\n";
+    }
+    for (Edge e : mesh->edges()) {
+        s << vInd[e.halfedge().vertex()] << " " << vInd[e.halfedge().twin().vertex()] << "\n";
+    }
 }
-VectorXd confGradient(VectorXd &x) {
-    return {};
+
+double confObjective(vector<bff::Vector> &flattened, vector<double>& alphas) {
+    //for (Corner C: mesh->corners()) cout << targetAngles[C] << endl;
+    double result = 0.;
+    for (Corner C: mesh->corners()) {
+        Halfedge h = C.halfedge();
+        if (h.isInterior()) {
+            const bff::Vector &a = flattened[vInd[C.vertex()]];
+            const bff::Vector &b = flattened[vInd[h.next().vertex()]];
+            const bff::Vector &c = flattened[vInd[h.next().next().vertex()]];
+            auto u = b - a;
+            //u.normalize();
+            auto v = c - a;
+            //v.normalize();
+            double angle = atan2(v.y,v.x) - atan2(u.y,u.x); 
+            // alphas are offsets from canonical halfedge orientation
+            if (h.edge().halfedge() == h) {
+                angle += alphas[eInd[h.edge()]];
+            } else {
+                angle -= alphas[eInd[h.edge()]];
+            }
+            if (h.next().next().edge().halfedge() == h) {
+                angle += alphas[eInd[h.next().next().edge()]];
+            } else {
+                angle -= alphas[eInd[h.next().next().edge()]];
+            }
+            
+            result += sqr(angle - targetAngles[C]);
+        }
+    }
+    return result/2;
+}
+void confGradient(vector<bff::Vector> &x, vector<double> &alphas, vector<bff::Vector> &flattened_grad, vector<double>& alphas_grad) {
+    for (int i = 0; i < nVertices; i++) {
+        flattened_grad[i] = bff::Vector(0,0);
+    }
+    fill(alphas_grad.begin(), alphas_grad.end(), 0);
+    for (Corner C: mesh->corners()) {
+        Halfedge h = C.halfedge();
+        if (h.isInterior()) {
+            const bff::Vector &a = flattened[vInd[C.vertex()]];
+            const bff::Vector &b = flattened[vInd[h.next().vertex()]];
+            const bff::Vector &c = flattened[vInd[h.next().next().vertex()]];
+            auto u = b - a;
+            auto v = c - a;
+            bff::Vector bGrad = bff::Vector(u.y, -u.x)/u.norm2();
+            bff::Vector cGrad = bff::Vector(-v.y, v.x)/v.norm2();
+
+            //u.normalize();
+            //v.normalize();
+            // TODO replace with arg (v u^-1), boudnayr angles
+            double angle = atan2(v.y,v.x) - atan2(u.y,u.x); 
+            // alphas are offsets from canonical halfedge orientation
+            if (h.edge().halfedge() == h) {
+                angle += alphas[eInd[h.edge()]];
+            } else {
+                angle -= alphas[eInd[h.edge()]];
+            }
+            // fix second conditional in the objective
+            if (h.next().next().edge().halfedge() == h.next().next()) {
+                angle += alphas[eInd[h.next().next().edge()]];
+            } else {
+                angle -= alphas[eInd[h.next().next().edge()]];
+            }
+            double diff = angle - targetAngles[C];
+            flattened_grad[vInd[h.next().vertex()]] += diff * bGrad;
+            flattened_grad[vInd[h.next().next().vertex()]] += diff * cGrad;
+            // TODO double check this
+            flattened_grad[vInd[C.vertex()]] -= diff*(bGrad + cGrad);
+            if (h.edge().halfedge() == h) {
+                alphas_grad[eInd[h.edge()]] += diff;
+            } else {
+                alphas_grad[eInd[h.edge()]] -= diff;
+            }
+            if (h.next().next().edge().halfedge() == h.next().next()) {
+                alphas_grad[eInd[h.next().next().edge()]] += diff;
+            } else {
+                alphas_grad[eInd[h.next().next().edge()]] -= diff;
+            }
+        }
+    }
 }
 void confStep(int n) {
     //for (auto& v : subdiv_points) v *= 1.1;
-    cout << "Starting descent" << endl;
-    VectorXd grad;
+    cout << "Starting planar optimization" << endl;
+    vector<bff::Vector> flattened_new = flattened;
+    vector<bff::Vector> flattened_grad(nVertices);
+    vector<double> alphas_new = alphas;
+    vector<double> alphas_grad(nEdges);
     double grad_size = 1.;
-    VectorXd x(subdiv_points.size());
-    VectorXd x_new = x;
 
     for (int m = 0; m < n; m++){
     //while (sqrt(grad_size) > ep) {
-        double result = confObjective(x);
-        grad = confGradient(x);
+        double result = confObjective(flattened, alphas);
+        confGradient(flattened, alphas, flattened_grad, alphas_grad);
         grad_size = 1.0; // change this
         double t = 1.;
-        x_new = x - t * grad;
-        //while (objective(x_new) > result - alpha * t * grad_size) {
-            t = beta * t;
-            x_new = x - t * grad;
+        //while (confObjective(flattened_new, alphas_new) > result - alpha * t * grad_size) {
+            for (int i = 0; i < nVertices; i++) {
+                flattened_new[i] = flattened[i] - t * flattened_grad[i];
+                //cout << "flat" << flattened_grad[i].x << " " << flattened_grad[i].y << endl;
+            }
+            for (int i = 0; i < nEdges; i++) {
+                alphas_new[i] = alphas[i] - t * alphas_grad[i];
+                //cout << "a" << alphas_grad[i] << endl;
+            }
         //}
-        x = x_new;
-        if (iter % 100 == 0) {
+        flattened = flattened_new;
+        alphas = alphas_new;
+        if (iter % 1 == 0 && iter < 11) {
             cout << "Starting iteration " << iter << endl;
             cout << "grad size squared:" << grad_size << endl;
             cout << "objective:" << result << endl;
-            }
+            dbgOutput("chug" + std::to_string(iter + 1));
+            //std::ofstream s ("chug" + std::to_string(iter), std::ofstream::out);
+        }
         iter++;
     }
     //cout << "iteration count: " << iter << endl;
@@ -586,49 +689,39 @@ void confStep(int n) {
     //cout << "objective:" << objective(x1, x2, x3) << endl;
     //vector<Vector3> pos = subdiv_points;
 }
+
 void loadModel(const std::string& inputPath, bff::Model& model,
-			   std::vector<bool>& surfaceIsClosed)
-{
+			   std::vector<bool>& surfaceIsClosed) {
 	std::string error;
 	if (bff::MeshIO::read(inputPath, model, error)) {
-		int nMeshes = model.size();
-        assert(nMeshes == 1);
-		surfaceIsClosed.resize(nMeshes, false);
+        bff::Mesh& mesh = model[0];
+        int nBoundaries = (int)mesh.boundaries.size();
+        if (nBoundaries >= 1) {
+            // mesh has boundaries
+            int eulerPlusBoundaries = mesh.eulerCharacteristic() + nBoundaries;
+            if (eulerPlusBoundaries == 2) {
+                // fill holes if mesh has more than 1 boundary
+                if (nBoundaries > 1) {
+                    if (bff::HoleFiller::fill(mesh)) {
+                        // all holes were filled
+                        surfaceIsClosed[0] = true;
+                    }
+                }
+            } else {
+                // mesh probably has holes and handles
+                bff::HoleFiller::fill(mesh, true);
+                bff::Generators::compute(mesh);
+            }
 
-		for (int i = 0; i < nMeshes; i++) {
-			bff::Mesh& mesh = model[i];
-			int nBoundaries = (int)mesh.boundaries.size();
-
-			if (nBoundaries >= 1) {
-				// mesh has boundaries
-				int eulerPlusBoundaries = mesh.eulerCharacteristic() + nBoundaries;
-
-				if (eulerPlusBoundaries == 2) {
-					// fill holes if mesh has more than 1 boundary
-					if (nBoundaries > 1) {
-						if (bff::HoleFiller::fill(mesh)) {
-							// all holes were filled
-							surfaceIsClosed[i] = true;
-						}
-					}
-
-				} else {
-					// mesh probably has holes and handles
-					bff::HoleFiller::fill(mesh, true);
-					bff::Generators::compute(mesh);
-				}
-
-			} else if (nBoundaries == 0) {
-				if (mesh.eulerCharacteristic() == 2) {
-					// mesh is closed
-					surfaceIsClosed[i] = true;
-
-				} else {
-					// mesh has handles
-					bff::Generators::compute(mesh);
-				}
-			}
-		}
+        } else if (nBoundaries == 0) {
+            if (mesh.eulerCharacteristic() == 2) {
+                // mesh is closed
+                surfaceIsClosed[0] = true;
+            } else {
+                // mesh has handles
+                bff::Generators::compute(mesh);
+            }
+        }
 
 	} else {
 		std::cerr << "Unable to load file: " << inputPath << ". " << error << std::endl;
@@ -637,38 +730,31 @@ void loadModel(const std::string& inputPath, bff::Model& model,
 }
 
 void flatten(bff::Model& model, const std::vector<bool>& surfaceIsClosed,
-			 int nCones, bool flattenToDisk, bool mapToSphere)
-{
-	int nMeshes = model.size();
-	for (int i = 0; i < nMeshes; i++) {
-		bff::Mesh& mesh = model[i];
-		bff::BFF bff(mesh);
+			 int nCones, bool flattenToDisk, bool mapToSphere) {
+    bff::Mesh& mesh = model[0];
+    bff::BFF bff(mesh);
 
-		if (nCones > 0) {
-			std::vector<bff::VertexIter> cones;
-			bff::DenseMatrix coneAngles(bff.data->iN);
-			int S = std::min(nCones, (int)mesh.vertices.size() - bff.data->bN);
+    if (nCones > 0) {
+        std::vector<bff::VertexIter> cones;
+        bff::DenseMatrix coneAngles(bff.data->iN);
+        int S = std::min(nCones, (int)mesh.vertices.size() - bff.data->bN);
 
-			if (bff::ConePlacement::findConesAndPrescribeAngles(S, cones, coneAngles, bff.data, mesh)
-				== bff::ConePlacement::ErrorCode::ok) {
-				if (!surfaceIsClosed[i] || cones.size() > 0) {
-					bff::Cutter::cut(cones, mesh);
-					bff.flattenWithCones(coneAngles, true);
-				}
-			}
-		} else {
-			if (surfaceIsClosed[i]) {
-
-					std::cerr << "Surface is closed. Either specify nCones or mapToSphere." << std::endl;
-					exit(EXIT_FAILURE);
-
-			} else {
-				
-					bff::DenseMatrix u(bff.data->bN);
-					bff.flatten(u, true);
-			}
-		}
-	}
+        if (bff::ConePlacement::findConesAndPrescribeAngles(S, cones, coneAngles, bff.data, mesh)
+            == bff::ConePlacement::ErrorCode::ok) {
+            if (!surfaceIsClosed[0] || cones.size() > 0) {
+                bff::Cutter::cut(cones, mesh);
+                bff.flattenWithCones(coneAngles, true);
+            }
+        }
+    } else {
+        if (surfaceIsClosed[0]) {
+                std::cerr << "Surface is closed. Either specify nCones or mapToSphere." << std::endl;
+                exit(EXIT_FAILURE);
+        } else {
+                bff::DenseMatrix u(bff.data->bN);
+                bff.flatten(u, true);
+        }
+    }
 }
 
 
@@ -680,7 +766,7 @@ void conformalFlatten() {
 	bool mapToSphere = false;
 	bool normalizeUVs = false;
 	// load model
-	std::vector<bool> surfaceIsClosed;
+	std::vector<bool> surfaceIsClosed(1);
 	loadModel(inputPath, model, surfaceIsClosed);
 
 	// set nCones to 8 for closed surfaces`
@@ -692,40 +778,57 @@ void conformalFlatten() {
     // flatten
     flatten(model, surfaceIsClosed, nCones, flattenToDisk, mapToSphere);
     for (bff::VertexCIter v = model[0].vertices.begin(); v != model[0].vertices.end(); v++) {
-            v->wedge()->uv;
+        flattened.push_back(v->wedge()->uv);
+        //cout << v->wedge()->uv.x << endl;
+        //cout << v->wedge()->uv.y << endl;
     }
+    // DEBUG
+    alphas = vector<double>(nEdges, 0);
+    targetAngles = CornerData<double>(*mesh);
+    for (Corner C: mesh->corners()) {
+        Halfedge h = C.halfedge();
+        if (h.isInterior()) {
+            double angle = geometry->cornerAngle(C);
+            angle += sol[eInd[h.edge()]];
+            angle += sol[eInd[h.next().next().edge()]];
+            targetAngles[C] = angle;
+        }
+    }
+    dbgOutput("chug0");
+    cout << "about to step" << endl;
+    confStep(10);
+    cout << "stepped" << endl;
+    /*
     for (bff::WedgeCIter w: model[0].cutBoundary()) {
             w->uv;
     }
+    */
+
 }
 
 int main(int argc, char **argv) {
 
     // Configure the argument parser
-    args::ArgumentParser parser("geometry-central & Polyscope example project");
+    args::ArgumentParser parser("");
     args::Positional<std::string> inputFilename(parser, "mesh", "A mesh file.");
 
     // Parse args
-    try
-    {
+    try {
         parser.ParseCLI(argc, argv);
-    }
-    catch (args::Help)
-    {
+    } catch (args::Help) {
         std::cout << parser;
         return 0;
     }
-    catch (args::ParseError e)
-    {
+    catch (args::ParseError e) {
         std::cerr << e.what() << std::endl;
         std::cerr << parser;
         return 1;
     }
 
     // Make sure a mesh name was given
-    if (!inputFilename)
-    {
-        inputMeshPath = "/home/elu/repos/catopt/meshes/spot.obj";
+    if (!inputFilename) {
+        //inputMeshPath = "/home/elu/repos/catopt/meshes/spotwithhole.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/patch.obj";
         //std::cerr << "Please specify a mesh file as argument" << std::endl;
         //return EXIT_FAILURE;
     } else {
@@ -733,8 +836,8 @@ int main(int argc, char **argv) {
     }
     // Initialize polyscope
     cout << "Initialized" << endl;
-    //polyscope::init("openGL_mock");
-    polyscope::init();
+    polyscope::init("openGL_mock");
+    //polyscope::init();
 
     polyscope::state::userCallback = myCallback;
     // Load mesh
@@ -749,8 +852,8 @@ int main(int argc, char **argv) {
     initializeQuantities();
     generateConstraints();
 
-    //subdivision();
-    //buildNewMesh();
+    subdivision();
+    buildNewMesh();
 
     //fin = descent();
 
@@ -760,7 +863,7 @@ int main(int argc, char **argv) {
 
     //generateVisualization();
     // Give control to the polyscope gui
-    polyscope::show();
+    //polyscope::show();
 
     return EXIT_SUCCESS;
 }
