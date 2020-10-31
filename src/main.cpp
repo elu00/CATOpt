@@ -86,7 +86,7 @@ double bendingWeight = 1e-8;
 //stuff for bff
 bff::Mesh bffMesh;
 bff::Model model;
-vector<bff::Vector> flattened;
+vector<Vector2> flattened;
 vector<double> alphas;
 CornerData<double> targetAngles;
 
@@ -108,6 +108,7 @@ void initializeQuantities() {
     fInd = mesh->getFaceIndices();
     geometry->requireEdgeLengths();
     geometry->requireVertexGaussianCurvatures();
+    geometry->requireVertexAngleSums();
     angleDefects = geometry->vertexGaussianCurvatures;
     sol = vector<double>(nEdges);
 }
@@ -115,6 +116,7 @@ void initializeQuantities() {
 // calls mosek to generate optimal alphas, and places them into sol
 void generateConstraints() {
     // Model initialization
+    // TODO: check for optimality
     Model::t M = new Model();
     auto _M = finally([&]() { M->dispose(); });
     Variable::t x = M->variable("x", nEdges, Domain::inRange(-2 * PI, 2 * PI));
@@ -125,7 +127,11 @@ void generateConstraints() {
     // Equality constraint initialization
     rhs = vector<double>(nVertices);
     for (size_t i = 0; i < nVertices; i++) {
-        rhs[i] = angleDefects[mesh->vertex(i)] / 2.;
+        if (mesh-> vertex(i).isBoundary()) {
+            rhs[i] = PI - geometry->vertexAngleSums[mesh->vertex(i)]/2;
+        } else {
+            rhs[i] =  angleDefects[mesh->vertex(i)] / 2.;                
+        }
     }
     for (Edge e : mesh->edges()) {
         rows.emplace_back(vInd[e.halfedge().vertex()]);
@@ -183,7 +189,7 @@ void generateConstraints() {
     auto xVal = x->level();
     std::cout << "Optimal primal objective: " << M->primalObjValue() << endl;
     for (int i = 0; i < xsize; ++i) {
-        (sol)[i] = (*xVal)[i];
+        sol[i] = (*xVal)[i];
     }
 }
 
@@ -567,57 +573,63 @@ void dbgOutput(string filename) {
     }
 }
 
-double confObjective(vector<bff::Vector> &flattened, vector<double>& alphas) {
+double confObjective(vector<Vector2> &flattened, vector<double>& alphas) {
+    double residual = 0.;
     //for (Corner C: mesh->corners()) cout << targetAngles[C] << endl;
     double result = 0.;
     for (Corner C: mesh->corners()) {
         Halfedge h = C.halfedge();
+        Halfedge ab = h;
+        Halfedge bc = h.next();
+        Halfedge ca = h.next().next();
         if (h.isInterior()) {
-            const bff::Vector &a = flattened[vInd[C.vertex()]];
-            const bff::Vector &b = flattened[vInd[h.next().vertex()]];
-            const bff::Vector &c = flattened[vInd[h.next().next().vertex()]];
+            const Vector2 &a = flattened[vInd[ab.vertex()]];
+            const Vector2 &b = flattened[vInd[bc.vertex()]];
+            const Vector2 &c = flattened[vInd[ca.vertex()]];
             auto u = b - a;
-            //u.normalize();
             auto v = c - a;
-            //v.normalize();
-            double angle = atan2(v.y,v.x) - atan2(u.y,u.x); 
+            double angle = orientedAngle(u,v);
             // alphas are offsets from canonical halfedge orientation
             if (h.edge().halfedge() == h) {
                 angle += alphas[eInd[h.edge()]];
             } else {
                 angle -= alphas[eInd[h.edge()]];
             }
-            if (h.next().next().edge().halfedge() == h) {
-                angle += alphas[eInd[h.next().next().edge()]];
+            if (ca.edge().halfedge() == ca) {
+                angle += alphas[eInd[ca.edge()]];
             } else {
-                angle -= alphas[eInd[h.next().next().edge()]];
+                angle -= alphas[eInd[ca.edge()]];
             }
-            
+            //cout << "target:" << targetAngles[C] << "   " << "actual:" << angle << endl;
+            // check: sign issue?
             result += sqr(angle - targetAngles[C]);
         }
     }
     return result/2;
 }
-void confGradient(vector<bff::Vector> &x, vector<double> &alphas, vector<bff::Vector> &flattened_grad, vector<double>& alphas_grad) {
+void confGradient(vector<Vector2> &x, vector<double> &alphas, vector<Vector2> &flattened_grad, vector<double>& alphas_grad) {
     for (int i = 0; i < nVertices; i++) {
-        flattened_grad[i] = bff::Vector(0,0);
+        flattened_grad[i] = Vector2::zero();
     }
     fill(alphas_grad.begin(), alphas_grad.end(), 0);
     for (Corner C: mesh->corners()) {
         Halfedge h = C.halfedge();
+        Halfedge ab = h;
+        Halfedge bc = h.next();
+        Halfedge ca = h.next().next();
         if (h.isInterior()) {
-            const bff::Vector &a = flattened[vInd[C.vertex()]];
-            const bff::Vector &b = flattened[vInd[h.next().vertex()]];
-            const bff::Vector &c = flattened[vInd[h.next().next().vertex()]];
-            auto u = b - a;
-            auto v = c - a;
-            bff::Vector bGrad = bff::Vector(u.y, -u.x)/u.norm2();
-            bff::Vector cGrad = bff::Vector(-v.y, v.x)/v.norm2();
+            const Vector2 &a = flattened[vInd[C.vertex()]];
+            const Vector2 &b = flattened[vInd[bc.vertex()]];
+            const Vector2 &c = flattened[vInd[ca.vertex()]];
+            Vector2 u = b - a;
+            Vector2 v = c - a;
+            // this rotate is ccw
+            Vector2 bGrad = -u.rotate90()/u.norm2();
+            Vector2 cGrad = v.rotate90()/v.norm2();
 
-            //u.normalize();
-            //v.normalize();
-            // TODO replace with arg (v u^-1), boudnayr angles
-            double angle = atan2(v.y,v.x) - atan2(u.y,u.x); 
+
+            double angle = orientedAngle(u,v);
+            //cout << "angle is" << angle << "\n";
             // alphas are offsets from canonical halfedge orientation
             if (h.edge().halfedge() == h) {
                 angle += alphas[eInd[h.edge()]];
@@ -625,14 +637,14 @@ void confGradient(vector<bff::Vector> &x, vector<double> &alphas, vector<bff::Ve
                 angle -= alphas[eInd[h.edge()]];
             }
             // fix second conditional in the objective
-            if (h.next().next().edge().halfedge() == h.next().next()) {
-                angle += alphas[eInd[h.next().next().edge()]];
+            if (ca.edge().halfedge() == ca) {
+                angle += alphas[eInd[ca.edge()]];
             } else {
-                angle -= alphas[eInd[h.next().next().edge()]];
+                angle -= alphas[eInd[ca.edge()]];
             }
             double diff = angle - targetAngles[C];
-            flattened_grad[vInd[h.next().vertex()]] += diff * bGrad;
-            flattened_grad[vInd[h.next().next().vertex()]] += diff * cGrad;
+            flattened_grad[vInd[bc.vertex()]] += diff * bGrad;
+            flattened_grad[vInd[ca.vertex()]] += diff * cGrad;
             // TODO double check this
             flattened_grad[vInd[C.vertex()]] -= diff*(bGrad + cGrad);
             if (h.edge().halfedge() == h) {
@@ -640,10 +652,10 @@ void confGradient(vector<bff::Vector> &x, vector<double> &alphas, vector<bff::Ve
             } else {
                 alphas_grad[eInd[h.edge()]] -= diff;
             }
-            if (h.next().next().edge().halfedge() == h.next().next()) {
-                alphas_grad[eInd[h.next().next().edge()]] += diff;
+            if (ca.edge().halfedge() == ca) {
+                alphas_grad[eInd[ca.edge()]] += diff;
             } else {
-                alphas_grad[eInd[h.next().next().edge()]] -= diff;
+                alphas_grad[eInd[ca.edge()]] -= diff;
             }
         }
     }
@@ -651,8 +663,8 @@ void confGradient(vector<bff::Vector> &x, vector<double> &alphas, vector<bff::Ve
 void confStep(int n) {
     //for (auto& v : subdiv_points) v *= 1.1;
     cout << "Starting planar optimization" << endl;
-    vector<bff::Vector> flattened_new = flattened;
-    vector<bff::Vector> flattened_grad(nVertices);
+    vector<Vector2> flattened_new = flattened;
+    vector<Vector2> flattened_grad(nVertices);
     vector<double> alphas_new = alphas;
     vector<double> alphas_grad(nEdges);
     double grad_size = 1.;
@@ -662,8 +674,11 @@ void confStep(int n) {
         double result = confObjective(flattened, alphas);
         confGradient(flattened, alphas, flattened_grad, alphas_grad);
         grad_size = 1.0; // change this
-        double t = 1.;
-        //while (confObjective(flattened_new, alphas_new) > result - alpha * t * grad_size) {
+        double t = .1;
+        int steps = 0;
+        while (confObjective(flattened_new, alphas_new) > result - alpha * t * grad_size) {
+            steps++;
+            t = beta * t;
             for (int i = 0; i < nVertices; i++) {
                 flattened_new[i] = flattened[i] - t * flattened_grad[i];
                 //cout << "flat" << flattened_grad[i].x << " " << flattened_grad[i].y << endl;
@@ -672,16 +687,25 @@ void confStep(int n) {
                 alphas_new[i] = alphas[i] - t * alphas_grad[i];
                 //cout << "a" << alphas_grad[i] << endl;
             }
-        //}
+        }
+        cout << "t: " << t << endl;
+        cout << "steps: " << steps << endl;
         flattened = flattened_new;
         alphas = alphas_new;
-        if (iter % 1 == 0 && iter < 11) {
+        if (true) {
             cout << "Starting iteration " << iter << endl;
-            cout << "grad size squared:" << grad_size << endl;
+            //cout << "grad size squared:" << grad_size << endl;
             cout << "objective:" << result << endl;
             dbgOutput("chug" + std::to_string(iter + 1));
             //std::ofstream s ("chug" + std::to_string(iter), std::ofstream::out);
         }
+        /*
+        if (iter == 9999) {
+            cout << "final";
+            dbgOutput("final");
+        }
+        */
+        cout << "objective:" << result << endl;
         iter++;
     }
     //cout << "iteration count: " << iter << endl;
@@ -778,7 +802,7 @@ void conformalFlatten() {
     // flatten
     flatten(model, surfaceIsClosed, nCones, flattenToDisk, mapToSphere);
     for (bff::VertexCIter v = model[0].vertices.begin(); v != model[0].vertices.end(); v++) {
-        flattened.push_back(v->wedge()->uv);
+        flattened.push_back({v->wedge()->uv.x, v->wedge()->uv.y});
         //cout << v->wedge()->uv.x << endl;
         //cout << v->wedge()->uv.y << endl;
     }
@@ -794,15 +818,25 @@ void conformalFlatten() {
             targetAngles[C] = angle;
         }
     }
+    // DEBUG
+    for (Vertex v: mesh->vertices()) {
+        double accum = geometry->vertexAngleSums[v];
+        for (Edge e: v.adjacentEdges()) {
+            accum += 2*sol[eInd[e]];
+        }
+        if (v.isBoundary()) {
+            cout << "boundary" << accum << endl;
+        } else {
+            cout << "not boundary" << accum << endl;
+        }
+    }
     dbgOutput("chug0");
-    cout << "about to step" << endl;
-    confStep(10);
-    cout << "stepped" << endl;
+    confStep(5000);
     /*
     for (bff::WedgeCIter w: model[0].cutBoundary()) {
             w->uv;
     }
-    */
+    */        
 
 }
 
@@ -828,6 +862,7 @@ int main(int argc, char **argv) {
     // Make sure a mesh name was given
     if (!inputFilename) {
         //inputMeshPath = "/home/elu/repos/catopt/meshes/spotwithhole.obj";
+        //inputMeshPath = "/home/elu/repos/catopt/meshes/cube.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/patch.obj";
         //std::cerr << "Please specify a mesh file as argument" << std::endl;
         //return EXIT_FAILURE;
