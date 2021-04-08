@@ -1,50 +1,56 @@
 #include "CirclePatterns.h"
+#include <Eigen/SparseQR>
 
-CirclePatterns::CirclePatterns(std::shared_ptr<ManifoldSurfaceMesh> mesh0, int optScheme0, vector<double>& solve,
-EdgeData<size_t> eInd, VertexData<size_t> vInd, CornerData<size_t> cInd, FaceData<size_t> fInd):
+CirclePatterns::CirclePatterns(shared_ptr<ManifoldSurfaceMesh> mesh0, int optScheme0, vector<double>& solve,
+EdgeData<size_t> eInd, VertexData<size_t> vInd, FaceData<size_t> fInd, CornerData<double> targetAngles):
+mesh(mesh0),
 angles(mesh->nHalfedges()),
 thetas(mesh->nEdges()),
-radii(mesh->nFaces()-1),
+radii(mesh->nFaces()),
 eIntIndices(mesh->nEdges()),
 imaginaryHe(0),
 eInd(eInd),
 vInd(vInd),
-cInd(cInd),
 fInd(fInd),
+targetAngles(targetAngles),
 OptScheme(optScheme0)
 {
-    mesh = mesh0;
-    solver.n = mesh->nFaces()-1;
-    sol = sol;
+    // I added a plus 1 here and at radii; should figure why I need to
+    solver.n = mesh->nFaces();
+    sol = solve;
+    uv = VertexData<Eigen::Vector2d> (*mesh);
 }
 
 
 void CirclePatterns::setThetas()
 {
-    // TODODOJDOJODODJODJOJDOJDOJOD
     // set opposite angles
     /*
     int a = 0;
     for (Halfedge he : mesh->halfedges()) {
-        if (!he.onBoundary) angles[he.getIndex()] = he->angle() + mosekSolver.xx[a++];
+        if (he.isInterior()) angles[he.getIndex()] = he->angle() + mosekSolver.xx[a++];
         else angles[he.getIndex()] = 0.0;
     }
-    
-    // set thetas
-    for (Edge e = mesh->edges()) {
-        HalfEdgeCIter he = e->he;
-        thetas[eInd[e]] = M_PI - angles[he.getIndex()] - angles[he.twin().getIndex()];
-    }
     */
+    // set thetas
+    for (Edge e : mesh->edges()) {
+        Halfedge he = e.halfedge();
+
+        double int1 = he.isInterior() ? targetAngles[he.corner()] + targetAngles[he.next().corner()] - targetAngles[he.next().next().corner()] : M_PI;
+        double int2 = he.twin().isInterior() ? targetAngles[he.twin().corner()] + targetAngles[he.twin().next().corner()] - targetAngles[he.twin().next().next().corner()] : M_PI;
+        thetas[eInd[e]] = (int1+int2)/2.;
+    }
 }
 
 bool CirclePatterns::computeAngles()
 {
+    /*
     int variables = 3 * (int)(mesh->nFaces() - mesh->nExteriorHalfedges()); 
     int constraints = (int)(mesh->nVertices() + mesh->nEdges() + mesh->nFaces() -
                             imaginaryHe - mesh->nExteriorHalfedges());
     int numanz = 3 * variables - imaginaryHe;
     int numqnz = variables;
+    */
     setThetas();
 
     return true;
@@ -233,8 +239,7 @@ void CirclePatterns::performFaceLayout(Halfedge he, const Eigen::Vector2d& dir,
             Eigen::Vector2d newDir = {cos(angle)*dir[0] - sin(angle)*dir[1],
                                       sin(angle)*dir[0] + cos(angle)*dir[1]};
             
-            // TODODOODOD
-            //prev->vertex->uv = he->vertex->uv + newDir*lengths[eInd[prev.edge()]];
+            uv[prev.vertex()] = uv[he.vertex()] + newDir*lengths[eInd[prev.edge()]];
             
             // mark face as visited
             visited[fIdx] = true;
@@ -257,9 +262,8 @@ void CirclePatterns::setUVs()
     Edge e = *(mesh->edges().begin());
     stack.push(e);
 
-    //TODODODODOD
-    //e.halfedge().vertex()->uv = Eigen::Vector2d::Zero();
-    //e.halfedge().next().vertex()->uv = Eigen::Vector2d(lengths[eInd[e]], 0);
+    uv[e.halfedge().vertex()] = Eigen::Vector2d::Zero();
+    uv[e.halfedge().next().vertex()] = Eigen::Vector2d(lengths[eInd[e]], 0);
     
     // perform layout
     std::unordered_map<int, bool> visited;
@@ -271,17 +275,16 @@ void CirclePatterns::setUVs()
         Halfedge h2 = h1.twin();
         
         // compute edge vector
-        //TODODODOD
-        //Eigen::Vector2d dir = h2->vertex->uv - h1->vertex->uv;
-        // delete this
-        Eigen::Vector2d dir = Eigen::Vector2d::Zero();
-        //dir.normalize();
+
+        Eigen::Vector2d dir = uv[h2.vertex()] - uv[h1.vertex()];
+
+        dir.normalize();
         
         performFaceLayout(h1, dir, lengths, visited, stack);
         performFaceLayout(h2, -dir, lengths, visited, stack);
     }
     
-    //normalize();
+    normalize();
 }
 
 void CirclePatterns::parameterize()
@@ -310,4 +313,105 @@ void CirclePatterns::parameterize()
     
     // set uvs
     setUVs();
+}
+double CirclePatterns::uvArea(Face f)
+{
+    if (f.isBoundaryLoop()) {
+        return 0;
+    }
+    
+    const Eigen::Vector2d& a(uv[f.halfedge().vertex()]);
+    const Eigen::Vector2d& b(uv[f.halfedge().next().vertex()]);
+    const Eigen::Vector2d& c(uv[f.halfedge().next().next().vertex()]);
+    
+    const Eigen::Vector2d u = b - a;
+    const Eigen::Vector2d v = c - a;
+    
+    return 0.5 * (u.x()*v.y() - v.x()*u.y());
+}
+
+Eigen::Vector2d CirclePatterns::uvBarycenter(Face f)
+{
+    if (f.isBoundaryLoop()) {
+        return Eigen::Vector2d::Zero();
+    }
+    
+    const Eigen::Vector2d& a(uv[f.halfedge().vertex()]);
+    const Eigen::Vector2d& b(uv[f.halfedge().next().vertex()]);
+    const Eigen::Vector2d& c(uv[f.halfedge().next().next().vertex()]);
+    
+    return (a + b + c) / 3.0;
+}
+void CirclePatterns::normalize()
+{
+    // compute center
+    double totalArea = 0;
+    Eigen::Vector2d center = Eigen::Vector2d::Zero();
+    for (Face f : mesh->faces()) {
+        double area = uvArea(f);
+        center += area * uvBarycenter(f);
+        totalArea += area;
+    }
+    center /= totalArea;
+    
+    // shift
+    double r = 0.0;
+    for (Vertex v : mesh->vertices()) {
+        uv[v] -= center;
+        r = std::max(r, uv[v].squaredNorm());
+    }
+    
+    // scale
+    r = sqrt(r);
+    for (Vertex v : mesh->vertices()) {
+        uv[v] /= r;
+    }
+}
+void CirclePatterns::setOffsets() {
+    SparseMatrix<double> A;
+    // Build the solver
+    Solver<double> solver(A);
+
+    // Solve a problem
+    Vector<double> rhs;
+    Vector<double> sol = solver.solve(rhs);
+    // Some solvers have extra powers.
+    // Solver<> can compute matrix rank, since it uses QR under the hood.
+    std::cout << "matrix rank is " << solver.rank() << std::endl;
+}
+inline double shift(double c) {
+    return (c + 2.) * 500;
+}
+void CirclePatterns::dbgSVG(std::string filename) {
+    std::ofstream ss(filename, std::ofstream::out);
+    ss << "<?xml version=\"1.0\" standalone=\"no\" ?>" << endl
+       << "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" \"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">" << endl
+       << "<svg width=\"2000\" height=\"2000\" xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\" >" << endl;
+    for (Vertex v : mesh->vertices()) {
+        Eigen::Vector2d thing = uv[v];
+        ss << "<circle cx=\"" << shift(thing.x()) << "\" cy=\"" << shift(thing.y()) << "\" r=\"1\"/>" << endl;
+    }
+    for (Edge e : mesh->edges()) {
+        
+        Eigen::Vector2d i = uv[e.halfedge().vertex()];
+        Eigen::Vector2d j = uv[e.halfedge().twin().vertex()];
+        double angle = 0;//alphas[eInd[e]];
+        // FROM NORMALIZATION
+        double radius = 500 * (i - j).norm() / abs(2 * sin(angle));
+        if (abs(angle) > 1e-7) {
+            std::string largeArcFlag = std::abs(2 * angle) <= 3.14159265358979323846264 ? "0" : "1";
+            // sweep flag is 1 if going outward, 0 if going inward
+            std::string sweepFlag = angle < 0 ? "0" : "1";
+            ss << "<path d=\"M" << shift(i.x()) << "," << shift(i.y()) << " A" << radius << ","
+            << radius << " 0 " << largeArcFlag << " " << sweepFlag << " "
+            << shift(j.x()) << "," << shift(j.y()) << "\" fill=\"none\" stroke=\"green\" stroke-width=\"2\" />" << endl;
+        } else {
+            ss << "<line x1=\"" << shift(i.x()) << "\" x2=\"" << shift(j.x()) 
+            << "\" y1=\"" << shift(i.y()) <<"\" y2=\"" << shift(j.y()) << "\" stroke=\"blue\" stroke-width=\"2\"/>" << endl;
+        }
+        
+    }
+    // footer
+    ss << "</svg>";
+    std::cout << "done";
 }

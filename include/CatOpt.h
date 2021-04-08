@@ -29,15 +29,14 @@
 
 #include "glm/vec3.hpp"
 
-#include "Solver.h"
-#include "CirclePatterns.h"
+
 
 using namespace geometrycentral;
 using namespace geometrycentral::surface;
 using std::cout;
 using std::endl;
 using std::max;
-using std::unique_ptr;
+using std::shared_ptr;
 
 
 using Eigen::VectorXd;
@@ -50,11 +49,11 @@ class CatOpt {
         CatOpt(string filename);
         // == Geometry-central data
         string inputMeshPath;
-        unique_ptr<ManifoldSurfaceMesh> mesh;
-        unique_ptr<VertexPositionGeometry> geometry;
+        shared_ptr<ManifoldSurfaceMesh> mesh;
+        shared_ptr<VertexPositionGeometry> geometry;
 
-        unique_ptr<EdgeLengthGeometry> intrinsicGeometry;
-        unique_ptr<ManifoldSurfaceMesh> CATmesh;
+        shared_ptr<EdgeLengthGeometry> intrinsicGeometry;
+        shared_ptr<ManifoldSurfaceMesh> CATmesh;
         //unique_ptr<VertexPositionGeometry> CATgeometry;
 
         // Mesh data
@@ -100,6 +99,7 @@ class CatOpt {
         // Polyscope visualization handle, to quickly add data to the surface
         polyscope::SurfaceMesh *psMesh;
         polyscope::SurfaceMesh *CATpsMesh;
+        void circlePatterns();
     private:
         double sqr(double x) { return x*x; }
         // convenience function to return square of norm of gradient
@@ -111,7 +111,11 @@ class CatOpt {
         }
 
         Vector3 bary(Face f, double a, double b, double c);
+
+
+
         // Intrinsic angle optimization stuff
+        void polyscopeInit();
         void initializeQuantities();
         void generateConstraints();
         void subdivision();
@@ -137,6 +141,5 @@ class CatOpt {
         void testSVG();
 
 
-        // circle packing stuff
-
+        
 };

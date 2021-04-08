@@ -8,24 +8,25 @@
 #include "geometrycentral/surface/vertex_position_geometry.h"
 #include "geometrycentral/numerical/linear_solvers.h"
 #include <stack>
+#include <string>
 
 using namespace geometrycentral;
 using namespace geometrycentral::surface;
 using std::vector;
 using std::shared_ptr;
+using std::endl;
 
 class CirclePatterns{
 public:
-    std::shared_ptr<ManifoldSurfaceMesh> mesh;
+    shared_ptr<ManifoldSurfaceMesh> mesh;
     // constructor
     CirclePatterns(shared_ptr<ManifoldSurfaceMesh> mesh0, int optScheme0, vector<double>& solve,
-    EdgeData<size_t> eInd,
-    VertexData<size_t> vInd,
-    CornerData<size_t> cInd,
-    FaceData<size_t> fInd);
+    EdgeData<size_t> eInd, VertexData<size_t> vInd, FaceData<size_t> fInd, CornerData<double> targetAngles);
     
     // parameterize
     void parameterize();
+
+    void dbgSVG(std::string filename);
     
 protected:
 
@@ -56,6 +57,14 @@ protected:
     
     // sets uvs
     void setUVs();
+
+    void normalize();
+    double uvArea(Face f);
+
+    void setOffsets();
+
+    Eigen::Vector2d uvBarycenter(Face f);
+
     
     // member variables
     Eigen::VectorXd angles;
@@ -69,8 +78,10 @@ protected:
     vector<double> sol;
     EdgeData<size_t> eInd;
     VertexData<size_t> vInd;
-    CornerData<size_t> cInd;
+    CornerData<double> targetAngles;
     FaceData<size_t> fInd;
+    VertexData<Eigen::Vector2d> uv;
+    
 };
 
 #endif 

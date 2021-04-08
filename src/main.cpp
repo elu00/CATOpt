@@ -3,34 +3,42 @@ CatOpt::CatOpt(string s) {
     inputMeshPath = s;
     cout << "Initialized" << endl;
 
-    //polyscope::init("openGL_mock");
-    polyscope::init();
+    
 
-    //polyscope::state::userCallback = myCallback;
     // Load mesh
     std::tie(mesh, geometry) = readManifoldSurfaceMesh(inputMeshPath);
 
-    // Register the mesh with polyscope
-    psMesh = polyscope::registerSurfaceMesh(
-        "main",
-        geometry->inputVertexPositions, mesh->getFaceVertexList(),
-        polyscopePermutations(*mesh));
+    
     cout << "starting optimization" << endl;
     initializeQuantities();
     generateConstraints();
 
-    subdivision();
-    buildNewMesh();
+    //subdivision();
+    //buildNewMesh();
 
     //fin = descent();
 
-    conformalFlatten();
+    //conformalFlatten();
     //testSVG();
 
+    
+
+}
+void CatOpt::polyscopeInit() {
+    cout << "Initializing Polyscope" << endl;
+    polyscope::init("openGL_mock");
+    polyscope::init();
+    //polyscope::state::userCallback = myCallback;
+    // Register the mesh with polyscope
+    
+    psMesh = polyscope::registerSurfaceMesh(
+        "main",
+        geometry->inputVertexPositions, mesh->getFaceVertexList(),
+        polyscopePermutations(*mesh));
     //generateVisualization();
     // Give control to the polyscope gui
     //polyscope::show();
-
+    
 }
 int main(int argc, char **argv) {
     // Configure the argument parser
@@ -55,11 +63,14 @@ int main(int argc, char **argv) {
     if (!inputFilename) {
         //inputMeshPath = "/home/elu/repos/catopt/meshes/spotwithhole.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/cube.obj";
-        inputMeshPath = "/home/elu/repos/catopt/meshes/nonconvex2.obj";
+        //inputMeshPath = "/home/elu/repos/catopt/meshes/nonconvex2.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
+        //inputMeshPath = "/home/elu/repos/catopt/meshes/patch.obj";
     } else {
         inputMeshPath = args::get(inputFilename);
     }
     CatOpt c (inputMeshPath);
+    c.circlePatterns();
     
     return EXIT_SUCCESS;
 }

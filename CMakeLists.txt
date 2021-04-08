@@ -83,6 +83,7 @@ set(SRCS
   src/intrinsicOptimization.cpp
   src/flatteningOptimization.cpp
   src/embeddingOptimization.cpp
+  src/circleWrapper.cpp
   src/CirclePatterns.cpp
   src/Solver.cpp
 )
