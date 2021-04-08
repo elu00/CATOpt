@@ -72,14 +72,16 @@ endif()
 add_subdirectory(deps/geometry-central)
 add_subdirectory(deps/polyscope)
 add_subdirectory(deps/mosek)
-add_subdirectory(deps/catviz)
+#add_subdirectory(deps/catviz)
 add_subdirectory(deps/boundary-first-flattening)
 
 # == Build our project stuff
 
 set(SRCS 
   deps/catviz/src/triangle.c
+  src/rohan.cpp
   src/main.cpp
+  src/conformal.cpp
 )
 
 add_executable(catopt "${SRCS}")
