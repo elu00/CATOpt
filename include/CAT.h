@@ -10,7 +10,7 @@
 #include "glm/glm.hpp"
 #include "glm/gtx/norm.hpp"
 #include "glm/gtx/string_cast.hpp"
-#include "triangle.h"
+
 #ifndef PI
 #define PI 3.1415926535897932384626433832795
 #endif

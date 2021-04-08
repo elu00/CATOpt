@@ -24,8 +24,6 @@ CatOpt::CatOpt(string s) {
 
     //fin = descent();
 
-    //////////////////////////////////////////
-    // BFF stuff
     conformalFlatten();
     //testSVG();
 

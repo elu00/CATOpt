@@ -1,5 +1,7 @@
 #include "CatOpt.h"
+#include "triangle.h"
 #include "CAT.h"
+
 Vector3 CatOpt::bary(Face f, double a, double b, double c) {
     auto it = f.halfedge();
     Vector3 i = geometry->inputVertexPositions[it.vertex()];

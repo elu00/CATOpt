@@ -1,20 +1,34 @@
 #ifndef CIRCLE_PATTERNS_H
 #define CIRCLE_PATTERNS_H
 
-#include "Parameterization.h"
-#include "Utils.h"
-#include "MosekSolver.h"
+#include "Solver.h"
+#include "geometrycentral/surface/manifold_surface_mesh.h"
+#include "geometrycentral/surface/meshio.h"
+#include "geometrycentral/surface/edge_length_geometry.h"
+#include "geometrycentral/surface/vertex_position_geometry.h"
+#include "geometrycentral/numerical/linear_solvers.h"
 #include <stack>
 
-class CirclePatterns: public Parameterization {
+using namespace geometrycentral;
+using namespace geometrycentral::surface;
+using std::vector;
+using std::shared_ptr;
+
+class CirclePatterns{
 public:
+    std::shared_ptr<ManifoldSurfaceMesh> mesh;
     // constructor
-    CirclePatterns(Mesh& mesh0, int optScheme0);
+    CirclePatterns(shared_ptr<ManifoldSurfaceMesh> mesh0, int optScheme0, vector<double>& solve,
+    EdgeData<size_t> eInd,
+    VertexData<size_t> vInd,
+    CornerData<size_t> cInd,
+    FaceData<size_t> fInd);
     
     // parameterize
-    void parameterize() override;
+    void parameterize();
     
 protected:
+
         
     // sets thetas
     void setThetas();
@@ -37,8 +51,8 @@ protected:
     void computeAnglesAndEdgeLengths(Eigen::VectorXd& lengths);
     
     // determines position of unfixed face vertex
-    void performFaceLayout(HalfEdgeCIter he, const Eigen::Vector2d& dir, Eigen::VectorXd& lengths,
-                           std::unordered_map<int, bool>& visited, std::stack<EdgeCIter>& stack);
+    void performFaceLayout(Halfedge he, const Eigen::Vector2d& dir, Eigen::VectorXd& lengths,
+                           std::unordered_map<int, bool>& visited, std::stack<Edge>& stack);
     
     // sets uvs
     void setUVs();
@@ -49,9 +63,14 @@ protected:
     Eigen::VectorXd radii;
     Eigen::VectorXi eIntIndices;
     int imaginaryHe;
-    MosekSolver::Solver mosekSolver;
-    Solver solver;
+    SolverF solver;
     int OptScheme;
+
+    vector<double> sol;
+    EdgeData<size_t> eInd;
+    VertexData<size_t> vInd;
+    CornerData<size_t> cInd;
+    FaceData<size_t> fInd;
 };
 
 #endif 

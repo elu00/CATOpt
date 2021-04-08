@@ -20,12 +20,17 @@
 #include "ConePlacement.h"
 #include "Cutter.h"
 
+
+
 #include <algorithm>
 #include <tuple>
 #include <map>
 
 
 #include "glm/vec3.hpp"
+
+#include "Solver.h"
+#include "CirclePatterns.h"
 
 using namespace geometrycentral;
 using namespace geometrycentral::surface;
@@ -118,17 +123,20 @@ class CatOpt {
 
         // Flattening optimization stuff
 
-    void dbgSVG(string filename);
-    double confObjective(vector<Vector2> &flattened, vector<double>& alphas);
-    void confGradient(vector<Vector2> &x, vector<double> &alphas, vector<Vector2> &flattened_grad, vector<double>& alphas_grad);
-    void confStep(int n);
-    void loadModel(const std::string& inputPath, bff::Model& model,
-			   std::vector<bool>& surfaceIsClosed);
+        void dbgSVG(string filename);
+        double confObjective(vector<Vector2> &flattened, vector<double>& alphas);
+        void confGradient(vector<Vector2> &x, vector<double> &alphas, vector<Vector2> &flattened_grad, vector<double>& alphas_grad);
+        void confStep(int n);
+        void loadModel(const std::string& inputPath, bff::Model& model,
+                std::vector<bool>& surfaceIsClosed);
 
-    void flatten(bff::Model& model, const std::vector<bool>& surfaceIsClosed,
-                int nCones, bool flattenToDisk, bool mapToSphere);
-    void conformalFlatten();
-    // just for validating the SVG formula I'm using
-    void testSVG();
+        void flatten(bff::Model& model, const std::vector<bool>& surfaceIsClosed,
+                    int nCones, bool flattenToDisk, bool mapToSphere);
+        void conformalFlatten();
+        // just for validating the SVG formula I'm using
+        void testSVG();
+
+
+        // circle packing stuff
 
 };

@@ -247,7 +247,7 @@
 /*  not used, `numberofsegments' will indicate the number of boundary edges. */
 /*                                                                           */
 /*****************************************************************************/
-
+#pragma once
 struct triangulateio {
   double *pointlist;                                               /* In / out */
   double *pointattributelist;                                      /* In / out */
