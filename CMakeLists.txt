@@ -79,9 +79,13 @@ add_subdirectory(deps/boundary-first-flattening)
 
 set(SRCS 
   deps/catviz/src/triangle.c
-  src/rohan.cpp
+  #src/rohan.cpp
   src/main.cpp
-  src/conformal.cpp
+  src/intrinsicOptimization.cpp
+  src/flatteningOptimization.cpp
+  src/embeddingOptimization.cpp
+  src/circlepacking.cpp
+  #src/conformal.cpp
 )
 
 add_executable(catopt "${SRCS}")
