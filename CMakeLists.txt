@@ -78,7 +78,7 @@ add_subdirectory(deps/boundary-first-flattening)
 # == Build our project stuff
 
 set(SRCS 
-  deps/catviz/src/triangle.c
+  src/triangle.c
   #src/rohan.cpp
   src/main.cpp
   src/intrinsicOptimization.cpp
