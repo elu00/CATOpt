@@ -46,6 +46,7 @@ using std::vector;
 using std::string;
 class CatOpt {
     public:
+        void conformalFlatten();
         CatOpt(string filename);
         // == Geometry-central data
         string inputMeshPath;
@@ -136,7 +137,6 @@ class CatOpt {
 
         void flatten(bff::Model& model, const std::vector<bool>& surfaceIsClosed,
                     int nCones, bool flattenToDisk, bool mapToSphere);
-        void conformalFlatten();
         // just for validating the SVG formula I'm using
         void testSVG();
 

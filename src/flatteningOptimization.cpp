@@ -367,7 +367,7 @@ void CatOpt::conformalFlatten() {
     */
     dbgSVG("step0.svg");
     //dbgOutput("chug0");
-    confStep(50000);  
+    confStep(200000);  
 
 }
 // just for validating the SVG formula I'm using

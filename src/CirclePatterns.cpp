@@ -35,10 +35,15 @@ void CirclePatterns::setThetas()
     // set thetas
     for (Edge e : mesh->edges()) {
         Halfedge he = e.halfedge();
-
-        double int1 = he.isInterior() ? targetAngles[he.corner()] + targetAngles[he.next().corner()] - targetAngles[he.next().next().corner()] : M_PI;
-        double int2 = he.twin().isInterior() ? targetAngles[he.twin().corner()] + targetAngles[he.twin().next().corner()] - targetAngles[he.twin().next().next().corner()] : M_PI;
-        thetas[eInd[e]] = (int1+int2)/2.;
+        if (!he.isInterior()) {
+            thetas[eInd[e]] = M_PI - targetAngles[he.twin().next().next().corner()];
+        } else if (!he.twin().isInterior()) {
+            thetas[eInd[e]] = M_PI - targetAngles[he.next().next().corner()];
+        } else {
+            double int1 = targetAngles[he.corner()] + targetAngles[he.next().corner()] - targetAngles[he.next().next().corner()];
+            double int2 = targetAngles[he.twin().corner()] + targetAngles[he.twin().next().corner()] - targetAngles[he.twin().next().next().corner()];
+            thetas[eInd[e]] = (int1+int2)/2.;
+        }
     }
 }
 
@@ -368,12 +373,23 @@ void CirclePatterns::normalize()
     }
 }
 void CirclePatterns::setOffsets() {
-    SparseMatrix<double> A;
+    SparseMatrix<double> A(mesh->nCorners(), mesh->nEdges());
+    Vector<double> rhs;
+    vector<Eigen::Triplet<double>> triplets;
+    for (Corner C: mesh->corners()) {
+        Halfedge h = C.halfedge();
+        if (h.isInterior()) {
+            targetAngles[C];
+
+        }
+    }
+    A.setFromTriplets(triplets.begin(), triplets.end());
+
     // Build the solver
     Solver<double> solver(A);
 
     // Solve a problem
-    Vector<double> rhs;
+
     Vector<double> sol = solver.solve(rhs);
     // Some solvers have extra powers.
     // Solver<> can compute matrix rank, since it uses QR under the hood.
