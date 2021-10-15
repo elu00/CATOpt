@@ -64,16 +64,16 @@ int main(int argc, char **argv) {
         //inputMeshPath = "/home/elu/repos/catopt/meshes/spotwithhole.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/cube.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/nonconvex2.obj";
-        //inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/test.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/patch.obj";
-        inputMeshPath = "/home/elu/repos/catopt/meshes/BumpyTorusPatch.obj";
+        //inputMeshPath = "/home/elu/repos/catopt/meshes/BumpyTorusPatch.obj";
     } else {
         inputMeshPath = args::get(inputFilename);
     }
     CatOpt c (inputMeshPath);
-    //c.circlePatterns();
-    c.conformalFlatten();
+    c.circlePatterns();
+    //c.conformalFlatten();
     
     return EXIT_SUCCESS;
 }

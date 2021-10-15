@@ -2,17 +2,16 @@
 #include <Eigen/SparseQR>
 
 CirclePatterns::CirclePatterns(shared_ptr<ManifoldSurfaceMesh> mesh0, int optScheme0, vector<double>& solve,
-EdgeData<size_t> eInd, VertexData<size_t> vInd, FaceData<size_t> fInd, CornerData<double> targetAngles):
+EdgeData<size_t> eInd, VertexData<size_t> vInd, FaceData<size_t> fInd, Eigen::VectorXd thetas):
 mesh(mesh0),
 angles(mesh->nHalfedges()),
-thetas(mesh->nEdges()),
+thetas(thetas),
 radii(mesh->nFaces()),
 eIntIndices(mesh->nEdges()),
 imaginaryHe(0),
 eInd(eInd),
 vInd(vInd),
 fInd(fInd),
-targetAngles(targetAngles),
 OptScheme(optScheme0)
 {
     // I added a plus 1 here and at radii; should figure why I need to
@@ -21,24 +20,30 @@ OptScheme(optScheme0)
     uv = VertexData<Eigen::Vector2d> (*mesh);
 }
 
-
-void CirclePatterns::setThetas()
-{
+// no longer need since thetas are given
+/*
+void CirclePatterns::setThetas() {
     // set opposite angles
-    /*
-    int a = 0;
-    for (Halfedge he : mesh->halfedges()) {
-        if (he.isInterior()) angles[he.getIndex()] = he->angle() + mosekSolver.xx[a++];
-        else angles[he.getIndex()] = 0.0;
-    }
-    */
+    
+    //int a = 0;
+    //for (Halfedge he : mesh->halfedges()) {
+    //    if (he.isInterior()) angles[he.getIndex()] = he->angle() + mosekSolver.xx[a++];
+    //    else angles[he.getIndex()] = 0.0;
+    //}
     // set thetas
     for (Edge e : mesh->edges()) {
         Halfedge he = e.halfedge();
+        int f = 2;
         if (!he.isInterior()) {
-            thetas[eInd[e]] = M_PI - targetAngles[he.twin().next().next().corner()];
+            //thetas[eInd[e]] = f ? M_PI: M_PI - targetAngles[he.twin().next().next().corner()];
+            thetas[eInd[e]] = M_PI;
+            if(f > 1) thetas[eInd[e]] = M_PI - targetAngles[he.twin().next().next().corner()];
+            //f++;
         } else if (!he.twin().isInterior()) {
-            thetas[eInd[e]] = M_PI - targetAngles[he.next().next().corner()];
+            thetas[eInd[e]] = M_PI;
+            if(f > 1) thetas[eInd[e]] = M_PI - targetAngles[he.next().next().corner()];
+            //thetas[eInd[e]] = f ? M_PI: M_PI - targetAngles[he.next().next().corner()];
+            //f++;
         } else {
             double int1 = targetAngles[he.corner()] + targetAngles[he.next().corner()] - targetAngles[he.next().next().corner()];
             double int2 = targetAngles[he.twin().corner()] + targetAngles[he.twin().next().corner()] - targetAngles[he.twin().next().next().corner()];
@@ -46,22 +51,22 @@ void CirclePatterns::setThetas()
         }
     }
 }
+*/
 
-bool CirclePatterns::computeAngles()
-{
-    /*
-    int variables = 3 * (int)(mesh->nFaces() - mesh->nExteriorHalfedges()); 
-    int constraints = (int)(mesh->nVertices() + mesh->nEdges() + mesh->nFaces() -
-                            imaginaryHe - mesh->nExteriorHalfedges());
-    int numanz = 3 * variables - imaginaryHe;
-    int numqnz = variables;
-    */
-    setThetas();
+//bool CirclePatterns::computeAngles() {
+    // no longer needed since thetas are given
+    
+    //int variables = 3 * (int)(mesh->nFaces() - mesh->nExteriorHalfedges()); 
+    //int constraints = (int)(mesh->nVertices() + mesh->nEdges() + mesh->nFaces() -
+    //                        imaginaryHe - mesh->nExteriorHalfedges());
+    //int numanz = 3 * variables - imaginaryHe;
+    //int numqnz = variables;
+    
+    //setThetas();
 
-    return true;
-}
-inline double Cl2(double x)
-{
+    //return true;
+//}
+inline double Cl2(double x) {
     if (x == 0.0) return 0.0;
     x = std::remainder(x, 2*M_PI);
     if (x == 0.0) return 0.0;
@@ -100,16 +105,14 @@ inline double Cl2(double x)
                        + log(0.5)) * x;
 }
 
-double ImLi2Sum(double dp, double theta)
-{
+double ImLi2Sum(double dp, double theta) {
     double tStar = M_PI - theta;
     double x = 2*atan(tanh(0.5*dp) * tan(0.5*tStar));
     
     return x*dp + Cl2(x + tStar) + Cl2(-x + tStar) - Cl2(2.0*tStar);
 }
 
-double fe(double dp, double theta)
-{
+double fe(double dp, double theta) {
     return atan2(sin(theta), exp(dp) - cos(theta));
 }
 
@@ -304,11 +307,13 @@ void CirclePatterns::parameterize()
         }
     }
     
+    /*
     // compute angles
     if (!computeAngles()) {
         std::cout << "Unable to compute angles" << std::endl;
         return;
     }
+    */
     
     // compute radii
     if (!computeRadii()) {
@@ -319,8 +324,7 @@ void CirclePatterns::parameterize()
     // set uvs
     setUVs();
 }
-double CirclePatterns::uvArea(Face f)
-{
+double CirclePatterns::uvArea(Face f) {
     if (f.isBoundaryLoop()) {
         return 0;
     }
@@ -335,8 +339,7 @@ double CirclePatterns::uvArea(Face f)
     return 0.5 * (u.x()*v.y() - v.x()*u.y());
 }
 
-Eigen::Vector2d CirclePatterns::uvBarycenter(Face f)
-{
+Eigen::Vector2d CirclePatterns::uvBarycenter(Face f) {
     if (f.isBoundaryLoop()) {
         return Eigen::Vector2d::Zero();
     }
@@ -347,8 +350,7 @@ Eigen::Vector2d CirclePatterns::uvBarycenter(Face f)
     
     return (a + b + c) / 3.0;
 }
-void CirclePatterns::normalize()
-{
+void CirclePatterns::normalize() {
     // compute center
     double totalArea = 0;
     Eigen::Vector2d center = Eigen::Vector2d::Zero();
@@ -379,7 +381,7 @@ void CirclePatterns::setOffsets() {
     for (Corner C: mesh->corners()) {
         Halfedge h = C.halfedge();
         if (h.isInterior()) {
-            targetAngles[C];
+            //targetAngles[C];
 
         }
     }
