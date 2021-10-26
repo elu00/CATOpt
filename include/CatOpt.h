@@ -48,13 +48,18 @@ class CatOpt {
     public:
         void conformalFlatten();
         CatOpt(string filename);
+        void polyscopeInit();
         // == Geometry-central data
         string inputMeshPath;
         shared_ptr<ManifoldSurfaceMesh> mesh;
         shared_ptr<VertexPositionGeometry> geometry;
 
-        shared_ptr<EdgeLengthGeometry> intrinsicGeometry;
         shared_ptr<ManifoldSurfaceMesh> CATmesh;
+        shared_ptr<EdgeLengthGeometry> intrinsicGeometry;
+
+        shared_ptr<ManifoldSurfaceMesh> flatmesh;
+        shared_ptr<VertexPositionGeometry> flatGeometry;
+        
         //unique_ptr<VertexPositionGeometry> CATgeometry;
 
         // Mesh data
@@ -116,7 +121,7 @@ class CatOpt {
 
 
         // Intrinsic angle optimization stuff
-        void polyscopeInit();
+
         void initializeQuantities();
         void generateConstraints();
         void subdivision();
@@ -137,6 +142,7 @@ class CatOpt {
 
         void flatten(bff::Model& model, const std::vector<bool>& surfaceIsClosed,
                     int nCones, bool flattenToDisk, bool mapToSphere);
+        void buildNewGeometry();
         // just for validating the SVG formula I'm using
         void testSVG();
 

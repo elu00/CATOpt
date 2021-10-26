@@ -21,7 +21,7 @@ public:
     shared_ptr<ManifoldSurfaceMesh> mesh;
     // constructor
     CirclePatterns(shared_ptr<ManifoldSurfaceMesh> mesh0, int optScheme0, vector<double>& solve,
-    EdgeData<size_t> eInd, VertexData<size_t> vInd, FaceData<size_t> fInd, CornerData<double> targetAngles);
+    EdgeData<size_t> eInd, VertexData<size_t> vInd, FaceData<size_t> fInd, Eigen::VectorXd thetas);
     
     // parameterize
     void parameterize();
@@ -32,10 +32,10 @@ protected:
 
         
     // sets thetas
-    void setThetas();
+    //void setThetas();
     
     // compute angles
-    bool computeAngles();
+    //bool computeAngles();
     
     // computes energy, gradient and hessian
     void computeEnergy(double& energy, const Eigen::VectorXd& rho);
@@ -78,7 +78,6 @@ protected:
     vector<double> sol;
     EdgeData<size_t> eInd;
     VertexData<size_t> vInd;
-    CornerData<double> targetAngles;
     FaceData<size_t> fInd;
     VertexData<Eigen::Vector2d> uv;
     

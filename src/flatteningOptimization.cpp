@@ -327,6 +327,7 @@ void CatOpt::conformalFlatten() {
     // DEBUG
     alphas = vector<double>(nEdges, 0);
     targetAngles = CornerData<double>(*mesh);
+    /*
     for (Corner C: mesh->corners()) {
         Halfedge h = C.halfedge();
         if (h.isInterior()) {
@@ -337,6 +338,7 @@ void CatOpt::conformalFlatten() {
             //cout << "angle is" << angle;
         }
     }
+    */
     /*
     // DEBUG
     for (Vertex v: mesh->vertices()) {
@@ -367,8 +369,26 @@ void CatOpt::conformalFlatten() {
     */
     dbgSVG("step0.svg");
     //dbgOutput("chug0");
-    confStep(200000);  
+    confStep(10000);  
+    buildNewGeometry();
 
+
+}
+void CatOpt::buildNewGeometry () {
+    VertexData<Vector3> temp(*mesh);
+    for (int i = 0; i < flattened.size(); i ++) {
+        auto v = flattened[i];
+        temp[i] = {v.x, 0, v.y};
+    }
+    flatmesh = mesh->copy();
+    flatGeometry = std::unique_ptr<VertexPositionGeometry>(new VertexPositionGeometry(*flatmesh, temp));
+    /*
+    CATpsMesh = polyscope::registerSurfaceMesh(
+        "flat mesh",
+        flatGeometry->vertexPositions, mesh->getFaceVertexList(),
+        polyscopePermutations(*mesh));
+        */
+       writeSurfaceMesh(*flatmesh, *flatGeometry, "flat.obj");
 }
 // just for validating the SVG formula I'm using
 void CatOpt::testSVG() {

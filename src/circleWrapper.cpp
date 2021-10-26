@@ -6,30 +6,52 @@ using namespace mosek::fusion;
 using namespace monty;
 
 void CatOpt::circlePatterns() {
-    targetAngles = CornerData<double>(*mesh);
-    Eigen::VectorXd thetas(mesh->nEdges());
+    //targetAngles = CornerData<double>(*mesh);
+    EdgeData<size_t> eInd = flatmesh->getEdgeIndices();
+    VertexData<size_t> vInd = flatmesh->getVertexIndices();
+    CornerData<size_t> cInd = flatmesh->getCornerIndices();
+    FaceData<size_t> fInd = flatmesh->getFaceIndices();
+    size_t vi, vj, vk;
+    for (Vertex v: flatmesh->vertices()) {
+        if (v.isBoundary()) {
+            int count = 0;
+            for (Vertex u: v.adjacentVertices()) {
+                if (u.isBoundary()) {
+                    if (count == 0) vi = vInd[u];
+                    if (count == 1) {
+                        vk = vInd[u];
+                        break;
+                    }
+                    count++;
+                }
+            }
+            vj = vInd[v];
+            //if (flatmesh->removeVertex(v) == Face()) cout << "BAD BOUNDARY" << endl;
+            break;
+        }
+    }
+
+
+
+    Eigen::VectorXd thetas(flatmesh->nEdges());
 
     Model::t M = new Model();
     auto _M = finally([&]() { M->dispose(); });
-    Variable::t Theta = M->variable("Theta", mesh->nExteriorHalfedges(), Domain::inRange(0, PI));
-    Variable::t alpha = M->variable("alpha", mesh->nCorners(), Domain::inRange(0, PI));
+    Variable::t Theta = M->variable("Theta", flatmesh->nEdges(), Domain::inRange(0, PI));
+    Variable::t alpha = M->variable("alpha", flatmesh->nCorners(), Domain::inRange(0, PI));
     vector<int> rows;
     vector<int> cols;
     vector<double> values;
-    vector<double> rhs(nEdges);
+    vector<double> rhs(nEdges, 0);
     // Interior agreement constraint
-    for (Edge e : mesh->edges()) {
+    for (Edge e : flatmesh->edges()) {
         if (!e.isBoundary()) {
             rows.emplace_back(eInd[e]);
             cols.emplace_back(eInd[e]);
             values.emplace_back(1);
-            // TODO: calculate what this should be
-            //double angle = geometry->cornerAngle(C);
-            
-            //cout << "Inital:" << angle << " Next:";
-            //angle += sol[eInd[h.edge()]];
-            //angle += sol[eInd[h.next().next().edge()]];
-            //rhs[eInd[e]] = ;
+            rhs[eInd[e]] = PI - flatGeometry->cornerAngle(e.halfedge().next().next().corner()) 
+                            - flatGeometry->cornerAngle(e.halfedge().twin().next().next().corner());
+            //cout << rhs[eInd[e]] << endl;
         }
     }
     auto r = new_array_ptr<int>(rows);
@@ -37,13 +59,13 @@ void CatOpt::circlePatterns() {
     auto v = new_array_ptr<double>(values);
     auto boundaryConst = Matrix::sparse(nEdges, nEdges, r, c, v);
     auto intThetas = new_array_ptr(rhs);
-    M->constraint("Interior Agreement", Expr::mul(boundaryConst, alpha), Domain::equalsTo(intThetas));
+    M->constraint("Interior Agreement", Expr::mul(boundaryConst, Theta), Domain::equalsTo(intThetas));
     rows.clear();
     cols.clear();
     values.clear();
     // Intersection angle constraint
     rhs = vector<double>(nEdges, PI);
-    for (Edge e : mesh->edges()) {
+    for (Edge e : flatmesh->edges()) {
         Halfedge he = e.halfedge();
         if (he.isInterior()) {
             rows.emplace_back(eInd[e]);
@@ -59,13 +81,31 @@ void CatOpt::circlePatterns() {
     r = new_array_ptr<int>(rows);
     c = new_array_ptr<int>(cols);
     v = new_array_ptr<double>(values);
-    auto intersectionConst = Matrix::sparse(nEdges, mesh->nCorners(), r, c, v);
+    auto intersectionConst = Matrix::sparse(nEdges, flatmesh->nCorners(), r, c, v);
     auto intersectionPI = new_array_ptr(rhs);
     M->constraint("Intersection Agreement", Expr::add(Theta, Expr::mul(intersectionConst, alpha)), Domain::equalsTo(intersectionPI));
     rows.clear();
     cols.clear();
     values.clear();
     // Flat Boundary Constraint
+    size_t count = 0;
+    for (Vertex v: flatmesh->boundaryLoop(0).adjacentVertices()) {
+        if (!(vInd[v] != vi && vInd[v] != vj && vInd[v] != vk)) {
+            for (Corner c: v.adjacentCorners()) {
+                rows.emplace_back(count);
+                cols.emplace_back(cInd[c]);
+                values.emplace_back(1.);
+            }
+            count++;
+        }
+    }
+    rhs = vector<double>(count, PI);
+    r = new_array_ptr<int>(rows);
+    c = new_array_ptr<int>(cols);
+    v = new_array_ptr<double>(values);
+    auto bdryFlat = Matrix::sparse(count, flatmesh->nCorners(), r, c, v);
+    auto bdryPI = new_array_ptr(rhs);
+    //M->constraint("Flat boundary", Expr::mul(bdryFlat, alpha), Domain::equalsTo(bdryPI));
     rows.clear();
     cols.clear();
     values.clear();
@@ -86,15 +126,6 @@ void CatOpt::circlePatterns() {
         thetas[i] = (*xVal)[i];
     }
 
-
-    for (Corner C: mesh->corners()) {
-        Halfedge h = C.halfedge();
-        if (h.isInterior()) {
-            
-
-            //targetAngles[C] = angle;
-        }
-    }
     /*
     for (Vertex v: mesh->vertices()) {
         double accum = 0;
@@ -108,9 +139,9 @@ void CatOpt::circlePatterns() {
         }
     }
     */
-    CirclePatterns prob(mesh, 0, sol, eInd, vInd, fInd, thetas);
+    CirclePatterns prob(flatmesh, 0, sol, eInd, vInd, fInd, thetas);
     cout << "starting parameterization" << endl;
     prob.parameterize();
     cout << "parameterization done" << endl;
-    prob.dbgSVG("wog.svg");
+    prob.dbgSVG("flat.svg");
 }
