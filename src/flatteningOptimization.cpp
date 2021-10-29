@@ -369,7 +369,7 @@ void CatOpt::conformalFlatten() {
     */
     dbgSVG("step0.svg");
     //dbgOutput("chug0");
-    confStep(10000);  
+    confStep(2000);  
     buildNewGeometry();
 
 

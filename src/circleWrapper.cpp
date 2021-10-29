@@ -37,12 +37,14 @@ void CatOpt::circlePatterns() {
 
     Model::t M = new Model();
     auto _M = finally([&]() { M->dispose(); });
-    Variable::t Theta = M->variable("Theta", flatmesh->nEdges(), Domain::inRange(0, PI));
+    Variable::t Theta = M->variable("Theta", flatmesh->nEdges(), Domain::inRange(-PI, PI));
     Variable::t alpha = M->variable("alpha", flatmesh->nCorners(), Domain::inRange(0, PI));
     vector<int> rows;
     vector<int> cols;
     vector<double> values;
     vector<double> rhs(nEdges, 0);
+
+
     // Interior agreement constraint
     for (Edge e : flatmesh->edges()) {
         if (!e.isBoundary()) {
@@ -63,6 +65,9 @@ void CatOpt::circlePatterns() {
     rows.clear();
     cols.clear();
     values.clear();
+
+
+
     // Intersection angle constraint
     rhs = vector<double>(nEdges, PI);
     for (Edge e : flatmesh->edges()) {
@@ -87,6 +92,10 @@ void CatOpt::circlePatterns() {
     rows.clear();
     cols.clear();
     values.clear();
+
+
+
+
     // Flat Boundary Constraint
     size_t count = 0;
     for (Vertex v: flatmesh->boundaryLoop(0).adjacentVertices()) {
@@ -109,7 +118,27 @@ void CatOpt::circlePatterns() {
     rows.clear();
     cols.clear();
     values.clear();
+
+
+
     // Sum to pi in each triangle constraint
+    rhs = vector<double>(nFaces, PI);
+    for (Face f : flatmesh->faces()) {
+        for (Vertex v: f.adjacentVertices()) {
+            rows.emplace_back(fInd[f]);
+            cols.emplace_back(vInd[v]);
+            values.emplace_back(1);
+        }
+    }
+    r = new_array_ptr<int>(rows);
+    c = new_array_ptr<int>(cols);
+    v = new_array_ptr<double>(values);
+    auto sumConst = Matrix::sparse(nFaces, flatmesh->nCorners(), r, c, v);
+    auto sumPI = new_array_ptr(rhs);
+    M->constraint("sum constraint", Expr::mul(sumConst, alpha), Domain::equalsTo(sumPI));
+    rows.clear();
+    cols.clear();
+    values.clear();
 
 
     auto ones = std::make_shared<ndarray<double, 1>>(shape(nEdges), 1.);
