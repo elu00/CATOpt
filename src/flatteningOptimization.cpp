@@ -172,6 +172,9 @@ void CatOpt::confGradient(vector<Vector2> &x, vector<double> &alphas, vector<Vec
 // angles \(\tilde{\beta}\), relative to the desired corner angles \(\beta\).
 void CatOpt::confStep( int nDescentSteps )
 {
+    cout << "Testing derivatives for planar optimization..." << endl;
+    testFlatteningDerivatives();
+
     cout << "Taking " << n << " steps of planar optimization..." << endl;
 
     // For convenience, grab previous values
@@ -246,17 +249,76 @@ void CatOpt::confStep( int nDescentSteps )
     //vector<Vector3> pos = subdiv_points;
 }
 
-// void CatOpt::testFlatteningDerivatives() {
-//    // TODO
-//           /*
-//              int i = 6;
-//              p[i] = p0[i] + Vector2{t,0};
-//           //alpha[i] = alpha0[i] + t;
-//           double new_result = confObjective(p, alpha);
-//           cout << "Objective change:" << new_result - E << endl;
-//           cout <<  "Estimated change:" << t *(dEdp[i].x) << endl;
-//           */
-// }
+// check that our derivative code agrees with numerical
+// derivatives, up to a small error
+void CatOpt::testFlatteningDerivatives()
+{
+   // perturbation size
+   const double eps = 1e-7;
+
+   // grab current configuration
+   vector<Vector2>& p( flattened ); // 2D vertex positions
+   vector<double>& alpha( alphas ); // edge angles
+
+   // compute energy and its derivatives
+   double E0 = confObjective( p, alpha );
+   vector<Vector2> dEdp(nVertices); // differential of energy with respect to vertex positions
+   vector<double> dEdalpha(nEdges); // differential of energy with respect to edge angles
+   confGradient(p, alpha, dEdp, dEdalpha);
+
+   double worstError = 0.;
+   double averageError = 0.;
+
+   // test derivatives with respect to vertex positions
+   for(int v = 0; v < nVertices; v++ ) {
+
+      Vector2 dEdpv; // numerical derivative with respect to position of vertex v
+
+      // iterate over coordinates
+      for( int k = 0; k < 2; k++ )
+      {
+         p[v][k] += eps; // perturb coordinate k
+         double E = confObjective( p, alpha );
+         dEdpv[k] = (E - E0)/eps;
+         p[v][k] -= eps; // restore it
+      }
+
+      // compare to expression computed in code
+      double error = (dEdpv - dEdp[v]).norm();
+      worstError = std::max( worstError, error );
+      averageError += error;
+   }
+
+   for(int e = 0; e < nEdges; e++ ) {
+
+      double dEdalphae; // numerical derivative with respect to angle on edge e
+
+      alpha[e] += eps; // perturb coordinate k
+      double E = confObjective( p, alpha );
+      dEdalphae = (E - E0)/eps;
+      alpha[e] -= eps; // restore it
+
+      // compare to expression computed in code
+      double error = fabs(dEdalphae - dEdalpha[e]);
+      worstError = std::max( worstError, error );
+      averageError += error;
+   }
+
+   averageError /= (nEdges + nVertices);
+
+   std::cout << "Worst error: " << worstError << std::endl;
+   std::cout << "Average error: " << averageError << std::endl;
+
+   // TODO
+   /*
+      int i = 6;
+      p[i] = p0[i] + Vector2{t,0};
+   //alpha[i] = alpha0[i] + t;
+   double new_result = confObjective(p, alpha);
+   cout << "Objective change:" << new_result - E << endl;
+   cout <<  "Estimated change:" << t *(dEdp[i].x) << endl;
+   */
+}
 
 void CatOpt::loadModel(const std::string& inputPath, bff::Model& model,
 			   std::vector<bool>& surfaceIsClosed) {

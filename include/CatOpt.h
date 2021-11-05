@@ -109,6 +109,8 @@ class CatOpt {
         void circlePatterns();
 
         void setOffsets();
+
+        void testFlatteningDerivatives();
     private:
         double sqr(double x) { return x*x; }
         // convenience function to return square of norm of gradient
