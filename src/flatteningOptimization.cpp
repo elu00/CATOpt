@@ -165,72 +165,98 @@ void CatOpt::confGradient(vector<Vector2> &x, vector<double> &alphas, vector<Vec
         }
     }
 }
-void CatOpt::confStep(int n) {
-    //for (auto& v : subdiv_points) v *= 1.1;
-    cout << "Starting planar optimization" << endl;
-    vector<Vector2> flattened_new = flattened;
-    vector<Vector2> flattened_grad(nVertices);
-    vector<double> alphas_new = alphas;
-    vector<double> alphas_grad(nEdges);
-    double grad_size = 1.;
 
-    for (int m = 0; m < n; m++){
-    //while (sqrt(grad_size) > ep) {
-        double result = confObjective(flattened, alphas);
-        confGradient(flattened, alphas, flattened_grad, alphas_grad);
-        grad_size = 0; // change this
-        for (Vector2 a: flattened_grad) grad_size += a.norm2();
-        for (double a: alphas_grad) grad_size += a*a;
-        
-        //double t = .00001;
-        double t = 0.01;
-        int steps = 0;
-        while (confObjective(flattened_new, alphas_new) > result - alpha * t * grad_size) {
-            steps++;
-            t = beta * t;
-            for (int i = 0; i < nVertices; i++) {
-                flattened_new[i] = flattened[i] - t * flattened_grad[i];
-                //cout << "flat" << flattened_grad[i].x << " " << flattened_grad[i].y << endl;
-            }
-            for (int i = 0; i < nEdges; i++) {
-                alphas_new[i] = alphas[i] - t * alphas_grad[i];
-                //cout << "a" << alphas_grad[i] << endl;
-            }
-            /*
-            int i = 6;
-            flattened_new[i] = flattened[i] + Vector2{t,0};
-            //alphas_new[i] = alphas[i] + t;
-            double new_result = confObjective(flattened_new, alphas_new);
-            cout << "Objective change:" << new_result - result << endl;
-            cout <<  "Estimated change:" << t *(flattened_grad[i].x) << endl;
-            */
-        }
-        
-        flattened = flattened_new;
-        alphas = alphas_new;
-        if (iter % 1000 == 0) {
-            cout << "Starting iteration " << iter << endl;
-            cout << "t: " << t << endl;
-            cout << "grad" << grad_size << endl;
-            cout << "steps: " << steps << endl;
-            //cout << "grad size squared:" << grad_size << endl;
-            cout << "objective:" << result << endl;
-            dbgSVG("step" + std::to_string(iter + 1) + ".svg");
-            //std::ofstream s ("chug" + std::to_string(iter), std::ofstream::out);
-        }
-        /*
-        if (iter == 9999) {
-            cout << "final";
-            dbgOutput("final");
-        }
-        */
-        iter++;
+// This method will take n descent steps, to minimize an energy
+// \[ E(p,\alpha) = \sum_{i^{jk}} (\beta_i^{jk} - \tilde{\theta}_i^{jk}(p) + \tilde{\alpha}_{ij} + \tilde{\alpha}_{ik})^2 \]
+// that measures the distortion of the current corner
+// angles \(\tilde{\beta}\), relative to the desired corner angles \(\beta\).
+void CatOpt::confStep( int nDescentSteps )
+{
+    cout << "Taking " << n << " steps of planar optimization..." << endl;
+
+    // For convenience, grab previous values
+    vector<Vector2>& p0( flattened ); // shorthand for previous 2D vertex positions
+    vector<double>& alpha0( alphas ); // shorthand for previous alpha values
+
+    // Allocate storage for updated data
+    vector<Vector2> p = p0; // new 2D vertex positions
+    vector<double> alpha = alpha0; // new edge angles
+    vector<Vector2> dEdp(nVertices); // differential of energy with respect to vertex positions
+    vector<double> dEdalpha(nEdges); // differential of energy with respect to edge angles
+    double normGrad2 = 1.;
+
+    for (int descentStep = 0; descentStep < nDescentSteps; descentStep++ )
+    {
+       // evaluate the energy and gradient at the previous configuration
+       double E = confObjective(p0, alpha0);
+       confGradient(p0, alpha0, dEdp, dEdalpha);
+
+       // compute the squared norm of the gradient at the previous configuration
+       normGrad2 = 0.;
+       for (Vector2 a: dEdp) normGrad2 += a.norm2();
+       for (double a: dEdalpha) normGrad2 += a*a;
+
+       // perform backtracking line search
+       double t = 0.01; // initial step size for line search
+       const int maxLineSearchSteps = 100;
+       int lineSearchStep;
+       for( lineSearchStep = 0; lineSearchStep < maxLineSearchSteps; lineSearchStep++ )
+       {
+          // check termination criterion
+          if(confObjective(p, alpha) <= E - alpha * t * normGrad2)
+          {
+             break;
+          }
+
+          // take step of current size t
+          for (int i = 0; i < nVertices; i++) {
+             p[i] = p0[i] - t * dEdp[i];
+          }
+          for (int i = 0; i < nEdges; i++) {
+             alpha[i] = alpha0[i] - t * dEdalpha[i];
+          }
+
+          lineSearchStep++;
+          t = beta * t;
+       }
+
+       // replace old configuration (p0,alpha0) with new configuration (p,alpha)
+       p0 = p;
+       alpha0 = alpha;
+
+       //if (iter % 1000 == 0) {
+          cout << "descent iteration " << descentStep << endl;
+          cout << "energy:" << E << endl;
+          cout << "gradient norm" << sqrt(normGrad2) << endl;
+          cout << "step size: " << t << endl;
+          cout << "line search iterations: " << lineSearchStep << endl;
+          //dbgSVG("step" + std::to_string(iter + 1) + ".svg");
+          //std::ofstream s ("chug" + std::to_string(iter), std::ofstream::out);
+       //}
+       /*
+          if (iter == 9999) {
+          cout << "final";
+          dbgOutput("final");
+          }
+          */
     }
     //cout << "iteration count: " << iter << endl;
-    //cout << "grad size:" << sqrt(grad_size) << endl;
+    //cout << "grad size:" << sqrt(normGrad2) << endl;
     //cout << "objective:" << objective(x1, x2, x3) << endl;
     //vector<Vector3> pos = subdiv_points;
 }
+
+// void CatOpt::testFlatteningDerivatives() {
+//    // TODO
+//           /*
+//              int i = 6;
+//              p[i] = p0[i] + Vector2{t,0};
+//           //alpha[i] = alpha0[i] + t;
+//           double new_result = confObjective(p, alpha);
+//           cout << "Objective change:" << new_result - E << endl;
+//           cout <<  "Estimated change:" << t *(dEdp[i].x) << endl;
+//           */
+// }
 
 void CatOpt::loadModel(const std::string& inputPath, bff::Model& model,
 			   std::vector<bool>& surfaceIsClosed) {
