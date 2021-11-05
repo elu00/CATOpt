@@ -107,6 +107,8 @@ class CatOpt {
         polyscope::SurfaceMesh *psMesh;
         polyscope::SurfaceMesh *CATpsMesh;
         void circlePatterns();
+
+        void setOffsets();
     private:
         double sqr(double x) { return x*x; }
         // convenience function to return square of norm of gradient
@@ -147,5 +149,12 @@ class CatOpt {
         void testSVG();
 
 
+        // Circle pattern stuff?
+        VertexData<Eigen::Vector2d> uv;
+        Eigen::Vector2d center;
+        double invRadius;
+        void uvSVG(std::string filename);
+        void circleInversion();
+        Vector<double> circleSol;
         
 };

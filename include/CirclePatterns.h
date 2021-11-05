@@ -24,9 +24,9 @@ public:
     EdgeData<size_t> eInd, VertexData<size_t> vInd, FaceData<size_t> fInd, Eigen::VectorXd thetas);
     
     // parameterize
-    void parameterize();
+    VertexData<Eigen::Vector2d> parameterize();
 
-    void dbgSVG(std::string filename);
+
     
 protected:
 
@@ -54,6 +54,7 @@ protected:
     // determines position of unfixed face vertex
     void performFaceLayout(Halfedge he, const Eigen::Vector2d& dir, Eigen::VectorXd& lengths,
                            std::unordered_map<int, bool>& visited, std::stack<Edge>& stack);
+
     
     // sets uvs
     void setUVs();
@@ -61,7 +62,6 @@ protected:
     void normalize();
     double uvArea(Face f);
 
-    void setOffsets();
 
     Eigen::Vector2d uvBarycenter(Face f);
 
@@ -81,7 +81,7 @@ protected:
     VertexData<size_t> vInd;
     FaceData<size_t> fInd;
     VertexData<Eigen::Vector2d> uv;
-    
+
 };
 
 #endif 

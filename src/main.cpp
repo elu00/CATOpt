@@ -75,6 +75,7 @@ int main(int argc, char **argv) {
     c.generateConstraints();
     c.conformalFlatten();
     c.circlePatterns();
+    c.setOffsets();
     
     return EXIT_SUCCESS;
 }
