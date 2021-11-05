@@ -67,6 +67,7 @@ protected:
 
     
     // member variables
+    //Vector<double> sol;
     Eigen::VectorXd angles;
     Eigen::VectorXd thetas;
     Eigen::VectorXd radii;

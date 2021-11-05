@@ -2,7 +2,7 @@
 #include <deque>
 #define beta 0.9
 #define EPSILON 1e-9
-#define MAX_ITERS 10000
+#define MAX_ITERS 20000
 
 SolverF::SolverF():
 n(0)

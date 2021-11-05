@@ -60,9 +60,10 @@ int main(int argc, char **argv) {
     // Make sure a mesh name was given
     if (!inputFilename) {
         //inputMeshPath = "/home/elu/repos/catopt/meshes/cube.obj";
-        //inputMeshPath = "/home/elu/repos/catopt/meshes/nonconvex2.obj";
-        inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/spotwithhole.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/beanhole.obj";
+        //inputMeshPath = "/home/elu/repos/catopt/meshes/nonconvex2.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/test.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/patch.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/BumpyTorusPatch.obj";
@@ -71,6 +72,7 @@ int main(int argc, char **argv) {
     }
     CatOpt c (inputMeshPath);
     //c.polyscopeInit();
+    c.generateConstraints();
     c.conformalFlatten();
     c.circlePatterns();
     

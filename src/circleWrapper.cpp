@@ -7,11 +7,14 @@ using namespace monty;
 
 void CatOpt::circlePatterns() {
     //targetAngles = CornerData<double>(*mesh);
+    cout << "Circle pattern LP" << endl;
     EdgeData<size_t> eInd = flatmesh->getEdgeIndices();
     VertexData<size_t> vInd = flatmesh->getVertexIndices();
     CornerData<size_t> cInd = flatmesh->getCornerIndices();
     FaceData<size_t> fInd = flatmesh->getFaceIndices();
+    VertexData<bool> mark(*flatmesh, false);
     size_t vi, vj, vk;
+    /*
     for (Vertex v: flatmesh->vertices()) {
         if (v.isBoundary()) {
             int count = 0;
@@ -30,6 +33,7 @@ void CatOpt::circlePatterns() {
             break;
         }
     }
+    */
 
 
 
@@ -37,14 +41,14 @@ void CatOpt::circlePatterns() {
 
     Model::t M = new Model();
     auto _M = finally([&]() { M->dispose(); });
-    Variable::t Theta = M->variable("Theta", flatmesh->nEdges(), Domain::inRange(-PI, PI));
+    //Variable::t Theta = M->variable("Theta", flatmesh->nEdges(), Domain::inRange(-PI, PI));
     Variable::t alpha = M->variable("alpha", flatmesh->nCorners(), Domain::inRange(0, PI));
     vector<int> rows;
     vector<int> cols;
     vector<double> values;
     vector<double> rhs(nEdges, 0);
 
-
+    /*
     // Interior agreement constraint
     for (Edge e : flatmesh->edges()) {
         if (!e.isBoundary()) {
@@ -66,55 +70,64 @@ void CatOpt::circlePatterns() {
     cols.clear();
     values.clear();
 
-
+    */
 
     // Intersection angle constraint
-    rhs = vector<double>(nEdges, PI);
+    rhs = vector<double>(nEdges, 0);
     for (Edge e : flatmesh->edges()) {
         Halfedge he = e.halfedge();
-        if (he.isInterior()) {
-            rows.emplace_back(eInd[e]);
-            cols.emplace_back(cInd[he.next().next().corner()]);
-            values.emplace_back(1);
-        } 
-        if (he.twin().isInterior()) {
-            rows.emplace_back(eInd[e]);
-            cols.emplace_back(cInd[he.twin().next().next().corner()]);
-            values.emplace_back(1);
+        if (!e.isBoundary()) {
+            if (he.isInterior()) {
+                rows.emplace_back(eInd[e]);
+                cols.emplace_back(cInd[he.next().next().corner()]);
+                values.emplace_back(1);
+            } 
+            if (he.twin().isInterior()) {
+                rows.emplace_back(eInd[e]);
+                cols.emplace_back(cInd[he.twin().next().next().corner()]);
+                values.emplace_back(1);
+            }
+            rhs[eInd[e]] = flatGeometry->cornerAngle(e.halfedge().next().next().corner()) 
+                            + flatGeometry->cornerAngle(e.halfedge().twin().next().next().corner());
         }
     }
-    r = new_array_ptr<int>(rows);
-    c = new_array_ptr<int>(cols);
-    v = new_array_ptr<double>(values);
+    auto r = new_array_ptr<int>(rows);
+    auto c = new_array_ptr<int>(cols);
+    auto v = new_array_ptr<double>(values);
     auto intersectionConst = Matrix::sparse(nEdges, flatmesh->nCorners(), r, c, v);
     auto intersectionPI = new_array_ptr(rhs);
-    M->constraint("Intersection Agreement", Expr::add(Theta, Expr::mul(intersectionConst, alpha)), Domain::equalsTo(intersectionPI));
+    M->constraint("Intersection Agreement", Expr::mul(intersectionConst, alpha), Domain::equalsTo(intersectionPI));
+    rhs.clear();
     rows.clear();
     cols.clear();
     values.clear();
 
 
 
-
     // Flat Boundary Constraint
+    size_t excl = 3;
     size_t count = 0;
     for (Vertex v: flatmesh->boundaryLoop(0).adjacentVertices()) {
-        if (!(vInd[v] != vi && vInd[v] != vj && vInd[v] != vk)) {
+        if (count >= excl) {
+        //if (!(vInd[v] != vi && vInd[v] != vj && vInd[v] != vk)) {
             for (Corner c: v.adjacentCorners()) {
                 rows.emplace_back(count);
                 cols.emplace_back(cInd[c]);
                 values.emplace_back(1.);
             }
-            count++;
+            rhs.push_back(PI);
+        } else {
+            rhs.push_back(0);
         }
+        count++;
     }
-    rhs = vector<double>(count, PI);
+    for (size_t i = 0; i < excl; i++) rhs[i] = 0;
     r = new_array_ptr<int>(rows);
     c = new_array_ptr<int>(cols);
     v = new_array_ptr<double>(values);
     auto bdryFlat = Matrix::sparse(count, flatmesh->nCorners(), r, c, v);
     auto bdryPI = new_array_ptr(rhs);
-    //M->constraint("Flat boundary", Expr::mul(bdryFlat, alpha), Domain::equalsTo(bdryPI));
+    M->constraint("Flat boundary", Expr::mul(bdryFlat, alpha), Domain::equalsTo(bdryPI));
     rows.clear();
     cols.clear();
     values.clear();
@@ -124,9 +137,9 @@ void CatOpt::circlePatterns() {
     // Sum to pi in each triangle constraint
     rhs = vector<double>(nFaces, PI);
     for (Face f : flatmesh->faces()) {
-        for (Vertex v: f.adjacentVertices()) {
+        for (Corner c: f.adjacentCorners()) {
             rows.emplace_back(fInd[f]);
-            cols.emplace_back(vInd[v]);
+            cols.emplace_back(cInd[c]);
             values.emplace_back(1);
         }
     }
@@ -140,19 +153,27 @@ void CatOpt::circlePatterns() {
     cols.clear();
     values.clear();
 
-
-    auto ones = std::make_shared<ndarray<double, 1>>(shape(nEdges), 1.);
-    //Variable::t t = M->variable("t", 1, Domain::unbounded());
-    //M->constraint(Expr::vstack(t, x), Domain::inQCone());
-    //M->objective(ObjectiveSense::Minimize, t);
+    auto avg = std::make_shared<ndarray<double, 1>>(shape(nCorners), PI/3);
+    Variable::t t = M->variable("t", 1, Domain::unbounded());
+    M->constraint(Expr::vstack(t, Expr::sub(alpha,avg)), Domain::inQCone());
+    M->objective(ObjectiveSense::Minimize, t);
     M->solve();
     cout << "LP Done" << endl;
     cout << M->getProblemStatus() << endl;
-    auto xsize = Theta->getSize();
-    auto xVal = Theta->level();
+    //auto xsize = Theta->getSize();
+    //auto xVal = Theta->level();
+    auto asize = alpha->getSize();
+    auto asol = alpha->level();
     std::cout << "Optimal primal objective: " << M->primalObjValue() << endl;
+    /*
     for (int i = 0; i < xsize; ++i) {
         thetas[i] = (*xVal)[i];
+    }
+    */
+   for (Edge e : flatmesh->edges()) {
+        double a1 = e.halfedge().isInterior() ? (*asol)[cInd[e.halfedge().next().next().corner()]] : 0;
+        double a2 = e.halfedge().twin().isInterior() ? (*asol)[cInd[e.halfedge().twin().next().next().corner()]] : 0;
+        thetas[eInd[e]] = PI - a1 - a2;
     }
 
     /*

@@ -327,7 +327,6 @@ void CatOpt::conformalFlatten() {
     // DEBUG
     alphas = vector<double>(nEdges, 0);
     targetAngles = CornerData<double>(*mesh);
-    /*
     for (Corner C: mesh->corners()) {
         Halfedge h = C.halfedge();
         if (h.isInterior()) {
@@ -338,7 +337,6 @@ void CatOpt::conformalFlatten() {
             //cout << "angle is" << angle;
         }
     }
-    */
     /*
     // DEBUG
     for (Vertex v: mesh->vertices()) {
@@ -369,7 +367,7 @@ void CatOpt::conformalFlatten() {
     */
     dbgSVG("step0.svg");
     //dbgOutput("chug0");
-    confStep(2000);  
+    confStep(13000);  
     buildNewGeometry();
 
 

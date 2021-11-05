@@ -47,6 +47,7 @@ using std::string;
 class CatOpt {
     public:
         void conformalFlatten();
+        void generateConstraints();
         CatOpt(string filename);
         void polyscopeInit();
         // == Geometry-central data
@@ -123,7 +124,6 @@ class CatOpt {
         // Intrinsic angle optimization stuff
 
         void initializeQuantities();
-        void generateConstraints();
         void subdivision();
         void buildNewMesh();
         double objective(const VectorXd &x1, const VectorXd &x2, const VectorXd &x3);
