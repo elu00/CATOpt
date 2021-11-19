@@ -3,8 +3,6 @@ CatOpt::CatOpt(string s) {
     inputMeshPath = s;
     cout << "Initialized" << endl;
 
-    
-
     // Load mesh
     std::tie(mesh, geometry) = readManifoldSurfaceMesh(inputMeshPath);
 
@@ -29,8 +27,7 @@ void CatOpt::polyscopeInit() {
     //polyscope::state::userCallback = myCallback;
     // Register the mesh with polyscope
     
-    psMesh = polyscope::registerSurfaceMesh(
-        "main",
+    psMesh = polyscope::registerSurfaceMesh("main",
         geometry->inputVertexPositions, mesh->getFaceVertexList(),
         polyscopePermutations(*mesh));
     //generateVisualization();
@@ -66,7 +63,7 @@ int main(int argc, char **argv) {
         //inputMeshPath = "/home/elu/repos/catopt/meshes/nonconvex2.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/test.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/patch.obj";
-        inputMeshPath = "/home/elu/repos/catopt/meshes/BumpyTorusPatch.obj";
+        //inputMeshPath = "/home/elu/repos/catopt/meshes/BumpyTorusPatch.obj";
     } else {
         inputMeshPath = args::get(inputFilename);
     }

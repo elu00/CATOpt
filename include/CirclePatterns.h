@@ -20,8 +20,8 @@ class CirclePatterns{
 public:
     shared_ptr<ManifoldSurfaceMesh> mesh;
     // constructor
-    CirclePatterns(shared_ptr<ManifoldSurfaceMesh> mesh0, int optScheme0, vector<double>& solve,
-    EdgeData<size_t> eInd, VertexData<size_t> vInd, FaceData<size_t> fInd, Eigen::VectorXd thetas);
+    CirclePatterns(shared_ptr<ManifoldSurfaceMesh> mesh0, Vertex infVertex,
+    int optScheme0, vector<double>& solve, Eigen::VectorXd thetas);
     
     // parameterize
     VertexData<Eigen::Vector2d> parameterize();
@@ -76,6 +76,7 @@ protected:
     SolverF solver;
     int OptScheme;
 
+    Vertex infVertex;
     vector<double> sol;
     EdgeData<size_t> eInd;
     VertexData<size_t> vInd;

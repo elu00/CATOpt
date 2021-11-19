@@ -195,8 +195,7 @@ void CatOpt::confStep(int nDescentSteps) {
          << " steps of planar optimization..." << endl;
 
     // For convenience, grab previous values
-    vector<Vector2>& p0(
-        flattened);  // shorthand for previous 2D vertex positions
+    vector<Vector2>& p0(flattened);  // shorthand for previous 2D vertex positions
     vector<double>& alpha0(alphas);  // shorthand for previous alpha values
 
     // Allocate storage for updated data
@@ -251,8 +250,7 @@ void CatOpt::confStep(int nDescentSteps) {
         alpha0 = alpha;
 
         // DEBUG:
-        // 
-        if (descentStep % 10000 == 0 || descentStep < 1000) {
+        if (descentStep % 10000 == 0 || descentStep < 100) {
             cout << "Descent iteration " << descentStep << endl;
             cout << "energy:" << E << endl;
             cout << "gradient norm" << sqrt(normGrad2) << endl;
@@ -472,7 +470,7 @@ void CatOpt::conformalFlatten() {
     */
     dbgSVG("step0.svg");
     // dbgOutput("chug0");
-    confStep(100000);
+    confStep(10000);
     buildNewGeometry();
 }
 // Initializes flatmesh with the BFF geometry, then writes it to disc

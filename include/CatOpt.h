@@ -30,6 +30,7 @@
 #include "glm/vec3.hpp"
 
 
+#include "fusion.h"
 
 using namespace geometrycentral;
 using namespace geometrycentral::surface;
@@ -44,6 +45,8 @@ using std::make_tuple;
 using std::tuple;
 using std::vector;
 using std::string;
+
+using namespace monty;
 class CatOpt {
     public:
         void conformalFlatten();
@@ -91,7 +94,7 @@ class CatOpt {
         Eigen::SparseMatrix<double> bendingMatrix;
         // tuning parameters for gradient descent
         // maybe change this back to 0.1
-        double lineSearchAlpha = 0.01;
+        double lineSearchAlpha = 0.1;
         double beta = 0.5;
         double ep = 1e-3;
         // weight for the bending energy
@@ -111,7 +114,6 @@ class CatOpt {
 
         void setOffsets();
 
-        void testFlatteningDerivatives();
     private:
         double sqr(double x) { return x*x; }
         // convenience function to return square of norm of gradient
@@ -148,16 +150,20 @@ class CatOpt {
         void flatten(bff::Model& model, const std::vector<bool>& surfaceIsClosed,
                     int nCones, bool flattenToDisk, bool mapToSphere);
         void buildNewGeometry();
+        void testFlatteningDerivatives();
         // just for validating the SVG formula I'm using
         void testSVG();
 
 
         // Circle pattern stuff?
+        monty::rc_ptr<mosek::fusion::Matrix> sMatrix(int m, int n, vector<int>& rows, vector<int>& cols, 
+                    vector<double>& values);
         VertexData<Eigen::Vector2d> uv;
         Eigen::Vector2d center;
         double invRadius;
         void uvSVG(std::string filename);
         void circleInversion();
         Vector<double> circleSol;
+        Vertex infVertex;
         
 };

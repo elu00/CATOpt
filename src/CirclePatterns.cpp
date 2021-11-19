@@ -1,23 +1,24 @@
 #include "CirclePatterns.h"
 #include <Eigen/SparseQR>
 
-CirclePatterns::CirclePatterns(shared_ptr<ManifoldSurfaceMesh> mesh0, int optScheme0, vector<double>& solve,
-EdgeData<size_t> eInd, VertexData<size_t> vInd, FaceData<size_t> fInd, Eigen::VectorXd thetas):
+CirclePatterns::CirclePatterns(shared_ptr<ManifoldSurfaceMesh> mesh0, Vertex infVertex, int optScheme0, 
+    vector<double>& solve, Eigen::VectorXd thetas):
 mesh(mesh0),
+infVertex(infVertex),
 angles(mesh->nHalfedges()),
 thetas(thetas),
 radii(mesh->nFaces()),
 eIntIndices(mesh->nEdges()),
 imaginaryHe(0),
-eInd(eInd),
-vInd(vInd),
-fInd(fInd),
 OptScheme(optScheme0)
 {
     // I added a plus 1 here and at radii; should figure why I need to
     solver.n = mesh->nFaces();
     sol = solve;
     uv = VertexData<Eigen::Vector2d> (*mesh);
+    eInd = mesh->getEdgeIndices();
+    vInd = mesh->getVertexIndices();
+    fInd = mesh->getFaceIndices();
 }
 
 // no longer need since thetas are given
@@ -307,14 +308,6 @@ VertexData<Eigen::Vector2d> CirclePatterns::parameterize()
         }
     }
     
-    /*
-    // compute angles
-    if (!computeAngles()) {
-        std::cout << "Unable to compute angles" << std::endl;
-        return;
-    }
-    */
-    
     // compute radii
     if (!computeRadii()) {
         std::cout << "Unable to compute radii" << std::endl;
@@ -355,18 +348,25 @@ void CirclePatterns::normalize() {
     // compute center
     double totalArea = 0;
     Eigen::Vector2d center = Eigen::Vector2d::Zero();
+    uv[infVertex.getIndex()] = Eigen::Vector2d::Zero();
+    uv[infVertex.getIndex()].x() = -8;
+    //uv[infVertex.getIndex()].y() = 5;
     for (Face f : mesh->faces()) {
-        double area = uvArea(f);
-        center += area * uvBarycenter(f);
-        totalArea += area;
+        if (f != *(infVertex.adjacentFaces().begin())){
+            double area = uvArea(f);
+            center += area * uvBarycenter(f);
+            totalArea += area;
+        }
     }
     center /= totalArea;
     
     // shift
     double r = 0.0;
     for (Vertex v : mesh->vertices()) {
-        uv[v] -= center;
-        r = std::max(r, uv[v].squaredNorm());
+        if (v != infVertex) {
+            uv[v] -= center;
+            r = std::max(r, uv[v].squaredNorm());
+        }
     }
     
     // scale
