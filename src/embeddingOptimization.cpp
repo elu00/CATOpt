@@ -293,7 +293,7 @@ void CatOpt::step(int n) {
         x1_new = x1 - t * grad1;
         x2_new = x2 - t * grad2;
         x3_new = x3 - t * grad3;
-        while (objective(x1_new, x2_new, x3_new) > result - alpha * t * grad_size) {
+        while (objective(x1_new, x2_new, x3_new) > result - lineSearchAlpha * t * grad_size) {
             t = beta * t;
             x1_new = x1 - t * grad1;
             x2_new = x2 - t * grad2;

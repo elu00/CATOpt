@@ -90,7 +90,8 @@ class CatOpt {
         vector<tuple<size_t, size_t, double>> correct_dist;
         Eigen::SparseMatrix<double> bendingMatrix;
         // tuning parameters for gradient descent
-        double alpha = 0.1;
+        // maybe change this back to 0.1
+        double lineSearchAlpha = 0.01;
         double beta = 0.5;
         double ep = 1e-3;
         // weight for the bending energy

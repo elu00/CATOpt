@@ -195,7 +195,7 @@ void CatOpt::circlePatterns() {
     cout << "parameterization done" << endl;
     // calculate circle center to invert around
     count = 0;
-    invRadius = 0.5;
+    invRadius = 0.2;
     Eigen::Vector2d b1;
     Eigen::Vector2d b2;
     for (Vertex v: flatmesh->boundaryLoop(0).adjacentVertices()) {
@@ -299,7 +299,7 @@ void CatOpt::setOffsets() {
             auto u0 = b0 - a0;
             auto v0 = c0 - a0;
             double actAngle = -orientedAngle(Vector2({u0.x(), u0.y()}),Vector2({v0.x(), v0.y()}));
-            cout << "act" << actAngle << endl;
+            //cout << "act" << actAngle << endl;
             rhs[cInd[C]] = tAngle - actAngle;
         } else {cout << "WAAAAH";}
     }
