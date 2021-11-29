@@ -1,188 +1,37 @@
-#include "CatOpt.h"
+#include "CircleWrapper.h"
 #include "CirclePatterns.h"
 #include "Solver.h"
-#include "fusion.h"
-using namespace mosek::fusion;
-using namespace monty;
 
-// helper function for making a sparse matrix
-monty::rc_ptr<mosek::fusion::Matrix> CatOpt::sMatrix(int m, int n, vector<int>& rows, vector<int>& cols, vector<double>& values ) {
-    auto r = new_array_ptr<int>(rows);
-    auto c = new_array_ptr<int>(cols);
-    auto v = new_array_ptr<double>(values);
-    return Matrix::sparse(m,n,r,c,v);
+inline double shift(double c) {
+            return (c + 2.) * 500;
+        }
+CircleWrapper::CircleWrapper(shared_ptr<ManifoldSurfaceMesh> mesh, SolutionData sol): mesh(mesh) {
+    beta = sol.betas;
+    theta = sol.thetas;
+    eMask = sol.eMask;
+    eBdry = sol.eBdry;
+    fMask = sol.fMask;
+    infVertex = sol.infVertex;
+    thetas = Eigen::VectorXd::Zero(mesh->nEdges());
+    EdgeData<size_t> e_ = mesh->getEdgeIndices();
+    for (Edge e: mesh->edges()) {
+        thetas[e_[e]] = theta[e];
+    }
 }
-void CatOpt::circlePatterns() {
-    // targetAngles = CornerData<double>(*mesh);
-    cout << "Circle pattern LP" << endl;
-    EdgeData<size_t> e_ = flatmesh->getEdgeIndices();
-    VertexData<size_t> v_ = flatmesh->getVertexIndices();
-    CornerData<size_t> c_ = flatmesh->getCornerIndices();
-    FaceData<size_t> f_ = flatmesh->getFaceIndices();
-    VertexData<bool> mark(*flatmesh, false);
-
-    // input to the circle pattern solver
-    Eigen::VectorXd thetas(flatmesh->nEdges());
-
-    // constraint variables
-    Model::t M = new Model();
-    auto _M = finally([&]() { M->dispose(); });
-    Variable::t alpha =
-        M->variable("alpha", flatmesh->nCorners(), Domain::inRange(0, PI));
-    vector<int> rows;
-    vector<int> cols;
-    vector<double> values;
-    vector<double> rhs;
-
-
-    // Flat Boundary Constraint
+void CircleWrapper::solve() {
+    //TODO: change this
     size_t excl = 3;
-    size_t count = 0;
-    for (Vertex v : flatmesh->boundaryLoop(0).adjacentVertices()) {
-        if (count == 1) infVertex = v;
-        if (count >= excl) {
-            // if (!(vInd[v] != vi && vInd[v] != vj && vInd[v] != vk)) {
-            for (Corner c : v.adjacentCorners()) {
-                rows.emplace_back(count);
-                cols.emplace_back(c_[c]);
-                values.emplace_back(1.);
-            }
-            rhs.push_back(PI);
-        } else {
-            rhs.push_back(0);
-        }
-        count++;
-    }
-    auto bdryFlat = sMatrix(count, flatmesh->nCorners(), rows, cols, values);
-    auto bdryPI = new_array_ptr(rhs);
-    M->constraint("Flat boundary", Expr::mul(bdryFlat, alpha),
-                  Domain::equalsTo(bdryPI));
-    rows.clear();
-    cols.clear();
-    values.clear();
-
-    FaceData<bool> fMask(*flatmesh, true);
-    EdgeData<bool> eMask(*flatmesh, true);
-    EdgeData<bool> eBdry(*flatmesh, false);
-    
-    // mark all the boundary edges as the new boundary
-    for (Edge e : flatmesh->boundaryLoop(0).adjacentEdges()) {
-        eBdry[e] = true;
-    }
-    // the edges adjacent to the infinite vertex shouldn't be included in
-    // future calculations of the boundary
-    /*
-    for (Edge e: infVertex.adjacentEdges()) {
-        eMask[e] = false;
-        eBdry[e] = false;
-    }
-    for (Face f: infVertex.adjacentFaces()) {
-        fMask[f] = false;
-        // extra boundary edges
-        for (Edge e: f.adjacentEdges()) {
-            if (eMask[e]) eBdry[e] = true;
-        }
-    }
-    */
-
-    // Intersection angle constraint
-    rhs = vector<double>(nEdges, 0);
-    for (Edge e : flatmesh->edges()) {
-        if (eMask[e] && !e.isBoundary()) {
-            Halfedge he = e.halfedge();
-            if (he.isInterior()) {
-                rows.emplace_back(e_[e]);
-                cols.emplace_back(c_[he.next().next().corner()]);
-                values.emplace_back(1);
-            }
-            if (he.twin().isInterior()) {
-                rows.emplace_back(e_[e]);
-                cols.emplace_back(c_[he.twin().next().next().corner()]);
-                values.emplace_back(1);
-            }
-            rhs[e_[e]] =
-                flatGeometry->cornerAngle(e.halfedge().next().next().corner()) +
-                flatGeometry->cornerAngle(e.halfedge().twin().next().next().corner());
-        }
-    }
-    
-    auto intersectionConst = sMatrix(nEdges, flatmesh->nCorners(), rows, cols, values);
-    auto intersectionPI = new_array_ptr(rhs);
-    M->constraint("Intersection Agreement", Expr::mul(intersectionConst, alpha),
-                  Domain::equalsTo(intersectionPI));
-    rhs.clear();
-    rows.clear();
-    cols.clear();
-    values.clear();
-
-
-    // Sum to pi in each triangle constraint
-    rhs = vector<double>(nFaces, PI);
-    for (Face f : flatmesh->faces()) {
-        if (true){
-        //if(fMask[f]) {
-            for (Corner c : f.adjacentCorners()) {
-                rows.emplace_back(f_[f]);
-                cols.emplace_back(c_[c]);
-                values.emplace_back(1); 
-            }
-        } else rhs[f_[f]] = 0;
-    }
-    auto sumConst = sMatrix(nFaces, flatmesh->nCorners(), rows, cols, values);
-    auto sumPI = new_array_ptr(rhs);
-    M->constraint("sum constraint", Expr::mul(sumConst, alpha),
-                  Domain::equalsTo(sumPI));
-    rows.clear();
-    cols.clear();
-    values.clear();
-
-    auto avg = std::make_shared<ndarray<double, 1>>(shape(nCorners), PI / 3);
-    Variable::t t = M->variable("t", 1, Domain::unbounded());
-    M->constraint(Expr::vstack(t, Expr::sub(alpha, avg)), Domain::inQCone());
-    M->objective(ObjectiveSense::Minimize, t);
-    M->solve();
-    cout << "LP Done" << endl;
-    cout << M->getProblemStatus() << endl;
-    // auto xsize = Theta->getSize();
-    // auto xVal = Theta->level();
-    auto asize = alpha->getSize();
-    auto asol = alpha->level();
-    std::cout << "Optimal primal objective: " << M->primalObjValue() << endl;
-
-    for (Edge e : flatmesh->edges()) {
-        double a1 = e.halfedge().isInterior()
-                        ? (*asol)[c_[e.halfedge().next().next().corner()]]
-                        : 0;
-        double a2 =
-            e.halfedge().twin().isInterior()
-                ? (*asol)[c_[e.halfedge().twin().next().next().corner()]]
-                : 0;
-        thetas[e_[e]] = PI - a1 - a2;
-    }
-
-    /*
-    for (Vertex v: mesh->vertices()) {
-        double accum = 0;
-        for (Corner C : v.adjacentCorners()) {
-            accum += targetAngles[C];
-        }
-        if (v.isBoundary()) {
-            cout << "boundary" << accum << endl;
-        } else {
-            cout << "not boundary" << accum << endl;
-        }
-    }
-    */
-    CirclePatterns prob(flatmesh, infVertex, eMask, eBdry, fMask, 0, sol, thetas);
-    cout << "starting parameterization" << endl;
+    std::cout << "Circle pattern stuff" << endl;
+    CirclePatterns prob(mesh, infVertex, eMask, eBdry, fMask, 0, thetas);
+    std::cout << "starting parameterization" << std::endl;
     uv = prob.parameterize();
-    cout << "parameterization done" << endl;
+    std::cout << "parameterization done" << std::endl;
     // calculate circle center to invert around
-    count = 0;
+    int count = 0;
     invRadius = 0.2;
     Eigen::Vector2d b1;
     Eigen::Vector2d b2;
-    for (Vertex v : flatmesh->boundaryLoop(0).adjacentVertices()) {
+    for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
         if (count == 0) {
             b1 = uv[v];
         } else if (count == excl - 1) {
@@ -193,14 +42,14 @@ void CatOpt::circlePatterns() {
     }
     auto offset = Eigen::Vector2d((b2 - b1).y(), -(b2 - b1).x());
     center = (b1 + b2) / 2. + invRadius * offset / offset.norm();
-    circleSol = Vector<double>(flatmesh->nEdges());
-    for (int i = 0; i < flatmesh->nEdges(); i++) circleSol[i] = 0;
+    circleSol = Vector<double>(mesh->nEdges());
+    for (int i = 0; i < mesh->nEdges(); i++) circleSol[i] = 0;
     uvSVG("flat.svg", eMask);
     circleInversion();
     uvSVG("inverted.svg", eMask);
 }
 
-void CatOpt::uvSVG(std::string filename, EdgeData<bool> eMask) {
+void CircleWrapper::uvSVG(std::string filename, EdgeData<bool> eMask) {
     std::ofstream ss(filename, std::ofstream::out);
     ss << "<?xml version=\"1.0\" standalone=\"no\" ?>" << endl
        << "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" "
@@ -209,7 +58,7 @@ void CatOpt::uvSVG(std::string filename, EdgeData<bool> eMask) {
        << "<svg width=\"2000\" height=\"2000\" "
           "xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\" >"
        << endl;
-    for (Vertex v : flatmesh->vertices()) {
+    for (Vertex v : mesh->vertices()) {
         Eigen::Vector2d thing = uv[v];
         ss << "<circle cx=\"" << shift(thing.x()) << "\" cy=\""
            << shift(thing.y()) << "\" r=\"1\"/>" << endl;
@@ -220,7 +69,7 @@ void CatOpt::uvSVG(std::string filename, EdgeData<bool> eMask) {
     ss << "<circle cx=\"" << shift(center.x()) << "\" cy=\""
        << shift(center.y()) << "\" r=\"" << 500 * invRadius
        << "\" stroke=\"black\" fill-opacity=\"0\"/>" << endl;
-    for (Edge e : flatmesh->edges()) {
+    for (Edge e : mesh->edges()) {
         if (eMask[e]) {
             Eigen::Vector2d i = uv[e.halfedge().vertex()];
             Eigen::Vector2d j = uv[e.halfedge().twin().vertex()];
@@ -252,8 +101,8 @@ void CatOpt::uvSVG(std::string filename, EdgeData<bool> eMask) {
     ss << "</svg>";
     std::cout << "done";
 }
-void CatOpt::circleInversion() {
-    for (Vertex v : flatmesh->vertices()) {
+void CircleWrapper::circleInversion() {
+    for (Vertex v : mesh->vertices()) {
         uv[v] = invRadius * invRadius * (uv[v] - center) /
                     ((uv[v] - center).squaredNorm()) +
                 center;
@@ -261,40 +110,31 @@ void CatOpt::circleInversion() {
     uv[infVertex.getIndex()] = center;
 }
 // Builds solver for alphas, storing them in circleSol
-void CatOpt::setOffsets() {
-    EdgeData<size_t> e_ = flatmesh->getEdgeIndices();
-    VertexData<size_t> v_ = flatmesh->getVertexIndices();
-    CornerData<size_t> c_ = flatmesh->getCornerIndices();
-    FaceData<size_t> f_ = flatmesh->getFaceIndices();
-    geometrycentral::SparseMatrix<double> A(flatmesh->nCorners(),
-                                            flatmesh->nEdges());
-    Vector<double> rhs(flatmesh->nCorners());
+void CircleWrapper::setOffsets() {
+    EdgeData<size_t> e_ = mesh->getEdgeIndices();
+    VertexData<size_t> v_ = mesh->getVertexIndices();
+    CornerData<size_t> c_ = mesh->getCornerIndices();
+    FaceData<size_t> f_ = mesh->getFaceIndices();
+    geometrycentral::SparseMatrix<double> A(mesh->nCorners(),
+                                            mesh->nEdges());
+    Vector<double> rhs(mesh->nCorners());
     vector<Eigen::Triplet<double>> triplets;
-    for (Corner C : flatmesh->corners()) {
+    for (Corner C : mesh->corners()) {
         Halfedge h = C.halfedge();
         Halfedge ab = h;
         Halfedge bc = h.next();
         Halfedge ca = h.next().next();
         // if (h.isInterior()) {
-        const Vector2& a = flattened[v_[ab.vertex()]];
-        const Vector2& b = flattened[v_[bc.vertex()]];
-        const Vector2& c = flattened[v_[ca.vertex()]];
-        auto u = b - a;
-        auto v = c - a;
-        double tAngle = orientedAngle(u, v);
+        double tAngle = beta[C];
         // alphas are offsets from canonical halfedge orientation
         if (h.edge().halfedge() == h) {
-            tAngle += alphas[e_[h.edge()]];
             triplets.push_back({(int)c_[C], (int)e_[h.edge()], 1});
         } else {
-            tAngle -= alphas[e_[h.edge()]];
             triplets.push_back({(int)c_[C], (int)e_[h.edge()], -1});
         }
         if (ca.edge().halfedge() == ca) {
-            tAngle += alphas[e_[ca.edge()]];
             triplets.push_back({(int)c_[C], (int)e_[ca.edge()], 1});
         } else {
-            tAngle -= alphas[e_[ca.edge()]];
             triplets.push_back({(int)c_[C], (int)e_[ca.edge()], -1});
         }
         auto a0 = uv[ab.vertex()];
@@ -314,10 +154,10 @@ void CatOpt::setOffsets() {
     Solver<double> solver(A);
     circleSol = solver.solve(rhs);
     std::cout << "matrix rank is " << solver.rank() << std::endl;
-    std::cout << "nEdges is " << flatmesh->nEdges() << std::endl;
+    std::cout << "nEdges is " << mesh->nEdges() << std::endl;
 
-    uvSVG("offset.svg", EdgeData<bool>(*flatmesh, true));
-    for (Edge e : flatmesh->boundaryLoop(0).adjacentEdges()) {
-        cout << circleSol[e_[e]];
+    uvSVG("offset.svg", EdgeData<bool>(*mesh, true));
+    for (Edge e : mesh->boundaryLoop(0).adjacentEdges()) {
+        std::cout << circleSol[e_[e]];
     }
 }

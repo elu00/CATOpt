@@ -1,40 +1,19 @@
-#include "CatOpt.h"
-CatOpt::CatOpt(string s) {
-    inputMeshPath = s;
-    cout << "Initialized" << endl;
+#include "args/args.hxx"
+#include <string>
+#include <iostream>
+#include <memory>
+using std::string;
+using std::shared_ptr;
 
-    // Load mesh
-    std::tie(mesh, geometry) = readManifoldSurfaceMesh(inputMeshPath);
+#include "Common.h"
 
-    
-    cout << "starting optimization" << endl;
-    initializeQuantities();
-    generateConstraints();
 
-    //subdivision();
-    //buildNewMesh();
+#include "IntrinsicFlattening.h"
+#include "CircleWrapper.h"
 
-    //fin = descent();
+shared_ptr<ManifoldSurfaceMesh> mesh;
+shared_ptr<VertexPositionGeometry> geometry;
 
-    //conformalFlatten();
-    //testSVG();
-
-}
-void CatOpt::polyscopeInit() {
-    cout << "Initializing Polyscope" << endl;
-    //polyscope::init("openGL_mock");
-    polyscope::init();
-    //polyscope::state::userCallback = myCallback;
-    // Register the mesh with polyscope
-    
-    psMesh = polyscope::registerSurfaceMesh("main",
-        geometry->inputVertexPositions, mesh->getFaceVertexList(),
-        polyscopePermutations(*mesh));
-    //generateVisualization();
-    // Give control to the polyscope gui
-    polyscope::show();
-    
-}
 int main(int argc, char **argv) {
     // Configure the argument parser
     string inputMeshPath;
@@ -58,7 +37,7 @@ int main(int argc, char **argv) {
     if (!inputFilename) {
         //inputMeshPath = "/home/elu/repos/catopt/meshes/cube.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/spotwithhole.obj";
-        inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
+        //inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/beanhole.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/nonconvex2.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/test.obj";
@@ -67,12 +46,12 @@ int main(int argc, char **argv) {
     } else {
         inputMeshPath = args::get(inputFilename);
     }
-    CatOpt c (inputMeshPath);
-    //c.polyscopeInit();
-    c.generateConstraints();
-    c.conformalFlatten();
-    c.circlePatterns();
-    c.setOffsets();
+    std::tie(mesh, geometry) = readManifoldSurfaceMesh(inputMeshPath);
+    mesh->compress();
+    IntrinsicFlattening flattener(mesh, geometry);
+    SolutionData sol = flattener.solve();
+    CircleWrapper patterns(mesh, sol);
+    patterns.solve();
     
     return EXIT_SUCCESS;
 }

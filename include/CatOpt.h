@@ -10,32 +10,14 @@
 #include "polyscope/point_cloud.h"
 
 
-#include "args/args.hxx"
 #include "imgui.h"
-
-#include "Bff.h"
-#include "MeshIO.h"
-#include "HoleFiller.h"
-#include "Generators.h"
-#include "ConePlacement.h"
-#include "Cutter.h"
-
-
-
-#include <algorithm>
-#include <tuple>
-#include <map>
 
 
 #include "glm/vec3.hpp"
 
 
-#include "fusion.h"
 
-using namespace geometrycentral;
-using namespace geometrycentral::surface;
-using std::cout;
-using std::endl;
+
 using std::max;
 using std::shared_ptr;
 
@@ -46,7 +28,6 @@ using std::tuple;
 using std::vector;
 using std::string;
 
-using namespace monty;
 class CatOpt {
     public:
         void conformalFlatten();
@@ -55,8 +36,7 @@ class CatOpt {
         void polyscopeInit();
         // == Geometry-central data
         string inputMeshPath;
-        shared_ptr<ManifoldSurfaceMesh> mesh;
-        shared_ptr<VertexPositionGeometry> geometry;
+        
 
         shared_ptr<ManifoldSurfaceMesh> CATmesh;
         shared_ptr<EdgeLengthGeometry> intrinsicGeometry;
@@ -101,8 +81,6 @@ class CatOpt {
         double bendingWeight = 1e-8;
 
         //stuff for bff
-        bff::Mesh bffMesh;
-        bff::Model model;
         vector<Vector2> flattened;
         vector<double> alphas;
         CornerData<double> targetAngles;
@@ -120,24 +98,13 @@ class CatOpt {
         double grad_norm_sq(const VectorXd &grad1, const VectorXd &grad2, const VectorXd &grad3) {
             return grad1.squaredNorm() + grad2.squaredNorm() + grad3.squaredNorm();
         }
-        inline double shift(double c) {
-            return (c + 2.) * 500;
-        }
+        
 
         Vector3 bary(Face f, double a, double b, double c);
 
 
 
         // Intrinsic angle optimization stuff
-
-        void initializeQuantities();
-        void subdivision();
-        void buildNewMesh();
-        double objective(const VectorXd &x1, const VectorXd &x2, const VectorXd &x3);
-        tuple<VectorXd, VectorXd, VectorXd> gradient(const VectorXd &x1, const VectorXd &x2, const VectorXd &x3, VectorXd &grad1, VectorXd &grad2, VectorXd &grad3);
-        void step(int n);
-        void myCallback();
-
         // Flattening optimization stuff
 
         void dbgSVG(string filename);
@@ -156,14 +123,7 @@ class CatOpt {
 
 
         // Circle pattern stuff?
-        monty::rc_ptr<mosek::fusion::Matrix> sMatrix(int m, int n, vector<int>& rows, vector<int>& cols, 
-                    vector<double>& values);
-        VertexData<Eigen::Vector2d> uv;
-        Eigen::Vector2d center;
-        double invRadius;
-        void uvSVG(std::string filename, EdgeData<bool> eMask);
-        void circleInversion();
-        Vector<double> circleSol;
-        Vertex infVertex;
+        
+        
         
 };

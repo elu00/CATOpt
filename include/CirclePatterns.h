@@ -2,16 +2,10 @@
 #define CIRCLE_PATTERNS_H
 
 #include "Solver.h"
-#include "geometrycentral/surface/manifold_surface_mesh.h"
-#include "geometrycentral/surface/meshio.h"
-#include "geometrycentral/surface/edge_length_geometry.h"
-#include "geometrycentral/surface/vertex_position_geometry.h"
-#include "geometrycentral/numerical/linear_solvers.h"
+#include "Common.h"
 #include <stack>
 #include <string>
 
-using namespace geometrycentral;
-using namespace geometrycentral::surface;
 using std::vector;
 using std::shared_ptr;
 using std::endl;
@@ -22,7 +16,7 @@ public:
     // constructor
     CirclePatterns(shared_ptr<ManifoldSurfaceMesh> mesh0, Vertex infVertex,
     EdgeData<bool> eMask, EdgeData<bool> eBdry, FaceData<bool> fMask,
-    int optScheme0, vector<double>& solve, Eigen::VectorXd thetas);
+    int optScheme0, Eigen::VectorXd thetas);
     
     // parameterize
     VertexData<Eigen::Vector2d> parameterize();
@@ -82,6 +76,7 @@ protected:
     EdgeData<size_t> eInd;
     VertexData<size_t> vInd;
     FaceData<size_t> fInd;
+    HalfedgeData<size_t> hInd;
     // whether or not each edge is considered in the solve
     EdgeData<bool> eMask;
     EdgeData<bool> eBdry;

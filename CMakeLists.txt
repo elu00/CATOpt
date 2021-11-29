@@ -72,17 +72,12 @@ endif()
 add_subdirectory(deps/geometry-central)
 add_subdirectory(deps/polyscope)
 add_subdirectory(deps/mosek)
-#add_subdirectory(deps/catviz)
-add_subdirectory(deps/boundary-first-flattening)
 
 # == Build our project stuff
 
 set(SRCS 
-  src/triangle.c
   src/main.cpp
-  src/intrinsicOptimization.cpp
-  src/flatteningOptimization.cpp
-  src/embeddingOptimization.cpp
+  src/IntrinsicFlattening.cpp
   src/circleWrapper.cpp
   src/CirclePatterns.cpp
   src/Solver.cpp
@@ -94,7 +89,4 @@ target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/catvi
 target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/catviz/deps/glm" )
 target_include_directories(catopt PUBLIC "${SuiteSparse_INCLUDE_DIRS}")
 
-target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/boundary-first-flattening/project/include" )
-target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/boundary-first-flattening/mesh/include" )
-target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/boundary-first-flattening/linear-algebra/include" )
-target_link_libraries(catopt PUBLIC geometry-central polyscope mosek bff)
+target_link_libraries(catopt PUBLIC geometry-central polyscope mosek)

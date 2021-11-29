@@ -2,8 +2,8 @@
 #include <Eigen/SparseQR>
 
 CirclePatterns::CirclePatterns(shared_ptr<ManifoldSurfaceMesh> mesh0, Vertex infVertex, 
-    EdgeData<bool> eMask, EdgeData<bool> eBdry,FaceData<bool> fMask, int optScheme0, 
-    vector<double>& solve, Eigen::VectorXd thetas):
+    EdgeData<bool> eMask, EdgeData<bool> eBdry,FaceData<bool> fMask, int optScheme0,
+     Eigen::VectorXd thetas):
 mesh(mesh0),
 infVertex(infVertex),
 eMask(eMask),
@@ -18,11 +18,11 @@ OptScheme(optScheme0)
 {
     // I added a plus 1 here and at radii; should figure why I need to
     solver.n = mesh->nFaces();
-    sol = solve;
     uv = VertexData<Eigen::Vector2d> (*mesh);
     eInd = mesh->getEdgeIndices();
     vInd = mesh->getVertexIndices();
     fInd = mesh->getFaceIndices();
+    hInd = mesh->getHalfedgeIndices();
 }
 
 inline double Cl2(double x) {
@@ -82,15 +82,15 @@ void CirclePatterns::computeEnergy(double& energy, const Eigen::VectorXd& rho)
     // sum over edges
     for (Edge e : mesh->edges()) {
         if (eMask[e]) {
-            int fk = e.halfedge().face().getIndex();
+            int fk = fInd[e.halfedge().face()];
 
             if (eBdry[e]) {
-                energy -= 2 * (M_PI - thetas[e.getIndex()]) * rho[fk];
+                energy -= 2 * (M_PI - thetas[eInd[e]]) * rho[fk];
 
             } else {
-                int fl = e.halfedge().twin().face().getIndex();
-                energy += ImLi2Sum(rho[fk] - rho[fl], thetas[e.getIndex()]) -
-                          (M_PI - thetas[e.getIndex()]) * (rho[fk] + rho[fl]);
+                int fl = fInd[e.halfedge().twin().face()];
+                energy += ImLi2Sum(rho[fk] - rho[fl], thetas[eInd[e]]) -
+                          (M_PI - thetas[eInd[e]]) * (rho[fk] + rho[fl]);
             }
         }
     }
@@ -119,7 +119,7 @@ void CirclePatterns::computeGradient(Eigen::VectorXd& gradient, const Eigen::Vec
                 } else {
                     Halfedge h = e.halfedge();
                     int fl = fk == (int)fInd[h.face()] ? fInd[h.twin().face()] : fInd[h.face()];
-                    gradient[fk] -= 2*fe(rho[fk] - rho[fl], thetas[e.getIndex()]);
+                    gradient[fk] -= 2*fe(rho[fk] - rho[fl], thetas[eInd[e]]);
                 }
                 
                 he = he.next();
@@ -181,16 +181,16 @@ void CirclePatterns::computeAnglesAndEdgeLengths(Eigen::VectorXd& lengths)
             Halfedge h1 = e.halfedge();
         
             if (eBdry[e]) {
-                angles[h1.getIndex()] = M_PI - thetas[eInd[e]];
+                angles[hInd[h1]] = M_PI - thetas[eInd[e]];
             
             } else {
                 Halfedge h2 = h1.twin();
-                double dp = log(radii[h1.face().getIndex()]) - log(radii[h2.face().getIndex()]);
-                angles[h1.getIndex()] = fe(dp, thetas[e.getIndex()]);
-                angles[h2.getIndex()] = fe(-dp, thetas[e.getIndex()]);
+                double dp = log(radii[fInd[h1.face()]]) - log(radii[fInd[h2.face()]]);
+                angles[hInd[h1]] = fe(dp, thetas[eInd[e]]);
+                angles[hInd[h2]] = fe(-dp, thetas[eInd[e]]);
             }
         
-            lengths[eInd[e]] = 2.0*radii[h1.face().getIndex()]*sin(angles[h1.getIndex()]);
+            lengths[eInd[e]] = 2.0*radii[fInd[h1.face()]]*sin(angles[hInd[h1]]);
         }
     }
 }
@@ -200,13 +200,13 @@ void CirclePatterns::performFaceLayout(Halfedge he, const Eigen::Vector2d& dir,
                                        std::stack<Edge>& stack)
 {
     if (he.isInterior() && fMask[he.face()]) {
-        int fIdx = he.face().getIndex();
+        int fIdx = fInd[he.face()];
         if (visited.find(fIdx) == visited.end()) {
             Halfedge next = he.next();
             Halfedge prev = he.next().next();
             
             // compute new uv position
-            double angle = angles[next.getIndex()];
+            double angle = angles[hInd[next]];
             Eigen::Vector2d newDir = {cos(angle)*dir[0] - sin(angle)*dir[1],
                                       sin(angle)*dir[0] + cos(angle)*dir[1]};
             
@@ -318,7 +318,7 @@ void CirclePatterns::normalize() {
     // compute center
     double totalArea = 0;
     Eigen::Vector2d center = Eigen::Vector2d::Zero();
-    uv[infVertex.getIndex()] = Eigen::Vector2d::Zero();
+    uv[vInd[infVertex]] = Eigen::Vector2d::Zero();
     /*
     uv[infVertex.getIndex()].x() = -8;
     uv[infVertex.getIndex()].y() = 5;
