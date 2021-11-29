@@ -21,6 +21,7 @@ public:
     shared_ptr<ManifoldSurfaceMesh> mesh;
     // constructor
     CirclePatterns(shared_ptr<ManifoldSurfaceMesh> mesh0, Vertex infVertex,
+    EdgeData<bool> eMask, EdgeData<bool> eBdry, FaceData<bool> fMask,
     int optScheme0, vector<double>& solve, Eigen::VectorXd thetas);
     
     // parameterize
@@ -81,6 +82,10 @@ protected:
     EdgeData<size_t> eInd;
     VertexData<size_t> vInd;
     FaceData<size_t> fInd;
+    // whether or not each edge is considered in the solve
+    EdgeData<bool> eMask;
+    EdgeData<bool> eBdry;
+    FaceData<bool> fMask;
     VertexData<Eigen::Vector2d> uv;
 
 };

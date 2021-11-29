@@ -161,7 +161,7 @@ class CatOpt {
         VertexData<Eigen::Vector2d> uv;
         Eigen::Vector2d center;
         double invRadius;
-        void uvSVG(std::string filename);
+        void uvSVG(std::string filename, EdgeData<bool> eMask);
         void circleInversion();
         Vector<double> circleSol;
         Vertex infVertex;

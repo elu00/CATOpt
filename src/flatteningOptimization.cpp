@@ -221,7 +221,7 @@ void CatOpt::confStep(int nDescentSteps) {
         for (double a : dEdalpha) normGrad2 += a * a;
 
         // perform backtracking line search
-        double t = 0.01;  // initial step size for line search
+        double t = 1e-4;  // initial step size for line search
         const int maxLineSearchSteps = 20;
         int lineSearchStep;
         for (lineSearchStep = 0; lineSearchStep < maxLineSearchSteps;
@@ -250,15 +250,15 @@ void CatOpt::confStep(int nDescentSteps) {
         alpha0 = alpha;
 
         // DEBUG:
-        if (descentStep % 10000 == 0 || descentStep < 100) {
+        if (descentStep % 10000 == 0 || descentStep < 10) {
             cout << "Descent iteration " << descentStep << endl;
             cout << "energy:" << E << endl;
             cout << "gradient norm" << sqrt(normGrad2) << endl;
             cout << "step size: " << t << endl;
             cout << "line search iterations: " << lineSearchStep << endl;
             dbgSVG("step" + std::to_string(descentStep + 1) + ".svg");
-           //obj << E << "\n";
-           //grad << sqrt(normGrad2) << "\n";
+            obj << E << "\n";
+            grad << sqrt(normGrad2) << "\n";
         }
         // termination condition
         if (normGrad2 < 1e-10 || descentStep == nDescentSteps - 1) {
@@ -475,12 +475,12 @@ void CatOpt::conformalFlatten() {
 }
 // Initializes flatmesh with the BFF geometry, then writes it to disc
 void CatOpt::buildNewGeometry() {
-    VertexData<Vector3> temp(*mesh);
+    flatmesh = mesh->copy();
+    VertexData<Vector3> temp(*flatmesh);
     for (int i = 0; i < flattened.size(); i++) {
         auto v = flattened[i];
         temp[i] = {v.x, 0, v.y};
     }
-    flatmesh = mesh->copy();
     flatGeometry = std::unique_ptr<VertexPositionGeometry>(
         new VertexPositionGeometry(*flatmesh, temp));
     /*

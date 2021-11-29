@@ -60,35 +60,36 @@ void CatOpt::circlePatterns() {
     rows.clear();
     cols.clear();
     values.clear();
+
+    FaceData<bool> fMask(*flatmesh, true);
+    EdgeData<bool> eMask(*flatmesh, true);
+    EdgeData<bool> eBdry(*flatmesh, false);
+    
+    // mark all the boundary edges as the new boundary
+    for (Edge e : flatmesh->boundaryLoop(0).adjacentEdges()) {
+        eBdry[e] = true;
+    }
+    // the edges adjacent to the infinite vertex shouldn't be included in
+    // future calculations of the boundary
     /*
-    // Interior agreement constraint
-    for (Edge e : flatmesh->edges()) {
-        if (!e.isBoundary()) {
-            rows.emplace_back(eInd[e]);
-            cols.emplace_back(eInd[e]);
-            values.emplace_back(1);
-            rhs[eInd[e]] = PI -
-    flatGeometry->cornerAngle(e.halfedge().next().next().corner())
-                            -
-    flatGeometry->cornerAngle(e.halfedge().twin().next().next().corner());
-            //cout << rhs[eInd[e]] << endl;
+    for (Edge e: infVertex.adjacentEdges()) {
+        eMask[e] = false;
+        eBdry[e] = false;
+    }
+    for (Face f: infVertex.adjacentFaces()) {
+        fMask[f] = false;
+        // extra boundary edges
+        for (Edge e: f.adjacentEdges()) {
+            if (eMask[e]) eBdry[e] = true;
         }
     }
-    auto r = new_array_ptr<int>(rows);
-    auto c = new_array_ptr<int>(cols);
-    auto v = new_array_ptr<double>(values);
-    auto boundaryConst = Matrix::sparse(nEdges, nEdges, r, c, v);
-    auto intThetas = new_array_ptr(rhs);
-    M->constraint("Interior Agreement", Expr::mul(boundaryConst, Theta),
-    Domain::equalsTo(intThetas)); rows.clear(); cols.clear(); values.clear();
-
     */
 
     // Intersection angle constraint
     rhs = vector<double>(nEdges, 0);
     for (Edge e : flatmesh->edges()) {
-        Halfedge he = e.halfedge();
-        if (!e.isBoundary()) {
+        if (eMask[e] && !e.isBoundary()) {
+            Halfedge he = e.halfedge();
             if (he.isInterior()) {
                 rows.emplace_back(e_[e]);
                 cols.emplace_back(c_[he.next().next().corner()]);
@@ -118,11 +119,14 @@ void CatOpt::circlePatterns() {
     // Sum to pi in each triangle constraint
     rhs = vector<double>(nFaces, PI);
     for (Face f : flatmesh->faces()) {
-        for (Corner c : f.adjacentCorners()) {
-            rows.emplace_back(f_[f]);
-            cols.emplace_back(c_[c]);
-            values.emplace_back(1);
-        }
+        if (true){
+        //if(fMask[f]) {
+            for (Corner c : f.adjacentCorners()) {
+                rows.emplace_back(f_[f]);
+                cols.emplace_back(c_[c]);
+                values.emplace_back(1); 
+            }
+        } else rhs[f_[f]] = 0;
     }
     auto sumConst = sMatrix(nFaces, flatmesh->nCorners(), rows, cols, values);
     auto sumPI = new_array_ptr(rhs);
@@ -169,7 +173,7 @@ void CatOpt::circlePatterns() {
         }
     }
     */
-    CirclePatterns prob(flatmesh, infVertex, 0, sol, thetas);
+    CirclePatterns prob(flatmesh, infVertex, eMask, eBdry, fMask, 0, sol, thetas);
     cout << "starting parameterization" << endl;
     uv = prob.parameterize();
     cout << "parameterization done" << endl;
@@ -191,12 +195,12 @@ void CatOpt::circlePatterns() {
     center = (b1 + b2) / 2. + invRadius * offset / offset.norm();
     circleSol = Vector<double>(flatmesh->nEdges());
     for (int i = 0; i < flatmesh->nEdges(); i++) circleSol[i] = 0;
-    uvSVG("flat.svg");
+    uvSVG("flat.svg", eMask);
     circleInversion();
-    uvSVG("inverted.svg");
+    uvSVG("inverted.svg", eMask);
 }
 
-void CatOpt::uvSVG(std::string filename) {
+void CatOpt::uvSVG(std::string filename, EdgeData<bool> eMask) {
     std::ofstream ss(filename, std::ofstream::out);
     ss << "<?xml version=\"1.0\" standalone=\"no\" ?>" << endl
        << "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" "
@@ -210,31 +214,37 @@ void CatOpt::uvSVG(std::string filename) {
         ss << "<circle cx=\"" << shift(thing.x()) << "\" cy=\""
            << shift(thing.y()) << "\" r=\"1\"/>" << endl;
     }
+
     ss << "<circle cx=\"" << shift(center.x()) << "\" cy=\""
        << shift(center.y()) << "\" r=\"2\"/>" << endl;
     ss << "<circle cx=\"" << shift(center.x()) << "\" cy=\""
        << shift(center.y()) << "\" r=\"" << 500 * invRadius
        << "\" stroke=\"black\" fill-opacity=\"0\"/>" << endl;
     for (Edge e : flatmesh->edges()) {
-        Eigen::Vector2d i = uv[e.halfedge().vertex()];
-        Eigen::Vector2d j = uv[e.halfedge().twin().vertex()];
-        double angle = -circleSol[eInd[e]];
-        // FROM NORMALIZATION
-        double radius = 500 * (i - j).norm() / abs(2 * sin(angle));
-        if (abs(angle) > 1e-7) {
-            std::string largeArcFlag =
-                std::abs(2 * angle) <= 3.14159265358979323846264 ? "0" : "1";
-            // sweep flag is 1 if going outward, 0 if going inward
-            std::string sweepFlag = angle < 0 ? "0" : "1";
-            ss << "<path d=\"M" << shift(i.x()) << "," << shift(i.y()) << " A"
-               << radius << "," << radius << " 0 " << largeArcFlag << " "
-               << sweepFlag << " " << shift(j.x()) << "," << shift(j.y())
-               << "\" fill=\"none\" stroke=\"green\" stroke-width=\"2\" />"
-               << endl;
-        } else {
-            ss << "<line x1=\"" << shift(i.x()) << "\" x2=\"" << shift(j.x())
-               << "\" y1=\"" << shift(i.y()) << "\" y2=\"" << shift(j.y())
-               << "\" stroke=\"blue\" stroke-width=\"2\"/>" << endl;
+        if (eMask[e]) {
+            Eigen::Vector2d i = uv[e.halfedge().vertex()];
+            Eigen::Vector2d j = uv[e.halfedge().twin().vertex()];
+            double angle = -circleSol[e.getIndex()];
+            // FROM NORMALIZATION
+            double radius = 500 * (i - j).norm() / abs(2 * sin(angle));
+            if (abs(angle) > 1e-7) {
+                std::string largeArcFlag =
+                    std::abs(2 * angle) <= 3.14159265358979323846264 ? "0"
+                                                                     : "1";
+                // sweep flag is 1 if going outward, 0 if going inward
+                std::string sweepFlag = angle < 0 ? "0" : "1";
+                ss << "<path d=\"M" << shift(i.x()) << "," << shift(i.y())
+                   << " A" << radius << "," << radius << " 0 " << largeArcFlag
+                   << " " << sweepFlag << " " << shift(j.x()) << ","
+                   << shift(j.y())
+                   << "\" fill=\"none\" stroke=\"green\" stroke-width=\"2\" />"
+                   << endl;
+            } else {
+                ss << "<line x1=\"" << shift(i.x()) << "\" x2=\""
+                   << shift(j.x()) << "\" y1=\"" << shift(i.y()) << "\" y2=\""
+                   << shift(j.y()) << "\" stroke=\"blue\" stroke-width=\"2\"/>"
+                   << endl;
+            }
         }
     }
 
@@ -306,7 +316,7 @@ void CatOpt::setOffsets() {
     std::cout << "matrix rank is " << solver.rank() << std::endl;
     std::cout << "nEdges is " << flatmesh->nEdges() << std::endl;
 
-    uvSVG("offset.svg");
+    uvSVG("offset.svg", EdgeData<bool>(*flatmesh, true));
     for (Edge e : flatmesh->boundaryLoop(0).adjacentEdges()) {
         cout << circleSol[e_[e]];
     }
