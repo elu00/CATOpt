@@ -1,11 +1,15 @@
 #include "CircleWrapper.h"
 #include "CirclePatterns.h"
 #include "Solver.h"
+#include <cmath>
+
+
 
 inline double shift(double c) {
             return (c + 2.) * 500;
         }
-CircleWrapper::CircleWrapper(shared_ptr<ManifoldSurfaceMesh> mesh, SolutionData sol): mesh(mesh) {
+CircleWrapper::CircleWrapper(shared_ptr<ManifoldSurfaceMesh> mesh, SolutionData sol, polyscope::SurfaceMesh *psMesh): 
+mesh(mesh), psMesh(psMesh) {
     beta = sol.betas;
     theta = sol.thetas;
     eMask = sol.eMask;
@@ -29,6 +33,7 @@ void CircleWrapper::solve() {
     // calculate circle center to invert around
     int count = 0;
     invRadius = 0.2;
+    invRadius = 1;
     Eigen::Vector2d b1;
     Eigen::Vector2d b2;
     for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
@@ -47,6 +52,8 @@ void CircleWrapper::solve() {
     uvSVG("flat.svg", eMask);
     circleInversion();
     uvSVG("inverted.svg", eMask);
+    setOffsets();
+    uvSVG("fin.svg", eMask);
 }
 
 void CircleWrapper::uvSVG(std::string filename, EdgeData<bool> eMask) {
@@ -94,12 +101,12 @@ void CircleWrapper::uvSVG(std::string filename, EdgeData<bool> eMask) {
                    << shift(j.y()) << "\" stroke=\"blue\" stroke-width=\"2\"/>"
                    << endl;
             }
-        }
+        } 
     }
 
     // footer
     ss << "</svg>";
-    std::cout << "done";
+    std::cout << "done" << endl;
 }
 void CircleWrapper::circleInversion() {
     for (Vertex v : mesh->vertices()) {
@@ -117,25 +124,28 @@ void CircleWrapper::setOffsets() {
     FaceData<size_t> f_ = mesh->getFaceIndices();
     geometrycentral::SparseMatrix<double> A(mesh->nCorners(),
                                             mesh->nEdges());
+
+
+    // DEBUG: remove this at some point
+    VertexData<bool> bad(*mesh);
     Vector<double> rhs(mesh->nCorners());
     vector<Eigen::Triplet<double>> triplets;
-    for (Corner C : mesh->corners()) {
-        Halfedge h = C.halfedge();
+    for (Corner c : mesh->corners()) {
+        Halfedge h = c.halfedge();
         Halfedge ab = h;
         Halfedge bc = h.next();
         Halfedge ca = h.next().next();
         // if (h.isInterior()) {
-        double tAngle = beta[C];
         // alphas are offsets from canonical halfedge orientation
         if (h.edge().halfedge() == h) {
-            triplets.push_back({(int)c_[C], (int)e_[h.edge()], 1});
+            triplets.push_back({(int)c_[c], (int)e_[h.edge()], 1});
         } else {
-            triplets.push_back({(int)c_[C], (int)e_[h.edge()], -1});
+            triplets.push_back({(int)c_[c], (int)e_[h.edge()], -1});
         }
         if (ca.edge().halfedge() == ca) {
-            triplets.push_back({(int)c_[C], (int)e_[ca.edge()], 1});
+            triplets.push_back({(int)c_[c], (int)e_[ca.edge()], 1});
         } else {
-            triplets.push_back({(int)c_[C], (int)e_[ca.edge()], -1});
+            triplets.push_back({(int)c_[c], (int)e_[ca.edge()], -1});
         }
         auto a0 = uv[ab.vertex()];
         auto b0 = uv[bc.vertex()];
@@ -145,19 +155,86 @@ void CircleWrapper::setOffsets() {
         // circle inversion changes orientation
         double actAngle = -orientedAngle(Vector2({u0.x(), u0.y()}),
                                          Vector2({v0.x(), v0.y()}));
-        // cout << "act" << actAngle << endl;
-        rhs[c_[C]] = tAngle - actAngle;
+        //cout << "act" << actAngle << endl;
+        rhs[c_[c]] = beta[c] - actAngle;
+        if(!std::isfinite(rhs[c_[c]])) {
+            cout << "a index" << v_[ab.vertex()] << endl;
+            cout << "b index" << v_[bc.vertex()] << endl;
+            cout << "c index" << v_[ca.vertex()] << endl;
+            cout << "a0:  " << a0.x() << "  " << a0.y() << endl;
+            cout << "b0:  " << b0.x() << "  " << b0.y() << endl;
+            cout << "c0:  " << c0.x() << "  " << c0.y() << endl;
+            cout << "u0:  " << u0.x() << "  " << u0.y() << endl;
+            cout << "v0:  " << v0.x() << "  " << v0.y() << endl;
+            bad[ab.vertex()] = true;
+            bad[bc.vertex()] = true;
+            bad[ca.vertex()] = true;
+        }
     }
     A.setFromTriplets(triplets.begin(), triplets.end());
 
+    //DEBUG
+    psMesh->addVertexScalarQuantity("bad vertices", bad);
     // Build the solver
     Solver<double> solver(A);
-    circleSol = solver.solve(rhs);
+    //circleSol = solver.solve(rhs);
     std::cout << "matrix rank is " << solver.rank() << std::endl;
     std::cout << "nEdges is " << mesh->nEdges() << std::endl;
+    cout << "residual is" << residual(A,circleSol,rhs) << endl;
 
     uvSVG("offset.svg", EdgeData<bool>(*mesh, true));
+    /*
     for (Edge e : mesh->boundaryLoop(0).adjacentEdges()) {
         std::cout << circleSol[e_[e]];
     }
+    */
+    // check boundary conditions of adding to PI
+    VertexData<double> boundarySum(*mesh);
+    for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
+        double accum = 0;
+        double betaSum = 0;
+        for (Corner c : v.adjacentCorners()) {
+            double cornerBeta = 0;
+            betaSum += beta[c];
+            Halfedge h = c.halfedge();
+            Halfedge ab = h;
+            Halfedge bc = h.next();
+            Halfedge ca = h.next().next();
+            auto a0 = uv[ab.vertex()];
+            auto b0 = uv[bc.vertex()];
+            auto c0 = uv[ca.vertex()];
+            auto u0 = b0 - a0;
+            auto v0 = c0 - a0;
+            // circle inversion changes orientation
+            cornerBeta += -orientedAngle(Vector2({u0.x(), u0.y()}),
+                                    Vector2({v0.x(), v0.y()}));
+            if (h.edge().halfedge() == h) {
+                cornerBeta += circleSol[e_[h.edge()]];
+            } else {
+                cornerBeta -= circleSol[e_[h.edge()]];
+            }
+            if (ca.edge().halfedge() == ca) {
+                cornerBeta += circleSol[e_[ca.edge()]];
+            } else {
+                cornerBeta -= circleSol[e_[ca.edge()]];
+            }
+            //cout << cornerBeta << "expected " << beta[c] << endl;
+            accum += cornerBeta;
+        }
+        /*
+        for (Edge e: v.adjacentEdges()){
+            if (e.isBoundary()) {
+                if (e.halfedge().isInterior()) {
+                    accum += circleSol[e_[e]];
+                } else {
+                    accum -= circleSol[e_[e]];
+                }
+            }
+
+        }
+        */
+        boundarySum[v] = accum;
+        //cout << "Vertex boundary sum: " << accum << " expected " << betaSum << endl;
+    }
+    psMesh->addVertexScalarQuantity("boundary sum", boundarySum);
 }

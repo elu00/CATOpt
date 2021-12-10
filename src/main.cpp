@@ -2,6 +2,10 @@
 #include <string>
 #include <iostream>
 #include <memory>
+
+
+#include "polyscope/polyscope.h"
+#include "polyscope/surface_mesh.h"
 using std::string;
 using std::shared_ptr;
 
@@ -37,7 +41,7 @@ int main(int argc, char **argv) {
     if (!inputFilename) {
         //inputMeshPath = "/home/elu/repos/catopt/meshes/cube.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/spotwithhole.obj";
-        //inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/beanhole.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/nonconvex2.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/test.obj";
@@ -50,8 +54,39 @@ int main(int argc, char **argv) {
     mesh->compress();
     IntrinsicFlattening flattener(mesh, geometry);
     SolutionData sol = flattener.solve();
-    CircleWrapper patterns(mesh, sol);
+
+  
+
+    
+    // polyscope sanity checks
+    polyscope::init();
+    polyscope::SurfaceMesh *psMesh = polyscope::registerSurfaceMesh(
+      "waaah",
+      geometry->inputVertexPositions, mesh->getFaceVertexList(),
+      polyscopePermutations(*mesh));
+    psMesh->addEdgeScalarQuantity("eBdry", sol.eBdry);
+    psMesh->addEdgeScalarQuantity("eMask", sol.eMask);
+    VertexData<double> vertexSum(*mesh);
+    for (Vertex v: mesh->vertices()) {
+        double accum = 0;
+        for (Corner c: v.adjacentCorners()) {
+            accum += sol.betas[c];
+        }
+        vertexSum[v] = accum;
+    }
+    psMesh->addVertexScalarQuantity("vertex sums", vertexSum);
+    //psMesh->addHalfedgeScalarQuantity("solved", sol.betas);
+    psMesh->addEdgeScalarQuantity("thetas", sol.thetas);
+    //psMesh->addVertexScalarQuantity("infinite vertex", sol.infVertex);
+    psMesh->addFaceScalarQuantity("faces", sol.fMask);
+
+    CircleWrapper patterns(mesh, sol, psMesh);
     patterns.solve();
+
+
+
+
+    polyscope::show();
     
     return EXIT_SUCCESS;
 }

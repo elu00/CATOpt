@@ -319,6 +319,14 @@ void CirclePatterns::normalize() {
     double totalArea = 0;
     Eigen::Vector2d center = Eigen::Vector2d::Zero();
     uv[vInd[infVertex]] = Eigen::Vector2d::Zero();
+    // DEBUG:
+    for (Vertex v: mesh->vertices()){
+        if(!std::isfinite(uv[v].x())) {
+            uv[v] = Eigen::Vector2d::Zero();
+            cout << "nananana" << endl;
+        }
+        cout << uv[v].x() << " " << uv[v].y() << endl;
+    }
     /*
     uv[infVertex.getIndex()].x() = -8;
     uv[infVertex.getIndex()].y() = 5;
@@ -336,6 +344,7 @@ void CirclePatterns::normalize() {
     double r = 0.0;
     for (Vertex v : mesh->vertices()) {
         if (v != infVertex) {
+            
             uv[v] -= center;
             r = std::max(r, uv[v].squaredNorm());
         }

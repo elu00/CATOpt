@@ -1,9 +1,12 @@
 #pragma once
 #include "Common.h"
 
+#include "polyscope/polyscope.h"
+#include "polyscope/surface_mesh.h"
+
 class CircleWrapper {
     public:
-        CircleWrapper(shared_ptr<ManifoldSurfaceMesh> mesh, SolutionData sol);
+        CircleWrapper(shared_ptr<ManifoldSurfaceMesh> mesh, SolutionData sol, polyscope::SurfaceMesh *psMesh);
         void solve();
         void uvSVG(std::string filename, EdgeData<bool> eMask);
     private:
@@ -21,6 +24,7 @@ class CircleWrapper {
         EdgeData<bool> eBdry; 
         FaceData<bool> fMask;
         Eigen::VectorXd thetas;
+        polyscope::SurfaceMesh *psMesh;
 
         void setOffsets();
 };
