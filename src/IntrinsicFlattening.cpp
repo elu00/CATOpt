@@ -50,7 +50,7 @@ SolutionData IntrinsicFlattening::solve() {
     // the "total angle" at each corner
     Variable::t beta = M->variable("beta", nCorners, Domain::inRange(0, PI));
     // the witness of our "coherent angle system"
-    Variable::t a = M->variable("a", nCorners, Domain::inRange(1e-1, 2 * PI));
+    Variable::t a = M->variable("a", nCorners, Domain::inRange(0, 2 * PI));
 
     // dummy vectors for building matrices
     vector<int> rows;
@@ -101,7 +101,7 @@ SolutionData IntrinsicFlattening::solve() {
     Vertex infVertex;
 
     // Flat Boundary Constraint
-    size_t excl = 3;
+    size_t excl = 4;
     size_t count = 0;
     for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
         if (count == 1) infVertex = v;
@@ -119,7 +119,7 @@ SolutionData IntrinsicFlattening::solve() {
     }
     auto bdryFlat = sMatrix(count, nCorners, rows, cols, values);
     auto bdryPI = new_array_ptr(rhs);
-    //M->constraint("Flat boundary", Expr::mul(bdryFlat, a), Domain::equalsTo(bdryPI));
+    M->constraint("Flat boundary", Expr::mul(bdryFlat, a), Domain::equalsTo(bdryPI));
     rhs.clear();
 
     FaceData<bool> fMask(*mesh, true);
@@ -135,6 +135,7 @@ SolutionData IntrinsicFlattening::solve() {
     }
     // the edges adjacent to the infinite vertex shouldn't be included in
     // future calculations of the boundary
+    /*
     for (Halfedge h: infVertex.incomingHalfedges()) {
         vNewBdry[h.vertex()] = true;
     }
@@ -153,6 +154,7 @@ SolutionData IntrinsicFlattening::solve() {
             hOutsideBdry[h] = true;
         }
     }
+    */
     // Intersection angle constraint: 
     // the betas and the as induce the same intersection angle: that is:
     // ++++ -- on the betas = theta =  PI - sum of opposite alphas

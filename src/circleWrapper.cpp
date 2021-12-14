@@ -24,7 +24,7 @@ mesh(mesh), psMesh(psMesh) {
 }
 void CircleWrapper::solve() {
     //TODO: change this
-    size_t excl = 3;
+    size_t excl = 4;
     std::cout << "Circle pattern stuff" << endl;
     CirclePatterns prob(mesh, infVertex, eMask, eBdry, fMask, 0, thetas);
     std::cout << "starting parameterization" << std::endl;
@@ -57,6 +57,7 @@ void CircleWrapper::solve() {
 }
 
 void CircleWrapper::uvSVG(std::string filename, EdgeData<bool> eMask) {
+    EdgeData<size_t> e_ = mesh->getEdgeIndices();
     std::ofstream ss(filename, std::ofstream::out);
     ss << "<?xml version=\"1.0\" standalone=\"no\" ?>" << endl
        << "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" "
@@ -80,7 +81,7 @@ void CircleWrapper::uvSVG(std::string filename, EdgeData<bool> eMask) {
         if (eMask[e]) {
             Eigen::Vector2d i = uv[e.halfedge().vertex()];
             Eigen::Vector2d j = uv[e.halfedge().twin().vertex()];
-            double angle = -circleSol[e.getIndex()];
+            double angle = -circleSol[e_[e]];
             // FROM NORMALIZATION
             double radius = 500 * (i - j).norm() / abs(2 * sin(angle));
             if (abs(angle) > 1e-7) {
@@ -177,7 +178,7 @@ void CircleWrapper::setOffsets() {
     psMesh->addVertexScalarQuantity("bad vertices", bad);
     // Build the solver
     Solver<double> solver(A);
-    //circleSol = solver.solve(rhs);
+    circleSol = solver.solve(rhs);
     std::cout << "matrix rank is " << solver.rank() << std::endl;
     std::cout << "nEdges is " << mesh->nEdges() << std::endl;
     cout << "residual is" << residual(A,circleSol,rhs) << endl;
