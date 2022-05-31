@@ -40,8 +40,6 @@ monty::rc_ptr<mosek::fusion::Matrix> IntrinsicFlattening::sMatrix(int m, int n, 
 
 // calls mosek to generate and return optimal betas
 SolutionData IntrinsicFlattening::solve() {
-
-
     // Model initialization
     Model::t M = new Model();
     auto _M = finally([&]() { M->dispose(); });
@@ -100,7 +98,7 @@ SolutionData IntrinsicFlattening::solve() {
     //VertexData<bool> mark(*mesh, false);
     Vertex infVertex;
 
-    // Flat Boundary Constraint
+    // Flat Boundary Constraint: Total geodesic curvature is 0 on "most" of the boundary
     size_t excl = 4;
     size_t count = 0;
     for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
@@ -125,14 +123,20 @@ SolutionData IntrinsicFlattening::solve() {
     FaceData<bool> fMask(*mesh, true);
     VertexData<bool> vNewBdry(*mesh, false);
     // halfedges that are now exterior to the mesh after deleting the vertex at infinity
+    // I think I shouldn't be using this anymore, but out of laziness I'm keeping the calculation here.
     HalfedgeData<bool> hOutsideBdry(*mesh, false);
     EdgeData<bool> eMask(*mesh, true);
     EdgeData<bool> eBdry(*mesh, false);
     
     // mark all the boundary edges as the new boundary
+    for (Edge e : mesh->edges()) {
+        eBdry[e] = e.isBoundary();
+    }
+    /*
     for (Edge e : mesh->boundaryLoop(0).adjacentEdges()) {
         eBdry[e] = true;
     }
+    */
     // the edges adjacent to the infinite vertex shouldn't be included in
     // future calculations of the boundary
     /*

@@ -50,8 +50,8 @@ void CircleWrapper::solve() {
     circleSol = Vector<double>(mesh->nEdges());
     for (int i = 0; i < mesh->nEdges(); i++) circleSol[i] = 0;
     uvSVG("flat.svg", eMask);
-    circleInversion();
-    uvSVG("inverted.svg", eMask);
+    //circleInversion();
+    //uvSVG("inverted.svg", eMask);
     setOffsets();
     uvSVG("fin.svg", eMask);
 }
@@ -66,17 +66,20 @@ void CircleWrapper::uvSVG(std::string filename, EdgeData<bool> eMask) {
        << "<svg width=\"2000\" height=\"2000\" "
           "xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\" >"
        << endl;
+    // point labels
     for (Vertex v : mesh->vertices()) {
         Eigen::Vector2d thing = uv[v];
         ss << "<circle cx=\"" << shift(thing.x()) << "\" cy=\""
            << shift(thing.y()) << "\" r=\"1\"/>" << endl;
     }
-
+    // circle center thing
+    /*
     ss << "<circle cx=\"" << shift(center.x()) << "\" cy=\""
        << shift(center.y()) << "\" r=\"2\"/>" << endl;
     ss << "<circle cx=\"" << shift(center.x()) << "\" cy=\""
        << shift(center.y()) << "\" r=\"" << 500 * invRadius
        << "\" stroke=\"black\" fill-opacity=\"0\"/>" << endl;
+       */
     for (Edge e : mesh->edges()) {
         if (eMask[e]) {
             Eigen::Vector2d i = uv[e.halfedge().vertex()];
@@ -89,7 +92,9 @@ void CircleWrapper::uvSVG(std::string filename, EdgeData<bool> eMask) {
                     std::abs(2 * angle) <= 3.14159265358979323846264 ? "0"
                                                                      : "1";
                 // sweep flag is 1 if going outward, 0 if going inward
-                std::string sweepFlag = angle < 0 ? "0" : "1";
+                // debug: maybe circle inversion stuff changes this?
+                std::string sweepFlag = angle >= 0 ? "0" : "1";
+                //std::string sweepFlag = angle < 0 ? "0" : "1";
                 ss << "<path d=\"M" << shift(i.x()) << "," << shift(i.y())
                    << " A" << radius << "," << radius << " 0 " << largeArcFlag
                    << " " << sweepFlag << " " << shift(j.x()) << ","
@@ -153,9 +158,13 @@ void CircleWrapper::setOffsets() {
         auto c0 = uv[ca.vertex()];
         auto u0 = b0 - a0;
         auto v0 = c0 - a0;
+        double actAngle = orientedAngle(Vector2({u0.x(), u0.y()}),
+                                         Vector2({v0.x(), v0.y()}));
         // circle inversion changes orientation
+        /*
         double actAngle = -orientedAngle(Vector2({u0.x(), u0.y()}),
                                          Vector2({v0.x(), v0.y()}));
+                                         */
         //cout << "act" << actAngle << endl;
         rhs[c_[c]] = beta[c] - actAngle;
         if(!std::isfinite(rhs[c_[c]])) {
@@ -189,6 +198,29 @@ void CircleWrapper::setOffsets() {
         std::cout << circleSol[e_[e]];
     }
     */
+    // Double check intersection angle condition
+    for (Edge e: mesh->edges()){
+            vector<Halfedge> temp = {e.halfedge(), e.halfedge().twin()};
+            double actual = PI;
+            double expected = 0;
+            for (auto h: temp) {
+                Halfedge ab = h;
+                Halfedge bc = h.next();
+                Halfedge ca = h.next().next();
+                auto a0 = uv[ab.vertex()];
+                auto b0 = uv[bc.vertex()];
+                auto c0 = uv[ca.vertex()];
+                auto u0 = a0 - c0;
+                auto v0 = b0 - c0;
+                actual -= orientedAngle(Vector2({u0.x(), u0.y()}),
+                                    Vector2({v0.x(), v0.y()}));
+                expected += beta[h.corner()] + beta[h.next().corner()] - beta[h.next().next().corner()];
+            }
+            expected /= 2;
+            //cout << "actual intersection angle: " << actual << " expected: " << expected << endl;
+            if (abs(actual-expected) > 1e-3) cout << "diff: " << actual - expected << endl;
+    }
+
     // check boundary conditions of adding to PI
     VertexData<double> boundarySum(*mesh);
     for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
@@ -207,8 +239,12 @@ void CircleWrapper::setOffsets() {
             auto u0 = b0 - a0;
             auto v0 = c0 - a0;
             // circle inversion changes orientation
+            cornerBeta += orientedAngle(Vector2({u0.x(), u0.y()}),
+                                    Vector2({v0.x(), v0.y()}));
+            /*
             cornerBeta += -orientedAngle(Vector2({u0.x(), u0.y()}),
                                     Vector2({v0.x(), v0.y()}));
+                                    */
             if (h.edge().halfedge() == h) {
                 cornerBeta += circleSol[e_[h.edge()]];
             } else {
@@ -235,7 +271,7 @@ void CircleWrapper::setOffsets() {
         }
         */
         boundarySum[v] = accum;
-        //cout << "Vertex boundary sum: " << accum << " expected " << betaSum << endl;
+        cout << "Vertex boundary sum: " << accum << " expected " << betaSum << endl;
     }
     psMesh->addVertexScalarQuantity("boundary sum", boundarySum);
 }

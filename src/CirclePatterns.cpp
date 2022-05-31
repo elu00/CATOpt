@@ -325,7 +325,7 @@ void CirclePatterns::normalize() {
             uv[v] = Eigen::Vector2d::Zero();
             cout << "nananana" << endl;
         }
-        cout << uv[v].x() << " " << uv[v].y() << endl;
+        //cout << uv[v].x() << " " << uv[v].y() << endl;
     }
     /*
     uv[infVertex.getIndex()].x() = -8;
@@ -343,11 +343,11 @@ void CirclePatterns::normalize() {
     // shift
     double r = 0.0;
     for (Vertex v : mesh->vertices()) {
-        if (v != infVertex) {
+        //if (v != infVertex) {
             
             uv[v] -= center;
             r = std::max(r, uv[v].squaredNorm());
-        }
+        //}
     }
     
     // scale
