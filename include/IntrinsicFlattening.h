@@ -22,6 +22,8 @@ class IntrinsicFlattening {
     public:
         IntrinsicFlattening(shared_ptr<ManifoldSurfaceMesh> mesh,shared_ptr<VertexPositionGeometry> geometry);
         SolutionData solve();
+        EdgeData<double> solveKSS();
+        SolutionData solveFromPlane();
     private:
         // pointers to geometric data
         shared_ptr<ManifoldSurfaceMesh> mesh;

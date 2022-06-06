@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
     if (!inputFilename) {
         //inputMeshPath = "/home/elu/repos/catopt/meshes/cube.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/spotwithhole.obj";
-        //inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/beanhole.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/nonconvex2.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/test.obj";
@@ -51,21 +51,22 @@ int main(int argc, char **argv) {
         inputMeshPath = args::get(inputFilename);
     }
     std::tie(mesh, geometry) = readManifoldSurfaceMesh(inputMeshPath);
-    mesh->compress();
-    IntrinsicFlattening flattener(mesh, geometry);
-    SolutionData sol = flattener.solve();
-
-  
-
-    
     // polyscope sanity checks
     polyscope::init();
     polyscope::SurfaceMesh *psMesh = polyscope::registerSurfaceMesh(
       "waaah",
       geometry->inputVertexPositions, mesh->getFaceVertexList(),
       polyscopePermutations(*mesh));
-    psMesh->addEdgeScalarQuantity("eBdry", sol.eBdry);
-    psMesh->addEdgeScalarQuantity("eMask", sol.eMask);
+
+    mesh->compress();
+    IntrinsicFlattening flattener(mesh, geometry);
+/*
+    EdgeData<double> intersectionAngles = flattener.solveKSS();
+    CircleWrapper patterns(mesh, intersectionAngles, psMesh);
+    patterns.solveKSS();
+    return EXIT_SUCCESS;
+    */
+    SolutionData sol = flattener.solveFromPlane();
     VertexData<double> vertexSum(*mesh);
     for (Vertex v: mesh->vertices()) {
         double accum = 0;
@@ -82,8 +83,7 @@ int main(int argc, char **argv) {
 
     CircleWrapper patterns(mesh, sol, psMesh);
     patterns.solve();
-
-
+    
 
 
     polyscope::show();

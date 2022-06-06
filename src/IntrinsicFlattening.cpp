@@ -124,7 +124,7 @@ SolutionData IntrinsicFlattening::solve() {
     VertexData<bool> vNewBdry(*mesh, false);
     // halfedges that are now exterior to the mesh after deleting the vertex at infinity
     // I think I shouldn't be using this anymore, but out of laziness I'm keeping the calculation here.
-    HalfedgeData<bool> hOutsideBdry(*mesh, false);
+    //HalfedgeData<bool> hOutsideBdry(*mesh, false);
     EdgeData<bool> eMask(*mesh, true);
     EdgeData<bool> eBdry(*mesh, false);
     
@@ -187,7 +187,7 @@ SolutionData IntrinsicFlattening::solve() {
                 cols.push_back(c_[he.corner()]);
                 values.push_back(-0.5);
 
-                if (!hOutsideBdry[he]) {
+                if (he.isInterior()) {
                     aRows.push_back(ind);
                     aCols.push_back(c_[he.corner()]);
                     aVals.push_back(1.);
@@ -226,7 +226,7 @@ SolutionData IntrinsicFlattening::solve() {
     // Sum to 2pi around each vertex
     rhs = vector<double>(nVertices, 0);
     for (Vertex v : mesh->vertices()) {
-        if(!v.isBoundary() && v != infVertex && !vNewBdry[v]) {
+        if(!v.isBoundary() && v != infVertex && !v.isBoundary()) {
             rhs[v_[v]] = 2*PI;
             for (Corner c : v.adjacentCorners()) {
                 rows.emplace_back(v_[v]);
@@ -280,11 +280,312 @@ SolutionData IntrinsicFlattening::solve() {
     auto asize = a->getSize();
     auto asol = a->level();
     for (Edge e : mesh->edges()) {
-        double a1 = e.halfedge().isInterior() && !hOutsideBdry[e.halfedge()]
+        double a1 = e.halfedge().isInterior() && e.halfedge().isInterior()
                         ? (*asol)[c_[e.halfedge().next().next().corner()]]
                         : 0;
         double a2 =
-            e.halfedge().twin().isInterior() && !hOutsideBdry[e.halfedge().twin()]
+            e.halfedge().twin().isInterior() && e.halfedge().twin().isInterior()
+                ? (*asol)[c_[e.halfedge().twin().next().next().corner()]]
+                : 0;
+        thetaSolve[e] = PI - a1 - a2;
+    }
+    return {infVertex, eMask, eBdry, fMask, betaSolve, thetaSolve};
+}
+EdgeData<double> IntrinsicFlattening::solveKSS() {
+    // Model initialization
+    Model::t M = new Model();
+    auto _M = finally([&]() { M->dispose(); });
+    // the witness of our "coherent angle system"
+    Variable::t a = M->variable("a", nCorners, Domain::inRange(0, 2 * PI));
+
+    // dummy vectors for building matrices
+    vector<int> rows;
+    vector<int> cols;
+    vector<double> values;
+    vector<double> rhs(0);
+
+    // Flat Boundary Constraint: Total geodesic curvature is 0 on "most" of the boundary
+    size_t excl = 4;
+    size_t count = 0;
+    for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
+        if (count >= excl) {
+            for (Corner c : v.adjacentCorners()) {
+                rows.emplace_back(count);
+                cols.emplace_back(c_[c]);
+                values.emplace_back(1.);
+            }
+            rhs.push_back(PI);
+        } else {
+            rhs.push_back(0);
+        }
+        count++;
+    }
+    auto bdryFlat = sMatrix(count, nCorners, rows, cols, values);
+    auto bdryPI = new_array_ptr(rhs);
+    //M->constraint("Flat boundary", Expr::mul(bdryFlat, a), Domain::equalsTo(bdryPI));
+    rhs.clear();
+
+    FaceData<bool> fMask(*mesh, true);
+    // halfedges that are now exterior to the mesh after deleting the vertex at infinity
+    EdgeData<bool> eBdry(*mesh, false);
+    
+    // mark all the boundary edges as the new boundary
+    for (Edge e : mesh->edges()) {
+        eBdry[e] = e.isBoundary();
+    }
+    // Sum to pi in each triangle constraint
+    rhs = vector<double>(nFaces, PI);
+    for (Face f : mesh->faces()) {
+        if(fMask[f]) {
+            for (Corner c : f.adjacentCorners()) {
+                rows.emplace_back(f_[f]);
+                cols.emplace_back(c_[c]);
+                values.emplace_back(1.); 
+            }
+        } else rhs[f_[f]] = 0.;
+    }
+    auto sumConst = sMatrix(nFaces, nCorners, rows, cols, values);
+    auto sumPI = new_array_ptr(rhs);
+    M->constraint("sum constraint", Expr::mul(sumConst, a),
+                  Domain::equalsTo(sumPI));
+    rhs.clear();
+
+    // Sum to 2pi around each vertex
+    rhs = vector<double>(nVertices, 0);
+    for (Vertex v : mesh->vertices()) {
+        if(!v.isBoundary() && !v.isBoundary()) {
+            rhs[v_[v]] = 2*PI;
+            for (Corner c : v.adjacentCorners()) {
+                rows.emplace_back(v_[v]);
+                cols.emplace_back(c_[c]);
+                values.emplace_back(1.); 
+            }
+        } 
+    }
+    auto vSum = sMatrix(nVertices, nCorners, rows, cols, values);
+    auto vSumRHS = new_array_ptr(rhs);
+    M->constraint("vertex sum constraint", Expr::mul(vSum, a), Domain::equalsTo(vSumRHS));
+    rhs.clear();
+
+    // local delaunay constraint
+    rhs = vector<double>(nEdges, 0);
+    for (Edge e : mesh->edges()) {
+        if(!e.isBoundary()) {
+            size_t eInd = e_[e];
+            rhs[eInd] = PI;
+            rows.emplace_back(eInd);
+            cols.emplace_back(c_[e.halfedge().next().next().corner()]);
+            values.emplace_back(1.); 
+            rows.emplace_back(eInd);
+            cols.emplace_back(c_[e.halfedge().twin().next().next().corner()]);
+            values.emplace_back(1.); 
+        } 
+    }
+    auto delaunay = sMatrix(nEdges, nCorners, rows, cols, values);
+    auto delaunayRHS = new_array_ptr(rhs);
+    M->constraint("Delaunay", Expr::mul(delaunay, a),Domain::lessThan(delaunayRHS));
+    rhs.clear();
+
+    vector<double> origAngles(nCorners+1,0);
+    for (Corner c: mesh->corners()) {
+        origAngles[c_[c] + 1] = geometry->cornerAngle(c);
+    }
+
+    // just setup the objective: ||a - original angles||_{L^2}
+    Variable::t t = M->variable("t", 1, Domain::unbounded());
+    M->constraint(Expr::sub(Expr::vstack(t, a),new_array_ptr(origAngles)), Domain::inQCone());
+    M->objective(ObjectiveSense::Minimize, t);
+    M->solve();
+    cout << M->getProblemStatus() << endl;
+    cout << "Optimization Done" << endl;
+    EdgeData<double> thetaSolve(*mesh,0);
+    std::cout << "Optimal primal objective: " << M->primalObjValue() << endl;
+
+    auto asize = a->getSize();
+    auto asol = a->level();
+    for (Edge e : mesh->edges()) {
+        double a1 = e.halfedge().isInterior() && e.halfedge().isInterior()
+                        ? (*asol)[c_[e.halfedge().next().next().corner()]]
+                        : 0;
+        double a2 =
+            e.halfedge().twin().isInterior() && e.halfedge().twin().isInterior()
+                ? (*asol)[c_[e.halfedge().twin().next().next().corner()]]
+                : 0;
+        thetaSolve[e] = PI - a1 - a2;
+    }
+    return thetaSolve;
+}
+SolutionData IntrinsicFlattening::solveFromPlane() {
+    CornerData<double> betaSolve(*mesh);
+    for (Corner c: mesh->corners()) {
+        betaSolve[c] = geometry->cornerAngle(c);
+    }
+
+
+    // Model initialization
+    Model::t M = new Model();
+    auto _M = finally([&]() { M->dispose(); });
+    // the witness of our "coherent angle system"
+    Variable::t a = M->variable("a", nCorners, Domain::inRange(0, 2 * PI));
+
+    // dummy vectors for building matrices
+    vector<int> rows;
+    vector<int> cols;
+    vector<double> values;
+    vector<double> rhs;
+    
+
+    // coherent angle system stuff
+    //VertexData<bool> mark(*mesh, false);
+    Vertex infVertex;
+
+    // Flat Boundary Constraint: Total geodesic curvature is 0 on "most" of the boundary
+    size_t excl = 8;
+    size_t count = 0;
+    for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
+        if (count == 1) infVertex = v;
+        if (count >= excl) {
+            for (Corner c : v.adjacentCorners()) {
+                rows.emplace_back(count);
+                cols.emplace_back(c_[c]);
+                values.emplace_back(1.);
+            }
+            rhs.push_back(PI);
+        } else {
+            rhs.push_back(0);
+        }
+        count++;
+    }
+    auto bdryFlat = sMatrix(count, nCorners, rows, cols, values);
+    auto bdryPI = new_array_ptr(rhs);
+    M->constraint("Flat boundary", Expr::mul(bdryFlat, a), Domain::equalsTo(bdryPI));
+    rhs.clear();
+
+    FaceData<bool> fMask(*mesh, true);
+    VertexData<bool> vNewBdry(*mesh, false);
+    // halfedges that are now exterior to the mesh after deleting the vertex at infinity
+    // I think I shouldn't be using this anymore, but out of laziness I'm keeping the calculation here.
+    //HalfedgeData<bool> hOutsideBdry(*mesh, false);
+    EdgeData<bool> eMask(*mesh, true);
+    EdgeData<bool> eBdry(*mesh, false);
+    
+    // mark all the boundary edges as the new boundary
+    for (Edge e : mesh->edges()) {
+        eBdry[e] = e.isBoundary();
+    }
+    // Intersection angle constraint: 
+    // the betas and the as induce the same intersection angle: that is:
+    // ++++ -- on the betas = theta =  PI - sum of opposite alphas
+    rhs = vector<double>(nEdges,PI);
+    vector<int> aRows;
+    vector<int> aCols;
+    vector<double> aVals;
+    for (Edge e : mesh->edges()) {
+        size_t ind = e_[e];
+        // we don't care about coherence on the boundary
+        if (eMask[e] && !e.isBoundary()) {
+            vector<Halfedge> temp = {e.halfedge(), e.halfedge().twin()};
+            for (auto he: temp) {
+                // shared halfedge
+                rhs[ind] -= betaSolve[he.corner()]/2;
+                he = he.next();
+                // other half edge
+                rhs[ind] -= betaSolve[he.corner()]/2;
+                he = he.next();
+                // corner corresponding to opposite vertex
+                rhs[ind] += betaSolve[he.corner()]/2;
+
+                if (he.isInterior()) {
+                    aRows.push_back(ind);
+                    aCols.push_back(c_[he.corner()]);
+                    aVals.push_back(1.);
+                }
+            }
+        } else rhs[ind] = 0;
+    }
+    
+    auto aConst = sMatrix(nEdges, nCorners, aRows, aCols, aVals);
+    auto intersectionPI = new_array_ptr(rhs);
+    M->constraint("Intersection Agreement", 
+            (Expr::mul(aConst, a)),
+                  Domain::equalsTo(intersectionPI));
+    rhs.clear();
+
+
+    // Sum to pi in each triangle constraint
+    rhs = vector<double>(nFaces, PI);
+    for (Face f : mesh->faces()) {
+        if(fMask[f]) {
+            for (Corner c : f.adjacentCorners()) {
+                rows.emplace_back(f_[f]);
+                cols.emplace_back(c_[c]);
+                values.emplace_back(1.); 
+            }
+        } else rhs[f_[f]] = 0.;
+    }
+    auto sumConst = sMatrix(nFaces, nCorners, rows, cols, values);
+    auto sumPI = new_array_ptr(rhs);
+    M->constraint("sum constraint", Expr::mul(sumConst, a),
+                  Domain::equalsTo(sumPI));
+    rhs.clear();
+
+    // Sum to 2pi around each vertex
+    rhs = vector<double>(nVertices, 0);
+    for (Vertex v : mesh->vertices()) {
+        if(!v.isBoundary() && v != infVertex && !v.isBoundary()) {
+            rhs[v_[v]] = 2*PI;
+            for (Corner c : v.adjacentCorners()) {
+                rows.emplace_back(v_[v]);
+                cols.emplace_back(c_[c]);
+                values.emplace_back(1.); 
+            }
+        } 
+    }
+    auto vSum = sMatrix(nVertices, nCorners, rows, cols, values);
+    auto vSumRHS = new_array_ptr(rhs);
+    M->constraint("vertex sum constraint", Expr::mul(vSum, a), Domain::equalsTo(vSumRHS));
+    rhs.clear();
+
+    // local delaunay constraint
+    rhs = vector<double>(nEdges, 0);
+    for (Edge e : mesh->edges()) {
+        if(eMask[e] && !eBdry[e]) {
+            size_t eInd = e_[e];
+            rhs[eInd] = PI;
+            rows.emplace_back(eInd);
+            cols.emplace_back(c_[e.halfedge().next().next().corner()]);
+            values.emplace_back(1.); 
+            rows.emplace_back(eInd);
+            cols.emplace_back(c_[e.halfedge().twin().next().next().corner()]);
+            values.emplace_back(1.); 
+        } 
+    }
+    auto delaunay = sMatrix(nEdges, nCorners, rows, cols, values);
+    auto delaunayRHS = new_array_ptr(rhs);
+    M->constraint("Delaunay", Expr::mul(delaunay, a),Domain::lessThan(delaunayRHS));
+    rhs.clear();
+
+
+
+    // just setup the objective: \sum alpha^2
+    Variable::t t = M->variable("t", 1, Domain::unbounded());
+    M->constraint(Expr::vstack(t, a), Domain::inQCone());
+    M->objective(ObjectiveSense::Minimize, t);
+    M->solve();
+    cout << M->getProblemStatus() << endl;
+    cout << "Optimization Done" << endl;
+    std::cout << "Optimal primal objective: " << M->primalObjValue() << endl;
+
+
+    EdgeData<double> thetaSolve(*mesh,0);
+    auto asize = a->getSize();
+    auto asol = a->level();
+    for (Edge e : mesh->edges()) {
+        double a1 = e.halfedge().isInterior() && e.halfedge().isInterior()
+                        ? (*asol)[c_[e.halfedge().next().next().corner()]]
+                        : 0;
+        double a2 =
+            e.halfedge().twin().isInterior() && e.halfedge().twin().isInterior()
                 ? (*asol)[c_[e.halfedge().twin().next().next().corner()]]
                 : 0;
         thetaSolve[e] = PI - a1 - a2;

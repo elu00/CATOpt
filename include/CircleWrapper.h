@@ -7,7 +7,9 @@
 class CircleWrapper {
     public:
         CircleWrapper(shared_ptr<ManifoldSurfaceMesh> mesh, SolutionData sol, polyscope::SurfaceMesh *psMesh);
+        CircleWrapper(shared_ptr<ManifoldSurfaceMesh> mesh, EdgeData<double> intersectionAngles, polyscope::SurfaceMesh *psMesh);
         void solve();
+        void solveKSS();
         void uvSVG(std::string filename, EdgeData<bool> eMask);
     private:
         // geometric data

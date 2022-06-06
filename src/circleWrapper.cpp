@@ -22,6 +22,39 @@ mesh(mesh), psMesh(psMesh) {
         thetas[e_[e]] = theta[e];
     }
 }
+CircleWrapper::CircleWrapper(shared_ptr<ManifoldSurfaceMesh> mesh, EdgeData<double> intersectionAngles, polyscope::SurfaceMesh *psMesh): 
+mesh(mesh), psMesh(psMesh) {
+    theta = intersectionAngles;
+    thetas = Eigen::VectorXd::Zero(mesh->nEdges());
+    EdgeData<size_t> e_ = mesh->getEdgeIndices();
+    for (Edge e: mesh->edges()) {
+        thetas[e_[e]] = theta[e];
+    }
+}
+void CircleWrapper::solveKSS() {
+    std::cout << "Circle pattern stuff" << endl;
+
+
+    //dumb initialization stuff
+    EdgeData<bool> eMask(*mesh);
+    for (Edge e: mesh->edges()) eMask[e] = true;
+    EdgeData<bool> eBdry(*mesh);
+    // mark all the boundary edges as the new boundary
+    for (Edge e : mesh->edges()) eBdry[e] = e.isBoundary();
+    FaceData<bool> fMask(*mesh);
+    for (Face f: mesh->faces()) fMask[f] = true;
+
+    CirclePatterns prob(mesh, infVertex, eMask, eBdry, fMask, 0, thetas);
+    std::cout << "starting parameterization" << std::endl;
+    uv = prob.parameterize();
+    std::cout << "parameterization done" << std::endl;
+    circleSol = Vector<double>(mesh->nEdges());
+    // for visualiztion
+    for (int i = 0; i < mesh->nEdges(); i++) circleSol[i] = 0;
+    uvSVG("flat.svg", eMask);
+    //setOffsets();
+    uvSVG("fin.svg", eMask);
+}
 void CircleWrapper::solve() {
     //TODO: change this
     size_t excl = 4;
