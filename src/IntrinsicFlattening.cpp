@@ -226,7 +226,7 @@ SolutionData IntrinsicFlattening::solve() {
     // Sum to 2pi around each vertex
     rhs = vector<double>(nVertices, 0);
     for (Vertex v : mesh->vertices()) {
-        if(!v.isBoundary() && v != infVertex && !v.isBoundary()) {
+        if(!v.isBoundary()) {
             rhs[v_[v]] = 2*PI;
             for (Corner c : v.adjacentCorners()) {
                 rows.emplace_back(v_[v]);
@@ -415,7 +415,7 @@ EdgeData<double> IntrinsicFlattening::solveKSS() {
     }
     return thetaSolve;
 }
-SolutionData IntrinsicFlattening::solveFromPlane() {
+SolutionData IntrinsicFlattening::solveFromPlane(double interpolationWeight) {
     CornerData<double> betaSolve(*mesh);
     for (Corner c: mesh->corners()) {
         betaSolve[c] = geometry->cornerAngle(c);
@@ -440,17 +440,23 @@ SolutionData IntrinsicFlattening::solveFromPlane() {
     Vertex infVertex;
 
     // Flat Boundary Constraint: Total geodesic curvature is 0 on "most" of the boundary
-    size_t excl = 8;
+    size_t excl = 2;
     size_t count = 0;
+    double bdryCount = 0;
+    interpolationWeight = 1;
+    for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) bdryCount+=1.0;
     for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
         if (count == 1) infVertex = v;
         if (count >= excl) {
+            double origSum = 0;
             for (Corner c : v.adjacentCorners()) {
                 rows.emplace_back(count);
                 cols.emplace_back(c_[c]);
                 values.emplace_back(1.);
+                origSum += geometry->cornerAngle(c);
             }
-            rhs.push_back(PI);
+            rhs.push_back(interpolationWeight * (PI - 2 * PI/bdryCount) + (1-interpolationWeight) * origSum);
+            //rhs.push_back(origSum + 0.1 * (count % 2 ? 0:-0));
         } else {
             rhs.push_back(0);
         }
@@ -474,7 +480,7 @@ SolutionData IntrinsicFlattening::solveFromPlane() {
         eBdry[e] = e.isBoundary();
     }
     // Intersection angle constraint: 
-    // the betas and the as induce the same intersection angle: that is:
+    // the betas and thetas induce the same intersection angle: that is:
     // ++++ -- on the betas = theta =  PI - sum of opposite alphas
     rhs = vector<double>(nEdges,PI);
     vector<int> aRows;
@@ -532,7 +538,7 @@ SolutionData IntrinsicFlattening::solveFromPlane() {
     // Sum to 2pi around each vertex
     rhs = vector<double>(nVertices, 0);
     for (Vertex v : mesh->vertices()) {
-        if(!v.isBoundary() && v != infVertex && !v.isBoundary()) {
+        if(!v.isBoundary()) {
             rhs[v_[v]] = 2*PI;
             for (Corner c : v.adjacentCorners()) {
                 rows.emplace_back(v_[v]);
@@ -562,7 +568,7 @@ SolutionData IntrinsicFlattening::solveFromPlane() {
     }
     auto delaunay = sMatrix(nEdges, nCorners, rows, cols, values);
     auto delaunayRHS = new_array_ptr(rhs);
-    M->constraint("Delaunay", Expr::mul(delaunay, a),Domain::lessThan(delaunayRHS));
+    //M->constraint("Delaunay", Expr::mul(delaunay, a),Domain::lessThan(delaunayRHS));
     rhs.clear();
 
 

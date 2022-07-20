@@ -17,6 +17,39 @@ using std::shared_ptr;
 
 shared_ptr<ManifoldSurfaceMesh> mesh;
 shared_ptr<VertexPositionGeometry> geometry;
+polyscope::SurfaceMesh *psMesh;
+
+void planarMapping(int N) {
+    for (int m = 0; m <= N; m++){
+        IntrinsicFlattening flattener(mesh, geometry);
+        SolutionData sol = flattener.solveFromPlane((double)m/(double)N);
+        VertexData<double> vertexSum(*mesh);
+        for (Vertex v: mesh->vertices()) {
+            double accum = 0;
+            for (Corner c: v.adjacentCorners()) {
+                accum += sol.betas[c];
+            }
+            vertexSum[v] = accum;
+        }
+        /*
+        psMesh->addVertexScalarQuantity("vertex sums", vertexSum);
+        //psMesh->addHalfedgeScalarQuantity("solved", sol.betas);
+        psMesh->addEdgeScalarQuantity("thetas", sol.thetas);
+        //psMesh->addVertexScalarQuantity("infinite vertex", sol.infVertex);
+        psMesh->addFaceScalarQuantity("faces", sol.fMask);
+        */
+
+        CircleWrapper patterns(mesh, sol, psMesh);
+        patterns.solve("fin" + std::string(3 - std::to_string(m).length(), '0') +  std::to_string(m) );
+    }
+}
+
+void surfaceToPlane() {
+    IntrinsicFlattening flattener(mesh, geometry);
+    EdgeData<double> intersectionAngles = flattener.solveKSS();
+    CircleWrapper patterns(mesh, intersectionAngles, psMesh);
+    patterns.solveKSS();
+}
 
 int main(int argc, char **argv) {
     // Configure the argument parser
@@ -42,6 +75,7 @@ int main(int argc, char **argv) {
         //inputMeshPath = "/home/elu/repos/catopt/meshes/cube.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/spotwithhole.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/SmallDisk.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/beanhole.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/nonconvex2.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/test.obj";
@@ -52,40 +86,15 @@ int main(int argc, char **argv) {
     }
     std::tie(mesh, geometry) = readManifoldSurfaceMesh(inputMeshPath);
     // polyscope sanity checks
-    polyscope::init();
-    polyscope::SurfaceMesh *psMesh = polyscope::registerSurfaceMesh(
+    polyscope::init("openGL_mock");
+    psMesh = polyscope::registerSurfaceMesh(
       "waaah",
       geometry->inputVertexPositions, mesh->getFaceVertexList(),
       polyscopePermutations(*mesh));
 
     mesh->compress();
-    IntrinsicFlattening flattener(mesh, geometry);
-/*
-    EdgeData<double> intersectionAngles = flattener.solveKSS();
-    CircleWrapper patterns(mesh, intersectionAngles, psMesh);
-    patterns.solveKSS();
-    return EXIT_SUCCESS;
-    */
-    SolutionData sol = flattener.solveFromPlane();
-    VertexData<double> vertexSum(*mesh);
-    for (Vertex v: mesh->vertices()) {
-        double accum = 0;
-        for (Corner c: v.adjacentCorners()) {
-            accum += sol.betas[c];
-        }
-        vertexSum[v] = accum;
-    }
-    psMesh->addVertexScalarQuantity("vertex sums", vertexSum);
-    //psMesh->addHalfedgeScalarQuantity("solved", sol.betas);
-    psMesh->addEdgeScalarQuantity("thetas", sol.thetas);
-    //psMesh->addVertexScalarQuantity("infinite vertex", sol.infVertex);
-    psMesh->addFaceScalarQuantity("faces", sol.fMask);
-
-    CircleWrapper patterns(mesh, sol, psMesh);
-    patterns.solve();
+    planarMapping(100);
     
-
-
     polyscope::show();
     
     return EXIT_SUCCESS;

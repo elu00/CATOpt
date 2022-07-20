@@ -55,7 +55,7 @@ void CircleWrapper::solveKSS() {
     //setOffsets();
     uvSVG("fin.svg", eMask);
 }
-void CircleWrapper::solve() {
+void CircleWrapper::solve(std::string name) {
     //TODO: change this
     size_t excl = 4;
     std::cout << "Circle pattern stuff" << endl;
@@ -64,6 +64,7 @@ void CircleWrapper::solve() {
     uv = prob.parameterize();
     std::cout << "parameterization done" << std::endl;
     // calculate circle center to invert around
+    /*
     int count = 0;
     invRadius = 0.2;
     invRadius = 1;
@@ -80,13 +81,14 @@ void CircleWrapper::solve() {
     }
     auto offset = Eigen::Vector2d((b2 - b1).y(), -(b2 - b1).x());
     center = (b1 + b2) / 2. + invRadius * offset / offset.norm();
+    */
     circleSol = Vector<double>(mesh->nEdges());
     for (int i = 0; i < mesh->nEdges(); i++) circleSol[i] = 0;
-    uvSVG("flat.svg", eMask);
+    uvSVG("flat" + name + ".svg", eMask);
     //circleInversion();
     //uvSVG("inverted.svg", eMask);
     setOffsets();
-    uvSVG("fin.svg", eMask);
+    uvSVG(name+".svg", eMask);
 }
 
 void CircleWrapper::uvSVG(std::string filename, EdgeData<bool> eMask) {
@@ -98,6 +100,7 @@ void CircleWrapper::uvSVG(std::string filename, EdgeData<bool> eMask) {
        << endl
        << "<svg width=\"2000\" height=\"2000\" "
           "xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\" >"
+          << "<rect width=\"100%\" height =\"100%\" fill=\"#ffffff\"/>"
        << endl;
     // point labels
     for (Vertex v : mesh->vertices()) {
@@ -105,6 +108,7 @@ void CircleWrapper::uvSVG(std::string filename, EdgeData<bool> eMask) {
         ss << "<circle cx=\"" << shift(thing.x()) << "\" cy=\""
            << shift(thing.y()) << "\" r=\"1\"/>" << endl;
     }
+    
     // circle center thing
     /*
     ss << "<circle cx=\"" << shift(center.x()) << "\" cy=\""
@@ -142,7 +146,16 @@ void CircleWrapper::uvSVG(std::string filename, EdgeData<bool> eMask) {
             }
         } 
     }
-
+    size_t count = 0;
+    size_t excl = 2;
+    for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
+        Eigen::Vector2d thing = uv[v];
+        if (count < excl) {
+        ss << "<circle fill=\"red\" cx=\"" << shift(thing.x()) << "\" cy=\""
+           << shift(thing.y()) << "\" r=\"5\"/>" << endl;
+        } 
+        count++;
+    }
     // footer
     ss << "</svg>";
     std::cout << "done" << endl;
@@ -225,7 +238,7 @@ void CircleWrapper::setOffsets() {
     std::cout << "nEdges is " << mesh->nEdges() << std::endl;
     cout << "residual is" << residual(A,circleSol,rhs) << endl;
 
-    uvSVG("offset.svg", EdgeData<bool>(*mesh, true));
+    //uvSVG("offset.svg", EdgeData<bool>(*mesh, true));
     /*
     for (Edge e : mesh->boundaryLoop(0).adjacentEdges()) {
         std::cout << circleSol[e_[e]];
@@ -233,6 +246,7 @@ void CircleWrapper::setOffsets() {
     */
     // Double check intersection angle condition
     for (Edge e: mesh->edges()){
+            if (e.isBoundary()) continue;
             vector<Halfedge> temp = {e.halfedge(), e.halfedge().twin()};
             double actual = PI;
             double expected = 0;
@@ -304,7 +318,8 @@ void CircleWrapper::setOffsets() {
         }
         */
         boundarySum[v] = accum;
-        cout << "Vertex boundary sum: " << accum << " expected " << betaSum << endl;
+        // DEBUG
+        //cout << "Vertex boundary sum: " << accum << " expected " << betaSum << endl;
     }
     psMesh->addVertexScalarQuantity("boundary sum", boundarySum);
 }
