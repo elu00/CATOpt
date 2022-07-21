@@ -13,6 +13,7 @@ using std::shared_ptr;
 
 
 #include "IntrinsicFlattening.h"
+#include "EmbeddingOptimization.h"
 #include "CircleWrapper.h"
 
 shared_ptr<ManifoldSurfaceMesh> mesh;
@@ -43,9 +44,10 @@ void planarMapping(int N) {
         patterns.solve("fin" + std::string(3 - std::to_string(m).length(), '0') +  std::to_string(m) );
     }
 }
-void planarMapping(int N) {
+void embedding(int N) {
     EmbeddingOptimization E(mesh, geometry);
-    E.solve(10);
+    auto [submesh, subgeometry] = E.solve(N);
+    
 }
 void surfaceToPlane() {
     IntrinsicFlattening flattener(mesh, geometry);
@@ -89,16 +91,19 @@ int main(int argc, char **argv) {
     }
     std::tie(mesh, geometry) = readManifoldSurfaceMesh(inputMeshPath);
     // polyscope sanity checks
-    polyscope::init("openGL_mock");
+    polyscope::init();
+    /*
     psMesh = polyscope::registerSurfaceMesh(
       "waaah",
       geometry->inputVertexPositions, mesh->getFaceVertexList(),
       polyscopePermutations(*mesh));
+      */
 
     mesh->compress();
     //planarMapping(100);
+    embedding(7);
     
-    //polyscope::show();
+    polyscope::show();
     
     return EXIT_SUCCESS;
 }

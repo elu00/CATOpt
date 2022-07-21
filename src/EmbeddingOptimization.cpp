@@ -1,11 +1,15 @@
 #include "fusion.h"
 #include "EmbeddingOptimization.h"
 
+#include "polyscope/polyscope.h"
+#include "polyscope/surface_mesh.h"
 
 using namespace mosek::fusion;
 using namespace monty;
 
-Vector3 EmbeddingOptimization::bary(Corner c, int x, int y) {
+Vector3 EmbeddingOptimization::bary(Corner c, int X, int Y) {
+    double x = X;
+    double y = Y;
    auto it = c.halfedge();
    Vector3 i = geometry->inputVertexPositions[it.vertex()];
    it = it.next();
@@ -13,10 +17,10 @@ Vector3 EmbeddingOptimization::bary(Corner c, int x, int y) {
    it = it.next();
    Vector3 k = geometry->inputVertexPositions[it.vertex()];
    double jWeight = x * (3*n-3-2*y) * (3*n-3-y)/(2*(n-1)*(9-18*n + 9 * n * n + 6*y -6*n*y-x*y+y*y));
-   double kWeight = y * (3*n-3-2*x) * (3n-3-x)/(2*(n-1)*(9-18*n + 9 * n * n + 6*x -6*n*x-x*y+x*x));
+   double kWeight = y * (3*n-3-2*x) * (3*n-3-x)/(2*(n-1)*(9-18*n + 9 * n * n + 6*x -6*n*x-x*y+x*x));
    return (1 - jWeight - kWeight) * i + jWeight * j + kWeight * k;
    }
-EmbeddingOptimization::EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh,shared_ptr<VertexPositionGeometry> geometry):
+EmbeddingOptimization::EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh, shared_ptr<VertexPositionGeometry> geometry):
     mesh(mesh), geometry(geometry) {
         geometry->requireEdgeLengths();
         geometry->requireVertexGaussianCurvatures();
@@ -30,9 +34,7 @@ EmbeddingOptimization::EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mes
         v_ = mesh->getVertexIndices();
 
         f_ = mesh->getFaceIndices();
-        top = vector<int> (n*n*nCorners);
-        for (int i = 0; i < n * n * nCorners; i++) top[i] = i;
-        next = vector<int> (n*n*nCorners, -1);
+            
     }
 
 
@@ -50,6 +52,7 @@ monty::rc_ptr<mosek::fusion::Matrix> EmbeddingOptimization::sMatrix(int m, int n
 
 void EmbeddingOptimization::merge(int a, int b) {
     if (top[a] > top[b]) std::swap(a,b);
+    if (top[a] == top[b]) return;
     b = top[b];
     int aNext = next[a];
     next[a] = b;
@@ -57,19 +60,25 @@ void EmbeddingOptimization::merge(int a, int b) {
         top[b] = top[a];
         b = next[b];
     }
+    top[b] = top[a];
     next[b] = aNext;
+
 }
 int EmbeddingOptimization::find(int a) {
     return top[a];
 }
-void EmbeddingOptimization::solve(int N) {
+ std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry> >EmbeddingOptimization::solve(int N) {
     n = N;
+    top = vector<int> (n*n*nCorners);
+    for (int i = 0; i < n * n * nCorners; i++) top[i] = i;
+    next = vector<int> (n*n*nCorners, -1);
+
     /*
      *        n*(n-1) -> .. -> n^2 - 1
      *        /                    /
      *      .........................
      *     /                      /
-     *    n               2*n - 1 <-> n^2-(n-1)
+     *    n               2*n - 1 <-> n^2-n+1
      *   /                      /
      *   0 -> 1 -> ... -> n - 1  <-> n^2 - n
      *   ^    ^
@@ -92,16 +101,22 @@ void EmbeddingOptimization::solve(int N) {
             }
         }
     }
+    for (int i = 0; i < n * n * nCorners; i++) cout << find(i) << " ";
+    cout << endl;
+
     // reindexing so all our final vertex indices are contiguous
-    vector<int> reindex(nCorners * n * n, -1);
+    std::map<int,int> reindex;
     size_t temp = 0;
     for (int i = 0; i < nCorners * n * n; i++) {
-        if (reindex[find(i)] == -1) {
+        if (!reindex.count(find(i))){
             reindex[find(i)] = temp;
             temp++;
         }
         finalIndices.push_back(reindex[find(i)]);
     }
+
+    for (int i = 0; i < n * n * nCorners; i++) cout << finalIndices[i] << " ";
+    cout << endl;
 
     // now all the indexing garbage is done...let's construct the mesh and setup the energy
     vector< vector<size_t> > polygons;
@@ -109,26 +124,30 @@ void EmbeddingOptimization::solve(int N) {
         size_t cOffset = c_[c] * n * n;
         for (int x = 0; x < n - 1; x++) {
             for (int y = 0; y < n - 1; y++) {
-                size_t i = finalIndices[cOffset + x + n * y];
-                size_t j = finalIndices[cOffset + (x+1) + n * y];
-                size_t k = finalIndices[cOffset + (x+1) + n * (y+1)];
-                size_t l = finalIndices[cOffset + x + n * (y+1)];
+                size_t i = finalIndices[find(cOffset + x + n * y)];
+                size_t j = finalIndices[find(cOffset + (x+1) + n * y)];
+                size_t k = finalIndices[find(cOffset + (x+1) + n * (y+1))];
+                size_t l = finalIndices[find(cOffset + x + n * (y+1))];
                 polygons.push_back({i,j,k,l});
+                cout << i << " " << j << " " << k << " " << l << "wat" << endl;
             }
         }
     }
     submesh = std::unique_ptr<ManifoldSurfaceMesh>(new ManifoldSurfaceMesh(polygons));
-    VertexData<Vector3> positions(submesh);
+    VertexData<Vector3> positions(*submesh);
     for (Corner c: mesh->corners()) {
         size_t cOffset = c_[c] * n * n;
         for (int x = 0; x < n; x++) {
             for (int y = 0; y < n; y++) {
-                positions[finalIndices[cOffset + x + n * y]] = bary(c, x, y);
+                positions[finalIndices[find(cOffset + x + n * y)]] = bary(c, x, y);
+                //cout << (bary(c,x,y));
+                //cout << find(cOffset + x + n * y) << endl;
             }
         }
     }
+    for (Vertex v: submesh->vertices()) cout << positions[v] << "wah" << endl;
     subgeometry = std::unique_ptr<VertexPositionGeometry>(new VertexPositionGeometry(*submesh,positions));
-    polyscope::registerSurfaceMesh("New mesh", subgeometry->vertexPositions, submesh->getFaceVertexList());
+    polyscope::registerSurfaceMesh("New mesh", positions, submesh->getFaceVertexList());
     polyscope::show();
-    return;
-}
+    return {submesh, subgeometry};
+    }

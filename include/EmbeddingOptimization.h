@@ -20,8 +20,8 @@ using namespace monty;
 
 class EmbeddingOptimization {
     public:
-        EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh,shared_ptr<VertexPositionGeometry> geometry);
-        void solve(int N);
+        EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh, shared_ptr<VertexPositionGeometry> geometry);
+        std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry> > solve(int N);
     private:
         // pointers to geometric data
         int n;
@@ -44,7 +44,7 @@ class EmbeddingOptimization {
         // convenience function
         void merge(int a, int b);
         int find(int a);
-        Vector3 bary(Corner c, double x, double y);
+        Vector3 bary(Corner c, int x, int y);
         monty::rc_ptr<mosek::fusion::Matrix> sMatrix(int m, int n, vector<int>& rows, vector<int>& cols, 
                     vector<double>& values);
 
