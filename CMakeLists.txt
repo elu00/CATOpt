@@ -78,6 +78,7 @@ add_subdirectory(deps/mosek)
 set(SRCS 
   src/main.cpp
   src/IntrinsicFlattening.cpp
+  src/EmbeddingOptimization.cpp
   src/circleWrapper.cpp
   src/CirclePatterns.cpp
   src/Solver.cpp

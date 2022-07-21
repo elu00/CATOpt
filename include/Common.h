@@ -24,3 +24,18 @@ struct SolutionData {
     EdgeData<double> thetas;
     
 };
+
+struct BezierTriangle {
+    Eigen::Vector2d p200;
+    Eigen::Vector2d p020;
+    Eigen::Vector2d p002;
+    Eigen::Vector2d p110;
+    Eigen::Vector2d p011;
+    Eigen::Vector2d p101;
+    double w200;
+    double w020;
+    double w002;
+    double w110;
+    double w011;
+    double w101;
+};
