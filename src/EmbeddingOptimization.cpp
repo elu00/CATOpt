@@ -7,36 +7,40 @@
 using namespace mosek::fusion;
 using namespace monty;
 
-Vector3 EmbeddingOptimization::bary(Corner c, int X, int Y) {
-    double x = X;
-    double y = Y;
-   auto it = c.halfedge();
-   Vector3 i = geometry->inputVertexPositions[it.vertex()];
-   it = it.next();
-   Vector3 j = geometry->inputVertexPositions[it.vertex()];
-   it = it.next();
-   Vector3 k = geometry->inputVertexPositions[it.vertex()];
-   double jWeight = x * (3*n-3-2*y) * (3*n-3-y)/(2*(n-1)*(9-18*n + 9 * n * n + 6*y -6*n*y-x*y+y*y));
-   double kWeight = y * (3*n-3-2*x) * (3*n-3-x)/(2*(n-1)*(9-18*n + 9 * n * n + 6*x -6*n*x-x*y+x*x));
-   return (1 - jWeight - kWeight) * i + jWeight * j + kWeight * k;
-   }
-EmbeddingOptimization::EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh, shared_ptr<VertexPositionGeometry> geometry):
-    mesh(mesh), geometry(geometry) {
-        geometry->requireEdgeLengths();
-        geometry->requireVertexGaussianCurvatures();
-        geometry->requireVertexAngleSums();
-        nVertices = mesh->nVertices();
-        nEdges = mesh->nEdges();
-        nCorners = mesh->nCorners();
-        nFaces = mesh->nFaces();
-        c_ = mesh->getCornerIndices();
-        e_ = mesh->getEdgeIndices();
-        v_ = mesh->getVertexIndices();
+Vector3 EmbeddingOptimization::bary(Corner c, int X, int Y)
+{
+    double x = (double)X/(n-1);
+    double y = (double)Y/(n-1);
+    auto it = c.halfedge();
+    Vector3 i = geometry->inputVertexPositions[it.vertex()];
+    it = it.next();
+    Vector3 j = geometry->inputVertexPositions[it.vertex()];
+    it = it.next();
+    Vector3 k = geometry->inputVertexPositions[it.vertex()];
+    double jWeight = -(y-3) * x/6;
+    double kWeight = -(x-3) * y/6;
+    /*
+    double jWeight = x * (3 * n - 3 - 2 * y) * (3 * n - 3 - y) / (2 * (n - 1) * (9 - 18 * n + 9 * n * n + 6 * y - 6 * n * y - x * y + y * y));
+    double kWeight = y * (3 * n - 3 - 2 * x) * (3 * n - 3 - x) / (2 * (n - 1) * (9 - 18 * n + 9 * n * n + 6 * x - 6 * n * x - x * y + x * x));
+    */
+    return (1 - jWeight - kWeight) * i + jWeight * j + kWeight * k;
+    //return {1 - jWeight - kWeight, jWeight, kWeight};
+}
+EmbeddingOptimization::EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh, shared_ptr<VertexPositionGeometry> geometry) : mesh(mesh), geometry(geometry)
+{
+    geometry->requireEdgeLengths();
+    geometry->requireVertexGaussianCurvatures();
+    geometry->requireVertexAngleSums();
+    nVertices = mesh->nVertices();
+    nEdges = mesh->nEdges();
+    nCorners = mesh->nCorners();
+    nFaces = mesh->nFaces();
+    c_ = mesh->getCornerIndices();
+    e_ = mesh->getEdgeIndices();
+    v_ = mesh->getVertexIndices();
 
-        f_ = mesh->getFaceIndices();
-            
-    }
-
+    f_ = mesh->getFaceIndices();
+}
 
 // convenience function for making a sparse matrix
 monty::rc_ptr<mosek::fusion::Matrix> EmbeddingOptimization::sMatrix(int m, int n, vector<int>& rows, vector<int>& cols, vector<double>& values ) {
@@ -101,8 +105,8 @@ int EmbeddingOptimization::find(int a) {
             }
         }
     }
-    for (int i = 0; i < n * n * nCorners; i++) cout << find(i) << " ";
-    cout << endl;
+    //for (int i = 0; i < n * n * nCorners; i++) cout << find(i) << " ";
+    //cout << endl;
 
     // reindexing so all our final vertex indices are contiguous
     std::map<int,int> reindex;
@@ -115,8 +119,8 @@ int EmbeddingOptimization::find(int a) {
         finalIndices.push_back(reindex[find(i)]);
     }
 
-    for (int i = 0; i < n * n * nCorners; i++) cout << finalIndices[i] << " ";
-    cout << endl;
+    //for (int i = 0; i < n * n * nCorners; i++) cout << finalIndices[i] << " ";
+    //cout << endl;
 
     // now all the indexing garbage is done...let's construct the mesh and setup the energy
     vector< vector<size_t> > polygons;
@@ -129,7 +133,7 @@ int EmbeddingOptimization::find(int a) {
                 size_t k = finalIndices[find(cOffset + (x+1) + n * (y+1))];
                 size_t l = finalIndices[find(cOffset + x + n * (y+1))];
                 polygons.push_back({i,j,k,l});
-                cout << i << " " << j << " " << k << " " << l << "wat" << endl;
+                //cout << i << " " << j << " " << k << " " << l << endl;
             }
         }
     }
@@ -139,13 +143,18 @@ int EmbeddingOptimization::find(int a) {
         size_t cOffset = c_[c] * n * n;
         for (int x = 0; x < n; x++) {
             for (int y = 0; y < n; y++) {
+                if(positions[finalIndices[find(cOffset + x + n * y)]].norm() != 0) {
+                    double err = (positions[finalIndices[find(cOffset + x + n * y)]] - bary(c, x, y)).norm();
+                    if (err > 1e-6) {
+                        cout << "reindex error:" << err << " from " << cOffset + x + n * y << endl;
+                    }
+                } 
                 positions[finalIndices[find(cOffset + x + n * y)]] = bary(c, x, y);
-                //cout << (bary(c,x,y));
-                //cout << find(cOffset + x + n * y) << endl;
             }
         }
     }
-    for (Vertex v: submesh->vertices()) cout << positions[v] << "wah" << endl;
+    //cout << bary(*mesh->corners().begin(), 1,2) << endl;
+    //for (Vertex v: submesh->vertices()) cout << positions[v] << "wah" << endl;
     subgeometry = std::unique_ptr<VertexPositionGeometry>(new VertexPositionGeometry(*submesh,positions));
     polyscope::registerSurfaceMesh("New mesh", positions, submesh->getFaceVertexList());
     polyscope::show();
