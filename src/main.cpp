@@ -43,7 +43,10 @@ void planarMapping(int N) {
         patterns.solve("fin" + std::string(3 - std::to_string(m).length(), '0') +  std::to_string(m) );
     }
 }
-
+void planarMapping(int N) {
+    EmbeddingOptimization E(mesh, geometry);
+    E.solve(10);
+}
 void surfaceToPlane() {
     IntrinsicFlattening flattener(mesh, geometry);
     EdgeData<double> intersectionAngles = flattener.solveKSS();
@@ -93,7 +96,7 @@ int main(int argc, char **argv) {
       polyscopePermutations(*mesh));
 
     mesh->compress();
-    planarMapping(100);
+    //planarMapping(100);
     
     //polyscope::show();
     

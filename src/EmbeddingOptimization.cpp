@@ -12,7 +12,9 @@ Vector3 EmbeddingOptimization::bary(Corner c, int x, int y) {
    Vector3 j = geometry->inputVertexPositions[it.vertex()];
    it = it.next();
    Vector3 k = geometry->inputVertexPositions[it.vertex()];
-   return (1 - jWeight - k * i + y * j;
+   double jWeight = x * (3*n-3-2*y) * (3*n-3-y)/(2*(n-1)*(9-18*n + 9 * n * n + 6*y -6*n*y-x*y+y*y));
+   double kWeight = y * (3*n-3-2*x) * (3n-3-x)/(2*(n-1)*(9-18*n + 9 * n * n + 6*x -6*n*x-x*y+x*x));
+   return (1 - jWeight - kWeight) * i + jWeight * j + kWeight * k;
    }
 EmbeddingOptimization::EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh,shared_ptr<VertexPositionGeometry> geometry):
     mesh(mesh), geometry(geometry) {
@@ -126,6 +128,7 @@ void EmbeddingOptimization::solve(int N) {
         }
     }
     subgeometry = std::unique_ptr<VertexPositionGeometry>(new VertexPositionGeometry(*submesh,positions));
-
+    polyscope::registerSurfaceMesh("New mesh", subgeometry->vertexPositions, submesh->getFaceVertexList());
+    polyscope::show();
     return;
 }
