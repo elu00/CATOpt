@@ -434,6 +434,7 @@ SolutionData IntrinsicFlattening::solveFromPlane( double interpolationWeight ) {
    // compatible with the prescribed intersection angles (including new boundary angles)
    Variable::t a = M->variable("a", nCorners, Domain::inRange(0, 2 * PI));
 
+   // =========== Equation [1] =================================================
 
    // For each interior edge, add a constraint which ensures that
    // the coherent angle system exhibits the same circumcircle
@@ -455,7 +456,7 @@ SolutionData IntrinsicFlattening::solveFromPlane( double interpolationWeight ) {
    //        *
    //
 
-   // temporary vectors for building sparse matrix for Equation [1]
+   // temporary arrays for building sparse linear system for Equation [1]
    vector<int> aRows;
    vector<int> aCols;
    vector<double> aVals;
@@ -502,32 +503,71 @@ SolutionData IntrinsicFlattening::solveFromPlane( double interpolationWeight ) {
    }
 
    // add Equation [1] to the solver
-   auto aConst = sMatrix(nEdges, nCorners, aRows, aCols, aVals);
-   auto intersectionPI = new_array_ptr(aRhs);
+   auto aLhsMatrix = sMatrix(nEdges, nCorners, aRows, aCols, aVals);
+   auto aRhsVector = new_array_ptr(aRhs);
    M->constraint("Intersection Agreement", 
-         (Expr::mul(aConst, a)),
-         Domain::equalsTo(intersectionPI));
+         (Expr::mul(aLhsMatrix, a)),
+         Domain::equalsTo(aRhsVector));
 
-   // temporary vectors for building sparse matrices
-   vector<int> rows;
-   vector<int> cols;
-   vector<double> values;
-   vector<double> rhs;
+   // =========== Equation [2] =================================================
+   
+   // For each triangle, add a constraint that says that the
+   // interior angles from the coherent angle system sum to π:
+   //
+   //    α0 + α1 + α2 = π       [2]
+   //
+   //        *
+   //       /0\
+   //      /   \
+   //     /     \
+   //    /1     2\
+   //   *---------*
+   //
 
-   // Sum to pi in each triangle constraint
-   rhs = vector<double>(nFaces, PI);
+   // temporary arrays for building sparse linear system for Equation [2]
+   vector<int> triRows;
+   vector<int> triCols;
+   vector<double> triValues;
+   vector<double> triRhs = vector<double>(nFaces, PI); // set all values to π
+
    for (Face f : mesh->faces()) {
       for (Corner c : f.adjacentCorners()) {
-         rows.emplace_back(f_[f]);
-         cols.emplace_back(c_[c]);
-         values.emplace_back(1.); 
+         triRows.emplace_back(f_[f]);
+         triCols.emplace_back(c_[c]);
+         triValues.emplace_back(1.); 
       }
    }
-   auto sumConst = sMatrix(nFaces, nCorners, rows, cols, values);
-   auto sumPI = new_array_ptr(rhs);
-   M->constraint("sum constraint", Expr::mul(sumConst, a),
-         Domain::equalsTo(sumPI));
-   rhs.clear();
+
+   // add Equation [2] to the solver
+   auto triLhsMatrix = sMatrix(nFaces, nCorners, triRows, triCols, triValues);
+   auto triRhsVector = new_array_ptr(triRhs);
+   M->constraint("triangle sum constraint",
+         Expr::mul(triLhsMatrix, a),
+         Domain::equalsTo(triRhsVector));
+
+   // =========== Equation [3] =================================================
+
+   // For each interior vertex, add a constraint that says the
+   // angles around the vertex sum to 2π:
+   //
+   //     _______
+   //    /\     /\
+   //   /  \   /  \
+   //  /   2\1/0   \
+   //  ------*------
+   //  \   3/…\n   /
+   //   \  /   \  /
+   //    \/_____\/
+   //
+   //   
+
+   // temporary vectors for building sparse matrices
+   vector<int> vertRows;
+   vector<int> vertCols;
+   vector<double> vertValues;
+   vector<double> vertRhs;
+
+   // XXX
 
    // Sum to 2pi around each vertex
    rhs = vector<double>(nVertices, 0);
@@ -545,6 +585,13 @@ SolutionData IntrinsicFlattening::solveFromPlane( double interpolationWeight ) {
    auto vSumRHS = new_array_ptr(rhs);
    M->constraint("vertex sum constraint", Expr::mul(vSum, a), Domain::equalsTo(vSumRHS));
    rhs.clear();
+
+
+   // temporary vectors for building sparse matrices
+   vector<int> rows;
+   vector<int> cols;
+   vector<double> values;
+   vector<double> rhs;
 
    // local delaunay constraint
    rhs = vector<double>(nEdges, 0);
