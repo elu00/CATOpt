@@ -434,75 +434,94 @@ SolutionData IntrinsicFlattening::solveFromPlane( double interpolationWeight ) {
    // compatible with the prescribed intersection angles (including new boundary angles)
    Variable::t a = M->variable("a", nCorners, Domain::inRange(0, 2 * PI));
 
+
+   // For each interior edge, add a constraint which ensures that
+   // the coherent angle system exhibits the same circumcircle
+   // intersection angles as the input CAT, namely
+   //
+   //   α0 + α1 = (β0 + β1 - β2 - β3 - β4 - β5)/2 + π       [1]
+   //
+   // where α are the angles in the coherent angle system, and β are the
+   // CAT corner angles, and corners are indexed as below:
+   //
+   //        *
+   //       /0\
+   //      /   \
+   //     /2   3\
+   //    *-------*
+   //     \5   4/
+   //      \   /
+   //       \1/
+   //        *
+   //
+
+   // temporary vectors for building sparse matrix for Equation [1]
+   vector<int> aRows;
+   vector<int> aCols;
+   vector<double> aVals;
+   vector<double> aRhs = vector<double>(nEdges,0.); // right hand side of Equation [1]
+
+   for (Edge e : mesh->edges()) {
+      size_t ind = e.getIndex();
+
+      // only preserve intersection angles on interior edges
+      if (!e.isBoundary()) {
+
+         // right-hand side ((β0 + β1 - β2 - β3 - β4 - β5)/2 + π)
+         Halfedge h23 = e.halfedge();
+         Halfedge h30 = h23.next();
+         Halfedge h02 = h30.next();
+         Halfedge h45 = h23.twin();
+         Halfedge h51 = h45.next();
+         Halfedge h14 = h51.next();
+
+         Corner c0 = h02.corner();
+         Corner c1 = h14.corner();
+         Corner c2 = h23.corner();
+         Corner c3 = h30.corner();
+         Corner c4 = h45.corner();
+         Corner c5 = h51.corner();
+
+         aRhs[ind] = PI;
+         aRhs[ind] += beta[c0]/2.;
+         aRhs[ind] += beta[c1]/2.;
+         aRhs[ind] -= beta[c2]/2.;
+         aRhs[ind] -= beta[c3]/2.;
+         aRhs[ind] -= beta[c4]/2.;
+         aRhs[ind] -= beta[c5]/2.;
+
+         // left-hand side (α0 + α1)
+         aRows.push_back(ind);
+         aCols.push_back(c0.getIndex());
+         aVals.push_back(1.);
+
+         aRows.push_back(ind);
+         aCols.push_back(c1.getIndex());
+         aVals.push_back(1.);
+      }
+   }
+
+   // add Equation [1] to the solver
+   auto aConst = sMatrix(nEdges, nCorners, aRows, aCols, aVals);
+   auto intersectionPI = new_array_ptr(aRhs);
+   M->constraint("Intersection Agreement", 
+         (Expr::mul(aConst, a)),
+         Domain::equalsTo(intersectionPI));
+
    // temporary vectors for building sparse matrices
    vector<int> rows;
    vector<int> cols;
    vector<double> values;
    vector<double> rhs;
 
-   
-
-   FaceData<bool> fMask(*mesh, true);
-   VertexData<bool> vNewBdry(*mesh, false);
-   // halfedges that are now exterior to the mesh after deleting the vertex at infinity
-   // I think I shouldn't be using this anymore, but out of laziness I'm keeping the calculation here.
-   //HalfedgeData<bool> hOutsideBdry(*mesh, false);
-   EdgeData<bool> eMask(*mesh, true);
-   EdgeData<bool> eBdry(*mesh, false);
-
-   // mark all the boundary edges as the new boundary
-   for (Edge e : mesh->edges()) {
-      eBdry[e] = e.isBoundary();
-   }
-   // Intersection angle constraint: 
-   // the betas and thetas induce the same intersection angle: that is:
-   // ++++ -- on the betas = theta =  PI - sum of opposite alphas
-   rhs = vector<double>(nEdges,PI);
-   vector<int> aRows;
-   vector<int> aCols;
-   vector<double> aVals;
-   for (Edge e : mesh->edges()) {
-      size_t ind = e_[e];
-      // we don't care about coherence on the boundary
-      if (eMask[e] && !e.isBoundary()) {
-         vector<Halfedge> temp = {e.halfedge(), e.halfedge().twin()};
-         for (auto he: temp) {
-            // shared halfedge
-            rhs[ind] -= beta[he.corner()]/2;
-            he = he.next();
-            // other half edge
-            rhs[ind] -= beta[he.corner()]/2;
-            he = he.next();
-            // corner corresponding to opposite vertex
-            rhs[ind] += beta[he.corner()]/2;
-
-            if (he.isInterior()) {
-               aRows.push_back(ind);
-               aCols.push_back(c_[he.corner()]);
-               aVals.push_back(1.);
-            }
-         }
-      } else rhs[ind] = 0;
-   }
-
-   auto aConst = sMatrix(nEdges, nCorners, aRows, aCols, aVals);
-   auto intersectionPI = new_array_ptr(rhs);
-   M->constraint("Intersection Agreement", 
-         (Expr::mul(aConst, a)),
-         Domain::equalsTo(intersectionPI));
-   rhs.clear();
-
-
    // Sum to pi in each triangle constraint
    rhs = vector<double>(nFaces, PI);
    for (Face f : mesh->faces()) {
-      if(fMask[f]) {
-         for (Corner c : f.adjacentCorners()) {
-            rows.emplace_back(f_[f]);
-            cols.emplace_back(c_[c]);
-            values.emplace_back(1.); 
-         }
-      } else rhs[f_[f]] = 0.;
+      for (Corner c : f.adjacentCorners()) {
+         rows.emplace_back(f_[f]);
+         cols.emplace_back(c_[c]);
+         values.emplace_back(1.); 
+      }
    }
    auto sumConst = sMatrix(nFaces, nCorners, rows, cols, values);
    auto sumPI = new_array_ptr(rhs);
@@ -530,7 +549,7 @@ SolutionData IntrinsicFlattening::solveFromPlane( double interpolationWeight ) {
    // local delaunay constraint
    rhs = vector<double>(nEdges, 0);
    for (Edge e : mesh->edges()) {
-      if(eMask[e] && !eBdry[e]) {
+      if(!e.isBoundary()) {
          size_t eInd = e_[e];
          rhs[eInd] = PI;
          rows.emplace_back(eInd);
@@ -583,7 +602,6 @@ SolutionData IntrinsicFlattening::solveFromPlane( double interpolationWeight ) {
    cout << "Optimization Done" << endl;
    std::cout << "Optimal primal objective: " << M->primalObjValue() << endl;
 
-
    EdgeData<double> thetaSolve(*mesh,0);
    auto asize = a->getSize();
    auto asol = a->level();
@@ -596,6 +614,13 @@ SolutionData IntrinsicFlattening::solveFromPlane( double interpolationWeight ) {
          ? (*asol)[c_[e.halfedge().twin().next().next().corner()]]
          : 0;
       thetaSolve[e] = PI - a1 - a2;
+   }
+
+   FaceData<bool> fMask(*mesh, true);
+   EdgeData<bool> eMask(*mesh, true);
+   EdgeData<bool> eBdry(*mesh, false);
+   for (Edge e : mesh->edges()) {
+      eBdry[e] = e.isBoundary();
    }
    return {mesh->vertex(0), eMask, eBdry, fMask, beta, thetaSolve};
 }

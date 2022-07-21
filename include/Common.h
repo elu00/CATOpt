@@ -16,13 +16,16 @@ using namespace geometrycentral;
 using namespace geometrycentral::surface;
 
 struct SolutionData {
-    Vertex infVertex;
-    EdgeData<bool> eMask; 
+
+    CornerData<double> betas; // corner angles of circular arc triangulation
+    EdgeData<double> thetas; // circumcircle intersection angles
+
+   // for Riemann mapping only:
+    Vertex infVertex; // vertex at infinity
+    // marks edges/faces near vertex at infinity
+    EdgeData<bool> eMask;
     EdgeData<bool> eBdry; 
     FaceData<bool> fMask;
-    CornerData<double> betas;
-    EdgeData<double> thetas;
-    
 };
 
 struct BezierTriangle {
