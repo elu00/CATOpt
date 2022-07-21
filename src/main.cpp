@@ -100,8 +100,8 @@ int main(int argc, char **argv) {
       */
 
     mesh->compress();
-    //planarMapping(100);
-    embedding(3);
+    planarMapping(100);
+    //embedding(3);
     
     polyscope::show();
     

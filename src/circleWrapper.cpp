@@ -230,7 +230,7 @@ void CircleWrapper::setOffsets() {
     A.setFromTriplets(triplets.begin(), triplets.end());
 
     //DEBUG
-    psMesh->addVertexScalarQuantity("bad vertices", bad);
+    //psMesh->addVertexScalarQuantity("bad vertices", bad);
     // Build the solver
     Solver<double> solver(A);
     circleSol = solver.solve(rhs);
@@ -321,5 +321,5 @@ void CircleWrapper::setOffsets() {
         // DEBUG
         //cout << "Vertex boundary sum: " << accum << " expected " << betaSum << endl;
     }
-    psMesh->addVertexScalarQuantity("boundary sum", boundarySum);
+    //psMesh->addVertexScalarQuantity("boundary sum", boundarySum);
 }

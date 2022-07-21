@@ -462,7 +462,7 @@ SolutionData IntrinsicFlattening::solveFromPlane( double interpolationWeight ) {
    vector<double> aRhs = vector<double>(nEdges,0.); // right hand side of Equation [1]
 
    for (Edge e : mesh->edges()) {
-      size_t ind = e.getIndex();
+      size_t ind = e_[e];
 
       // only preserve intersection angles on interior edges
       if (!e.isBoundary()) {
@@ -492,11 +492,11 @@ SolutionData IntrinsicFlattening::solveFromPlane( double interpolationWeight ) {
 
          // left-hand side (α0 + α1)
          aRows.push_back(ind);
-         aCols.push_back(c0.getIndex());
+         aCols.push_back(c_[c0]);
          aVals.push_back(1.);
 
          aRows.push_back(ind);
-         aCols.push_back(c1.getIndex());
+         aCols.push_back(c_[c1]);
          aVals.push_back(1.);
       }
    }
