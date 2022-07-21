@@ -20,7 +20,7 @@ using namespace monty;
 
 class EmbeddingOptimization {
     public:
-        IntrinsicFlattening(shared_ptr<ManifoldSurfaceMesh> mesh,shared_ptr<VertexPositionGeometry> geometry);
+        EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh,shared_ptr<VertexPositionGeometry> geometry);
         void solve(int N);
     private:
         // pointers to geometric data
@@ -29,7 +29,9 @@ class EmbeddingOptimization {
         vector<int> next;
         vector<int> finalIndices;
         shared_ptr<ManifoldSurfaceMesh> mesh;
+        shared_ptr<ManifoldSurfaceMesh> submesh;
         shared_ptr<VertexPositionGeometry> geometry;
+        shared_ptr<VertexPositionGeometry> subgeometry;
         // quantities to read off from the mesh
         size_t nVertices;
         size_t nEdges;
@@ -42,6 +44,7 @@ class EmbeddingOptimization {
         // convenience function
         void merge(int a, int b);
         int find(int a);
+        Vector3 bary(Corner c, double x, double y);
         monty::rc_ptr<mosek::fusion::Matrix> sMatrix(int m, int n, vector<int>& rows, vector<int>& cols, 
                     vector<double>& values);
 

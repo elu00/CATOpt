@@ -5,35 +5,33 @@
 using namespace mosek::fusion;
 using namespace monty;
 
-/*
-Vector3 CatOpt::bary(Corner c, double x, double y) {
-    auto it = c.halfedge();
-    Vector3 i = geometry->inputVertexPositions[it.vertex()];
-    it = it.next();
-    Vector3 j = geometry->inputVertexPositions[it.vertex()];
-    it = it.next();
-    Vector3 k = geometry->inputVertexPositions[it.vertex()];
-    return a * i + b * j + c * k;
-}
-*/
+Vector3 EmbeddingOptimization::bary(Corner c, int x, int y) {
+   auto it = c.halfedge();
+   Vector3 i = geometry->inputVertexPositions[it.vertex()];
+   it = it.next();
+   Vector3 j = geometry->inputVertexPositions[it.vertex()];
+   it = it.next();
+   Vector3 k = geometry->inputVertexPositions[it.vertex()];
+   return (1 - jWeight - k * i + y * j;
+   }
 EmbeddingOptimization::EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh,shared_ptr<VertexPositionGeometry> geometry):
     mesh(mesh), geometry(geometry) {
-    geometry->requireEdgeLengths();
-    geometry->requireVertexGaussianCurvatures();
-    geometry->requireVertexAngleSums();
-    nVertices = mesh->nVertices();
-    nEdges = mesh->nEdges();
-    nCorners = mesh->nCorners();
-    nFaces = mesh->nFaces();
-    c_ = mesh->getCornerIndices();
-    e_ = mesh->getEdgeIndices();
-    v_ = mesh->getVertexIndices();
-    
-    f_ = mesh->getFaceIndices();
-    top = vector<int> (n*n*nCorners);
-    for (int i = 0; i < n * n * nCorners; i++) top[i] = i;
-    next = vector<int> (n*n*nCorners, -1);
-}
+        geometry->requireEdgeLengths();
+        geometry->requireVertexGaussianCurvatures();
+        geometry->requireVertexAngleSums();
+        nVertices = mesh->nVertices();
+        nEdges = mesh->nEdges();
+        nCorners = mesh->nCorners();
+        nFaces = mesh->nFaces();
+        c_ = mesh->getCornerIndices();
+        e_ = mesh->getEdgeIndices();
+        v_ = mesh->getVertexIndices();
+
+        f_ = mesh->getFaceIndices();
+        top = vector<int> (n*n*nCorners);
+        for (int i = 0; i < n * n * nCorners; i++) top[i] = i;
+        next = vector<int> (n*n*nCorners, -1);
+    }
 
 
 // convenience function for making a sparse matrix
@@ -49,7 +47,7 @@ monty::rc_ptr<mosek::fusion::Matrix> EmbeddingOptimization::sMatrix(int m, int n
 }
 
 void EmbeddingOptimization::merge(int a, int b) {
-    if (top[a] > top[b]) swap(a,b);
+    if (top[a] > top[b]) std::swap(a,b);
     b = top[b];
     int aNext = next[a];
     next[a] = b;
@@ -62,8 +60,8 @@ void EmbeddingOptimization::merge(int a, int b) {
 int EmbeddingOptimization::find(int a) {
     return top[a];
 }
-void EmbeddingOptimization::solve(int n) {
-    N = n;
+void EmbeddingOptimization::solve(int N) {
+    n = N;
     /*
      *        n*(n-1) -> .. -> n^2 - 1
      *        /                    /
@@ -100,11 +98,11 @@ void EmbeddingOptimization::solve(int n) {
             reindex[find(i)] = temp;
             temp++;
         }
-        finalIndices.push_back(reindex[find(i)])
+        finalIndices.push_back(reindex[find(i)]);
     }
 
     // now all the indexing garbage is done...let's construct the mesh and setup the energy
-    vector<vector<size_t>> polygons;
+    vector< vector<size_t> > polygons;
     for (Corner c: mesh->corners()) {
         size_t cOffset = c_[c] * n * n;
         for (int x = 0; x < n - 1; x++) {
@@ -114,8 +112,20 @@ void EmbeddingOptimization::solve(int n) {
                 size_t k = finalIndices[cOffset + (x+1) + n * (y+1)];
                 size_t l = finalIndices[cOffset + x + n * (y+1)];
                 polygons.push_back({i,j,k,l});
+            }
         }
     }
+    submesh = std::unique_ptr<ManifoldSurfaceMesh>(new ManifoldSurfaceMesh(polygons));
+    VertexData<Vector3> positions(submesh);
+    for (Corner c: mesh->corners()) {
+        size_t cOffset = c_[c] * n * n;
+        for (int x = 0; x < n; x++) {
+            for (int y = 0; y < n; y++) {
+                positions[finalIndices[cOffset + x + n * y]] = bary(c, x, y);
+            }
+        }
+    }
+    subgeometry = std::unique_ptr<VertexPositionGeometry>(new VertexPositionGeometry(*submesh,positions));
 
     return;
 }

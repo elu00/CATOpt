@@ -439,34 +439,6 @@ SolutionData IntrinsicFlattening::solveFromPlane(double interpolationWeight) {
     //VertexData<bool> mark(*mesh, false);
     Vertex infVertex;
 
-    // Flat Boundary Constraint: Total geodesic curvature is 0 on "most" of the boundary
-    size_t excl = 2;
-    size_t count = 0;
-    double bdryCount = 0;
-    interpolationWeight = 1;
-    for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) bdryCount+=1.0;
-    for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
-        if (count == 1) infVertex = v;
-        if (count >= excl) {
-            double origSum = 0;
-            for (Corner c : v.adjacentCorners()) {
-                rows.emplace_back(count);
-                cols.emplace_back(c_[c]);
-                values.emplace_back(1.);
-                origSum += geometry->cornerAngle(c);
-            }
-            rhs.push_back(interpolationWeight * (PI - 2 * PI/bdryCount) + (1-interpolationWeight) * origSum);
-            //rhs.push_back(origSum + 0.1 * (count % 2 ? 0:-0));
-        } else {
-            rhs.push_back(0);
-        }
-        count++;
-    }
-    auto bdryFlat = sMatrix(count, nCorners, rows, cols, values);
-    auto bdryPI = new_array_ptr(rhs);
-    M->constraint("Flat boundary", Expr::mul(bdryFlat, a), Domain::equalsTo(bdryPI));
-    rhs.clear();
-
     FaceData<bool> fMask(*mesh, true);
     VertexData<bool> vNewBdry(*mesh, false);
     // halfedges that are now exterior to the mesh after deleting the vertex at infinity
@@ -568,14 +540,41 @@ SolutionData IntrinsicFlattening::solveFromPlane(double interpolationWeight) {
     }
     auto delaunay = sMatrix(nEdges, nCorners, rows, cols, values);
     auto delaunayRHS = new_array_ptr(rhs);
-    //M->constraint("Delaunay", Expr::mul(delaunay, a),Domain::lessThan(delaunayRHS));
+    M->constraint("Delaunay", Expr::mul(delaunay, a),Domain::lessThan(delaunayRHS));
+    rhs.clear();
+    // Flat Boundary Constraint: Total geodesic curvature is 0 on "most" of the boundary
+    size_t excl = 2;
+    size_t count = 0;
+    double bdryCount = 0;
+    double wassim = 0;
+    for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) bdryCount+=1.0;
+    for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
+        if (count == 1) infVertex = v;
+        if (count >= excl) {
+            double origSum = 0;
+            for (Corner c : v.adjacentCorners()) {
+                rows.emplace_back(count);
+                cols.emplace_back(c_[c]);
+                values.emplace_back(1.);
+                origSum += geometry->cornerAngle(c);
+            }
+            wassim += PI -  (interpolationWeight * (PI - 2 * PI/bdryCount) + (1-interpolationWeight) * origSum);
+            rhs.push_back((interpolationWeight * (PI -  2 * PI/bdryCount) + (1-interpolationWeight) * origSum));
+            //rhs.push_back(origSum + 0.1 * (count % 2 ? 0:-0));
+        } else {
+            rhs.push_back(0);
+        }
+        count++;
+    }
+    cout << "WASSIM" << wassim << endl;
+    auto bdryFlat = sMatrix(count, nCorners, rows, cols, values);
+    auto bdryPI = new_array_ptr(rhs);
+    //M->constraint("Flat boundary", Expr::mul(bdryFlat, a), Domain::equalsTo(bdryPI));
     rhs.clear();
 
-
-
-    // just setup the objective: \sum alpha^2
+    // just setup the objective: L^2 of curvature differences
     Variable::t t = M->variable("t", 1, Domain::unbounded());
-    M->constraint(Expr::vstack(t, a), Domain::inQCone());
+    M->constraint(Expr::vstack(t, Expr::sub(Expr::mul(bdryFlat, a),bdryPI)), Domain::inQCone());
     M->objective(ObjectiveSense::Minimize, t);
     M->solve();
     cout << M->getProblemStatus() << endl;

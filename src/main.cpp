@@ -74,8 +74,8 @@ int main(int argc, char **argv) {
     if (!inputFilename) {
         //inputMeshPath = "/home/elu/repos/catopt/meshes/cube.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/spotwithhole.obj";
-        inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/SmallDisk.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/beanhole.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/nonconvex2.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/test.obj";
@@ -95,7 +95,7 @@ int main(int argc, char **argv) {
     mesh->compress();
     planarMapping(100);
     
-    polyscope::show();
+    //polyscope::show();
     
     return EXIT_SUCCESS;
 }

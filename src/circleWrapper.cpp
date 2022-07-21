@@ -147,7 +147,7 @@ void CircleWrapper::uvSVG(std::string filename, EdgeData<bool> eMask) {
         } 
     }
     size_t count = 0;
-    size_t excl = 2;
+    size_t excl = 1;
     for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
         Eigen::Vector2d thing = uv[v];
         if (count < excl) {
