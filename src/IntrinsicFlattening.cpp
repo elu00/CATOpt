@@ -32,9 +32,6 @@ monty::rc_ptr<mosek::fusion::Matrix> IntrinsicFlattening::sMatrix(int m, int n, 
     auto c = new_array_ptr<int>(cols);
     auto v = new_array_ptr<double>(values);
     auto res =  Matrix::sparse(m,n,r,c,v);
-    rows.clear();
-    cols.clear();
-    values.clear();
     return res;
 }
 
@@ -159,106 +156,6 @@ SolutionData IntrinsicFlattening::solve() {
         }
     }
     */
-    // Intersection angle constraint: 
-    // the betas and the as induce the same intersection angle: that is:
-    // ++++ -- on the betas = theta =  PI - sum of opposite alphas
-    rhs = vector<double>(nEdges,PI);
-    vector<int> aRows;
-    vector<int> aCols;
-    vector<double> aVals;
-    for (Edge e : mesh->edges()) {
-        size_t ind = e_[e];
-        // we don't care about coherence on the boundary
-        if (eMask[e] && !e.isBoundary()) {
-            vector<Halfedge> temp = {e.halfedge(), e.halfedge().twin()};
-            for (auto he: temp) {
-                // shared halfedge
-                rows.push_back(ind);
-                cols.push_back(c_[he.corner()]);
-                values.push_back(0.5);
-                he = he.next();
-                // other half edge
-                rows.push_back(ind);
-                cols.push_back(c_[he.corner()]);
-                values.push_back(0.5);
-                he = he.next();
-                // corner corresponding to opposite vertex
-                rows.push_back(ind);
-                cols.push_back(c_[he.corner()]);
-                values.push_back(-0.5);
-
-                if (he.isInterior()) {
-                    aRows.push_back(ind);
-                    aCols.push_back(c_[he.corner()]);
-                    aVals.push_back(1.);
-                }
-            }
-        } else rhs[ind] = 0;
-    }
-    
-    auto intersectionConst = sMatrix(nEdges, nCorners, rows, cols, values);
-    auto aConst = sMatrix(nEdges, nCorners, aRows, aCols, aVals);
-    auto intersectionPI = new_array_ptr(rhs);
-    M->constraint("Intersection Agreement", 
-            Expr::add(Expr::mul(intersectionConst, beta),
-                    Expr::mul(aConst, a)),
-                  Domain::equalsTo(intersectionPI));
-    rhs.clear();
-
-
-    // Sum to pi in each triangle constraint
-    rhs = vector<double>(nFaces, PI);
-    for (Face f : mesh->faces()) {
-        if(fMask[f]) {
-            for (Corner c : f.adjacentCorners()) {
-                rows.emplace_back(f_[f]);
-                cols.emplace_back(c_[c]);
-                values.emplace_back(1.); 
-            }
-        } else rhs[f_[f]] = 0.;
-    }
-    auto sumConst = sMatrix(nFaces, nCorners, rows, cols, values);
-    auto sumPI = new_array_ptr(rhs);
-    M->constraint("sum constraint", Expr::mul(sumConst, a),
-                  Domain::equalsTo(sumPI));
-    rhs.clear();
-
-    // Sum to 2pi around each vertex
-    rhs = vector<double>(nVertices, 0);
-    for (Vertex v : mesh->vertices()) {
-        if(!v.isBoundary()) {
-            rhs[v_[v]] = 2*PI;
-            for (Corner c : v.adjacentCorners()) {
-                rows.emplace_back(v_[v]);
-                cols.emplace_back(c_[c]);
-                values.emplace_back(1.); 
-            }
-        } 
-    }
-    auto vSum = sMatrix(nVertices, nCorners, rows, cols, values);
-    auto vSumRHS = new_array_ptr(rhs);
-    M->constraint("vertex sum constraint", Expr::mul(vSum, a), Domain::equalsTo(vSumRHS));
-    rhs.clear();
-
-    // local delaunay constraint
-    rhs = vector<double>(nEdges, 0);
-    for (Edge e : mesh->edges()) {
-        if(eMask[e] && !eBdry[e]) {
-            size_t eInd = e_[e];
-            rhs[eInd] = PI;
-            rows.emplace_back(eInd);
-            cols.emplace_back(c_[e.halfedge().next().next().corner()]);
-            values.emplace_back(1.); 
-            rows.emplace_back(eInd);
-            cols.emplace_back(c_[e.halfedge().twin().next().next().corner()]);
-            values.emplace_back(1.); 
-        } 
-    }
-    auto delaunay = sMatrix(nEdges, nCorners, rows, cols, values);
-    auto delaunayRHS = new_array_ptr(rhs);
-    M->constraint("Delaunay", Expr::mul(delaunay, a),Domain::lessThan(delaunayRHS));
-    rhs.clear();
-
 
 
     // just setup the objective: \sum alpha^2
@@ -333,59 +230,6 @@ EdgeData<double> IntrinsicFlattening::solveKSS() {
     for (Edge e : mesh->edges()) {
         eBdry[e] = e.isBoundary();
     }
-    // Sum to pi in each triangle constraint
-    rhs = vector<double>(nFaces, PI);
-    for (Face f : mesh->faces()) {
-        if(fMask[f]) {
-            for (Corner c : f.adjacentCorners()) {
-                rows.emplace_back(f_[f]);
-                cols.emplace_back(c_[c]);
-                values.emplace_back(1.); 
-            }
-        } else rhs[f_[f]] = 0.;
-    }
-    auto sumConst = sMatrix(nFaces, nCorners, rows, cols, values);
-    auto sumPI = new_array_ptr(rhs);
-    M->constraint("sum constraint", Expr::mul(sumConst, a),
-                  Domain::equalsTo(sumPI));
-    rhs.clear();
-
-    // Sum to 2pi around each vertex
-    rhs = vector<double>(nVertices, 0);
-    for (Vertex v : mesh->vertices()) {
-        if(!v.isBoundary() && !v.isBoundary()) {
-            rhs[v_[v]] = 2*PI;
-            for (Corner c : v.adjacentCorners()) {
-                rows.emplace_back(v_[v]);
-                cols.emplace_back(c_[c]);
-                values.emplace_back(1.); 
-            }
-        } 
-    }
-    auto vSum = sMatrix(nVertices, nCorners, rows, cols, values);
-    auto vSumRHS = new_array_ptr(rhs);
-    M->constraint("vertex sum constraint", Expr::mul(vSum, a), Domain::equalsTo(vSumRHS));
-    rhs.clear();
-
-    // local delaunay constraint
-    rhs = vector<double>(nEdges, 0);
-    for (Edge e : mesh->edges()) {
-        if(!e.isBoundary()) {
-            size_t eInd = e_[e];
-            rhs[eInd] = PI;
-            rows.emplace_back(eInd);
-            cols.emplace_back(c_[e.halfedge().next().next().corner()]);
-            values.emplace_back(1.); 
-            rows.emplace_back(eInd);
-            cols.emplace_back(c_[e.halfedge().twin().next().next().corner()]);
-            values.emplace_back(1.); 
-        } 
-    }
-    auto delaunay = sMatrix(nEdges, nCorners, rows, cols, values);
-    auto delaunayRHS = new_array_ptr(rhs);
-    M->constraint("Delaunay", Expr::mul(delaunay, a),Domain::lessThan(delaunayRHS));
-    rhs.clear();
-
     vector<double> origAngles(nCorners+1,0);
     for (Corner c: mesh->corners()) {
         origAngles[c_[c] + 1] = geometry->cornerAngle(c);
@@ -416,26 +260,8 @@ EdgeData<double> IntrinsicFlattening::solveKSS() {
     return thetaSolve;
 }
 
-// Given a CAT in the plane, and an assignment of new boundary curvatures (defined inline),
-// returns intersection angles for a conformally equivalent CAT, and new CAT corner angles (which are the same as input)
-SolutionData IntrinsicFlattening::solveFromPlane( double interpolationWeight ) {
-
-   // get corner angles of input CAT mesh
-   CornerData<double> beta(*mesh);
-   for (Corner c: mesh->corners()) {
-      beta[c] = geometry->cornerAngle(c);
-   }
-
-   // Initialize MOSEK solver
-   Model::t M = new Model();
-   auto _M = finally([&]() { M->dispose(); });
-
-   // The values a at corners are the "angles" of a coherent angle system
-   // compatible with the prescribed intersection angles (including new boundary angles)
-   Variable::t a = M->variable("a", nCorners, Domain::inRange(0, 2 * PI));
-
-   // =========== Equation [1] =================================================
-
+void IntrinsicFlattening::buildIntersectionAngleConstraints(Model::t& M, CornerData<double>& beta, Variable::t& a) {
+    // =========== Equation [1] =================================================
    // For each interior edge, add a constraint which ensures that
    // the coherent angle system exhibits the same circumcircle
    // intersection angles as the input CAT, namely
@@ -508,8 +334,11 @@ SolutionData IntrinsicFlattening::solveFromPlane( double interpolationWeight ) {
    M->constraint("Intersection Agreement", 
          (Expr::mul(aLhsMatrix, a)),
          Domain::equalsTo(aRhsVector));
+    return;
+}
 
-   // =========== Equation [2] =================================================
+void IntrinsicFlattening::buildFaceConstraints(Model::t& M, Variable::t& a){
+ // =========== Equation [2] =================================================
    
    // For each triangle, add a constraint that says that the
    // interior angles from the coherent angle system sum to π:
@@ -544,7 +373,10 @@ SolutionData IntrinsicFlattening::solveFromPlane( double interpolationWeight ) {
    M->constraint("triangle sum constraint",
          Expr::mul(triLhsMatrix, a),
          Domain::equalsTo(triRhsVector));
+    return;
+}
 
+void IntrinsicFlattening::buildVertexConstraints(Model::t& M, Variable::t& a){
    // =========== Equation [3] =================================================
 
    // For each interior vertex, add a constraint that says the
@@ -562,12 +394,11 @@ SolutionData IntrinsicFlattening::solveFromPlane( double interpolationWeight ) {
    //   
 
    // temporary vectors for building sparse matrices
-   vector<int> vertRows;
-   vector<int> vertCols;
-   vector<double> vertValues;
-   vector<double> vertRhs;
+   vector<int> vRows;
+   vector<int> vCols;
+   vector<double> vValues;
+   vector<double> vRhs;
 
-   // XXX
 
    // Sum to 2pi around each vertex
    rhs = vector<double>(nVertices, 0);
@@ -581,70 +412,129 @@ SolutionData IntrinsicFlattening::solveFromPlane( double interpolationWeight ) {
          }
       } 
    }
-   auto vSum = sMatrix(nVertices, nCorners, rows, cols, values);
-   auto vSumRHS = new_array_ptr(rhs);
-   M->constraint("vertex sum constraint", Expr::mul(vSum, a), Domain::equalsTo(vSumRHS));
-   rhs.clear();
+   // add Equation [3] to the solver
+   auto vLhsMatrix = sMatrix(nVertices, nCorners, vRows, vCols, vValues);
+   auto vRhsVector = new_array_ptr(rhs);
+   M->constraint("vertex sum constraint", Expr::mul(vLhsMatrix, a), Domain::equalsTo(vRhsVector));
+   return;
+}
+void IntrinsicFlattening::buildDelaunayConstraints(Model::t& M, Variable::t& a){
+   // =========== Equation [4] =================================================
+   // For each interior edge, add a constraint which ensures that
+   // the two opposite angles in the CAS satisfy the Delaunay condition , namely
+   //
+   //   α0 + α1 < π       [4]
+   //
+   // where α are the angles in the coherent angle system and corners are indexed as below:
+   //
+   //        *
+   //       /0\
+   //      /   \
+   //     /2   3\
+   //    *-------*
+   //     \5   4/
+   //      \   /
+   //       \1/
+   //        *
+   //
 
 
-   // temporary vectors for building sparse matrices
-   vector<int> rows;
-   vector<int> cols;
-   vector<double> values;
-   vector<double> rhs;
+    // temporary vectors for building sparse matrices
+    vector<int> dRows;
+    vector<int> dCols;
+    vector<double> dValues;
+    vector<double> dRhs(nEdges, 0);
 
-   // local delaunay constraint
-   rhs = vector<double>(nEdges, 0);
-   for (Edge e : mesh->edges()) {
-      if(!e.isBoundary()) {
-         size_t eInd = e_[e];
-         rhs[eInd] = PI;
-         rows.emplace_back(eInd);
-         cols.emplace_back(c_[e.halfedge().next().next().corner()]);
-         values.emplace_back(1.); 
-         rows.emplace_back(eInd);
-         cols.emplace_back(c_[e.halfedge().twin().next().next().corner()]);
-         values.emplace_back(1.); 
-      } 
+    // local delaunay constraint
+    for (Edge e : mesh->edges()) {
+        if(!e.isBoundary()) {
+            size_t eInd = e_[e];
+            rhs[eInd] = PI;
+            rows.emplace_back(eInd);
+            cols.emplace_back(c_[e.halfedge().next().next().corner()]);
+            values.emplace_back(1.); 
+            rows.emplace_back(eInd);
+            cols.emplace_back(c_[e.halfedge().twin().next().next().corner()]);
+            values.emplace_back(1.); 
+        } 
+    }
+    auto dLhsMatrix = sMatrix(nEdges, nCorners, rows, cols, values);
+    auto dRhsVector = new_array_ptr(rhs);
+    M->constraint("Delaunay", Expr::mul(dLhsMatrix, a), Domain::lessThan(dRhsVector));
+
+}
+
+
+void IntrinsicFlattening::buildBoundaryObjective(Model::t& M, Variable::t& a, Variable::t& t, size_t excl, double interpolationWeight){
+    vector<int> oRows;
+    vector<int> oCols;
+    vector<double> oValues;
+    vector<double> oRhs;
+    // Flat Boundary Constraint: Total geodesic curvature is 0 on "most" of the boundary
+    size_t count = 0;
+    for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
+        count++;
+    }
+    double bdryCount = (double) count;
+    count = 0;
+    for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
+        if (count >= excl) {
+            double origSum = 0;
+            for (Corner c : v.adjacentCorners()) {
+                oRows.emplace_back(count);
+                oCols.emplace_back(c_[c]);
+                oValues.emplace_back(1.);
+                origSum += geometry->cornerAngle(c);
+            }
+            oRhs.push_back((interpolationWeight * (PI -  2 * PI/bdryCount) + (1-interpolationWeight) * origSum));
+        } else {
+            oRhs.push_back(0);
+        }
+        count++;
+    }
+    auto oLhsMatrix = sMatrix(count, nCorners, rows, cols, values);
+    auto oRhsTargetVector = new_array_ptr(rhs);
+    //M->constraint("Flat boundary", Expr::mul(bdryFlat, a), Domain::equalsTo(bdryPI));
+
+    // just setup the objective: L^2 of curvature differences
+    M->constraint(Expr::vstack(t, Expr::sub(Expr::mul(oLhsMatrix, a),oRhsTargetVector)), Domain::inQCone());
+    M->objective(ObjectiveSense::Minimize, t);
+
+}
+// Given a CAT in the plane, and an assignment of new boundary curvatures (defined inline),
+// returns intersection angles for a conformally equivalent CAT, and new CAT corner angles (which are the same as input)
+SolutionData IntrinsicFlattening::solveFromPlane( double interpolationWeight ) {
+
+   // get corner angles of input CAT mesh
+   CornerData<double> beta(*mesh);
+   for (Corner c: mesh->corners()) {
+      beta[c] = geometry->cornerAngle(c);
    }
-   auto delaunay = sMatrix(nEdges, nCorners, rows, cols, values);
-   auto delaunayRHS = new_array_ptr(rhs);
-   M->constraint("Delaunay", Expr::mul(delaunay, a),Domain::lessThan(delaunayRHS));
-   rhs.clear();
-   // Flat Boundary Constraint: Total geodesic curvature is 0 on "most" of the boundary
-   size_t excl = 2;
-   size_t count = 0;
-   double bdryCount = 0;
-   double wassim = 0;
-   for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) bdryCount+=1.0;
-   for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
-      if (count >= excl) {
-         double origSum = 0;
-         for (Corner c : v.adjacentCorners()) {
-            rows.emplace_back(count);
-            cols.emplace_back(c_[c]);
-            values.emplace_back(1.);
-            origSum += geometry->cornerAngle(c);
-         }
-         wassim += PI -  (interpolationWeight * (PI - 2 * PI/bdryCount) + (1-interpolationWeight) * origSum);
-         rhs.push_back((interpolationWeight * (PI -  2 * PI/bdryCount) + (1-interpolationWeight) * origSum));
-         //rhs.push_back(origSum + 0.1 * (count % 2 ? 0:-0));
-      } else {
-         rhs.push_back(0);
-      }
-      count++;
-   }
-   cout << "WASSIM" << wassim << endl;
-   auto bdryFlat = sMatrix(count, nCorners, rows, cols, values);
-   auto bdryPI = new_array_ptr(rhs);
-   //M->constraint("Flat boundary", Expr::mul(bdryFlat, a), Domain::equalsTo(bdryPI));
-   rhs.clear();
 
-   // just setup the objective: L^2 of curvature differences
-   Variable::t t = M->variable("t", 1, Domain::unbounded());
-   M->constraint(Expr::vstack(t, Expr::sub(Expr::mul(bdryFlat, a),bdryPI)), Domain::inQCone());
-   M->objective(ObjectiveSense::Minimize, t);
-   M->solve();
+   // Initialize MOSEK solver
+   Model::t M = new Model();
+   auto _M = finally([&]() { M->dispose(); });
+
+   // The values a at corners are the "angles" of a coherent angle system
+   // compatible with the prescribed intersection angles (including new boundary angles)
+   Variable::t a = M->variable("a", nCorners, Domain::inRange(0, 2 * PI));
+
+   // intersection angles from a = intersection angles from beta
+   buildIntersectionAngleConstraints(M, beta, a);
+   // CAS sums to pi within each triangle
+   buildFaceConstraints(M, a);
+   // Vertex sums to 2 pi for each interior vertex
+   buildVertexConstraints(M, a);
+   // Delaunay constraint
+   // Since the input mesh is assumed to be Delaunay this shouldn't actually be necessary?
+   buildDelaunayConstraints(M, a);
+
+
+   // Dummy variable for the objective value
+    Variable::t t = M->variable("t", 1, Domain::unbounded());
+    buildBoundaryObjective(M, a, t, 2);
+
+      M->solve();
    cout << M->getProblemStatus() << endl;
    cout << "Optimization Done" << endl;
    std::cout << "Optimal primal objective: " << M->primalObjValue() << endl;

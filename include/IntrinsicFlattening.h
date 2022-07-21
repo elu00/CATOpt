@@ -20,11 +20,22 @@ using namespace monty;
 
 class IntrinsicFlattening {
     public:
+        // constructor from geometry-central data
         IntrinsicFlattening(shared_ptr<ManifoldSurfaceMesh> mesh,shared_ptr<VertexPositionGeometry> geometry);
+        // 
         SolutionData solve();
         EdgeData<double> solveKSS();
         SolutionData solveFromPlane(double flatWeight);
     private:
+        // convenience function
+        void buildIntersectionAngleConstraints(Model::t& M, CornerData<double>& beta, Variable::t& a);
+        void buildFaceConstraints(Model::t& M, Variable::t& a);
+        void buildVertexConstraints(Model::t& M, Variable::t& a);
+        void buildDelaunayConstraints(Model::t& M, Variable::t& a);
+        void buildBoundaryObjective(Model::t& M, Variable::t& a, Variable::t& t, size_t excl, double interpolationWeight);
+        monty::rc_ptr<mosek::fusion::Matrix> sMatrix(int m, int n, vector<int>& rows, vector<int>& cols, vector<double>& values);
+
+
         // pointers to geometric data
         shared_ptr<ManifoldSurfaceMesh> mesh;
         shared_ptr<VertexPositionGeometry> geometry;
@@ -37,8 +48,4 @@ class IntrinsicFlattening {
         FaceData<size_t> f_;
         EdgeData<size_t> e_;
         VertexData<size_t> v_;
-        // convenience function
-        monty::rc_ptr<mosek::fusion::Matrix> sMatrix(int m, int n, vector<int>& rows, vector<int>& cols, 
-                    vector<double>& values);
-
 };
