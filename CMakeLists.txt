@@ -76,6 +76,7 @@ add_subdirectory(deps/mosek)
 # == Build our project stuff
 
 set(SRCS 
+  src/Common.cpp
   src/main.cpp
   src/IntrinsicFlattening.cpp
   src/EmbeddingOptimization.cpp

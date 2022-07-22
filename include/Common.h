@@ -30,12 +30,12 @@ struct SolutionData {
 };
 
 struct BezierTriangle {
-    Eigen::Vector2d p200;
-    Eigen::Vector2d p020;
-    Eigen::Vector2d p002;
-    Eigen::Vector2d p110;
-    Eigen::Vector2d p011;
-    Eigen::Vector2d p101;
+    Vector2 p200;
+    Vector2 p020;
+    Vector2 p002;
+    Vector2 p110;
+    Vector2 p011;
+    Vector2 p101;
     double w200;
     double w020;
     double w002;

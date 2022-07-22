@@ -1,11 +1,13 @@
 #include "Common.h"
 
-double Angle (Eigen::Vector2d u, Eigen::Vector2d v) {
-    return atan2(u.x()*v.y() - u.y() * v.x(), u.x()*v.x() + u.y()*v.y());
+double Angle (Vector2 u, Vector2 v) {
+    return atan2(cross(u,v), dot(u,v));
 }
+/*
 BezierTriangle Coefficients () {
     return {};
 }
+*/
 Eigen::Vector2d RationalBezierTriangle(BezierTriangle T, double t1, double t2, double t3) {
 
     double B200 = t1 * t1;
@@ -14,7 +16,7 @@ Eigen::Vector2d RationalBezierTriangle(BezierTriangle T, double t1, double t2, d
     double B110 = 2 * t1 * t2;
     double B011 = 2 * t2 * t3;
     double B101 = 2 * t1 * t3;
-    Eigen::Vector2d y = 
+    Vector2 y = 
         B200 * T.w200 * T.p200 +
         B020 * T.w020 * T.p020 +
         B002 * T.w002 * T.p002 +
