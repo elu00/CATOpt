@@ -14,8 +14,7 @@ using namespace monty;
 // coordinates being given by the transformation induced by
 // (0,0)->(1,0,0), (N-1,N-1)->(1/3,1/3,1/3), (0,N-1)->(1/2,0,1/2)
 // and linear interpolation in between
-Vector3 EmbeddingOptimization::bary(Corner c, int X, int Y)
-{
+Vector3 EmbeddingOptimization::bary(Corner c, int X, int Y) {
     // Normalize x and y
     double x = (double)X/(n-1);
     double y = (double)Y/(n-1);
@@ -202,7 +201,7 @@ void EmbeddingOptimization::evaluateGradient(Eigen::VectorXd& gradient, const Ei
 
 Eigen::VectorXd EmbeddingOptimization::gradientDescent()
 {
-    double beta = 0.5;
+    double BETA = 0.5;
     double EPSILON = 1e-7;
     int MAX_ITERS=10000;
     int k = 1;
@@ -231,7 +230,7 @@ Eigen::VectorXd EmbeddingOptimization::gradientDescent()
         evaluateEnergy(fp, v);
         evaluateEnergy(f, xn);
         while (f > fp + g.dot(xnv) + xnv.dot(xnv)/(2*t)) {
-            t = beta*t;
+            t = BETA*t;
             xn = v - t*g;
             xnv = xn - v;
             evaluateEnergy(f, xn);

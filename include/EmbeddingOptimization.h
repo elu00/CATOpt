@@ -20,7 +20,7 @@ using namespace monty;
 
 class EmbeddingOptimization {
     public:
-        EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh, shared_ptr<VertexPositionGeometry> geometry);
+        EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh, shared_ptr<VertexPositionGeometry> geometry, EdgeData<double> beta);
         std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry>> solve(int N);
     private:
         // pointers to geometric data
@@ -38,6 +38,8 @@ class EmbeddingOptimization {
         FaceData<size_t> f_;
         EdgeData<size_t> e_;
         VertexData<size_t> v_;
+
+
         // Union find functions and data structures
         vector<int> top;
         vector<int> next;
@@ -57,5 +59,7 @@ class EmbeddingOptimization {
 
         // barycentric coordinates for each quad
         Vector3 bary(Corner c, int x, int y);
+
+        void buildIntrinsicCheckboard();
         monty::rc_ptr<mosek::fusion::Matrix> sMatrix(int m, int n, vector<int>& rows, vector<int>& cols, vector<double>& values);
 };
