@@ -3,6 +3,13 @@
 double Angle (Vector2 u, Vector2 v) {
     return atan2(cross(u,v), dot(u,v));
 }
+tuple<double, double, double> bendAngles(double t1, double t2, double t3, double b1, double b2, double b3) {
+    double aij = (b1+b2-b3-t1-t2+t3)/2;
+    double ajk = (-b1+b2+b3+t1-t2-t3)/2;
+    double aki = (b1-b2+b3-t1+t2-t3)/2;
+    return {aij, ajk, aki};
+}
+pair<Vector2
 /*
 BezierTriangle Coefficients () {
     return {};
