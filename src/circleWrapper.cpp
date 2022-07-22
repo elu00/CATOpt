@@ -32,7 +32,7 @@ mesh(mesh), psMesh(psMesh) {
     }
 }
 void CircleWrapper::solveKSS() {
-    std::cout << "Circle pattern stuff" << endl;
+    //std::cout << "Circle pattern stuff" << endl;
 
 
     //dumb initialization stuff
@@ -45,9 +45,9 @@ void CircleWrapper::solveKSS() {
     for (Face f: mesh->faces()) fMask[f] = true;
 
     CirclePatterns prob(mesh, infVertex, eMask, eBdry, fMask, 0, thetas);
-    std::cout << "starting parameterization" << std::endl;
+    std::cout << "Starting parameterization" << std::endl;
     uv = prob.parameterize();
-    std::cout << "parameterization done" << std::endl;
+    //std::cout << "parameterization done" << std::endl;
     circleSol = Vector<double>(mesh->nEdges());
     // for visualiztion
     for (int i = 0; i < mesh->nEdges(); i++) circleSol[i] = 0;
@@ -57,7 +57,6 @@ void CircleWrapper::solveKSS() {
 }
 void CircleWrapper::solve(std::string name) {
     //TODO: change this
-    size_t excl = 4;
     std::cout << "Circle pattern stuff" << endl;
     CirclePatterns prob(mesh, infVertex, eMask, eBdry, fMask, 0, thetas);
     std::cout << "starting parameterization" << std::endl;
