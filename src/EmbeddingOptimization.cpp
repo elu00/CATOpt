@@ -202,6 +202,9 @@ void EmbeddingOptimization::evaluateGradient(Eigen::VectorXd& gradient, const Ei
 
 Eigen::VectorXd EmbeddingOptimization::gradientDescent()
 {
+    double beta = 0.5;
+    double EPSILON = 1e-7;
+    int MAX_ITERS=10000;
     int k = 1;
     double f = 0.0, tp = 1.0;
     vector<double> obj;
@@ -218,20 +221,20 @@ Eigen::VectorXd EmbeddingOptimization::gradientDescent()
         
         // compute update direction
         Eigen::VectorXd g(3*n);
-        computeGradient(g, v);
+        evaluateGradient(g, v);
         
         // compute step size
         double t = tp;
         double fp = 0.0;
         Eigen::VectorXd xn = v - t*g;
         Eigen::VectorXd xnv = xn - v;
-        computeEnergy(fp, v);
-        computeEnergy(f, xn);
+        evaluateEnergy(fp, v);
+        evaluateEnergy(f, xn);
         while (f > fp + g.dot(xnv) + xnv.dot(xnv)/(2*t)) {
             t = beta*t;
             xn = v - t*g;
             xnv = xn - v;
-            handle->computeEnergy(f, xn);
+            evaluateEnergy(f, xn);
         }
     
         // update
@@ -246,6 +249,7 @@ Eigen::VectorXd EmbeddingOptimization::gradientDescent()
     }
 
     std::cout << "Iterations: " << k << std::endl;
+    return x;
 }
 
 std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry> >EmbeddingOptimization::solve(int N) {
@@ -261,7 +265,7 @@ std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry> >E
     // Initialize submesh and subgeometry
     buildSubdivision();
 
-    polyscope::registerSurfaceMesh("New mesh", positions, submesh->getFaceVertexList());
+    polyscope::registerSurfaceMesh("New mesh", subgeometry->vertexPositions, submesh->getFaceVertexList());
     polyscope::show();
 
     return {submesh, subgeometry};

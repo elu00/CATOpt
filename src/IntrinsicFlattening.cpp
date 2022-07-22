@@ -401,20 +401,20 @@ void IntrinsicFlattening::buildVertexConstraints(Model::t& M, Variable::t& a){
 
 
    // Sum to 2pi around each vertex
-   rhs = vector<double>(nVertices, 0);
+   vRhs = vector<double>(nVertices, 0);
    for (Vertex v : mesh->vertices()) {
       if(!v.isBoundary()) {
-         rhs[v_[v]] = 2*PI;
+         vRhs[v_[v]] = 2*PI;
          for (Corner c : v.adjacentCorners()) {
-            rows.emplace_back(v_[v]);
-            cols.emplace_back(c_[c]);
-            values.emplace_back(1.); 
+            vRows.emplace_back(v_[v]);
+            vCols.emplace_back(c_[c]);
+            vValues.emplace_back(1.); 
          }
       } 
    }
    // add Equation [3] to the solver
    auto vLhsMatrix = sMatrix(nVertices, nCorners, vRows, vCols, vValues);
-   auto vRhsVector = new_array_ptr(rhs);
+   auto vRhsVector = new_array_ptr(vRhs);
    M->constraint("vertex sum constraint", Expr::mul(vLhsMatrix, a), Domain::equalsTo(vRhsVector));
    return;
 }
@@ -449,19 +449,18 @@ void IntrinsicFlattening::buildDelaunayConstraints(Model::t& M, Variable::t& a){
     for (Edge e : mesh->edges()) {
         if(!e.isBoundary()) {
             size_t eInd = e_[e];
-            rhs[eInd] = PI;
-            rows.emplace_back(eInd);
-            cols.emplace_back(c_[e.halfedge().next().next().corner()]);
-            values.emplace_back(1.); 
-            rows.emplace_back(eInd);
-            cols.emplace_back(c_[e.halfedge().twin().next().next().corner()]);
-            values.emplace_back(1.); 
+            dRhs[eInd] = PI;
+            dRows.emplace_back(eInd);
+            dCols.emplace_back(c_[e.halfedge().next().next().corner()]);
+            dValues.emplace_back(1.); 
+            dRows.emplace_back(eInd);
+            dCols.emplace_back(c_[e.halfedge().twin().next().next().corner()]);
+            dValues.emplace_back(1.); 
         } 
     }
-    auto dLhsMatrix = sMatrix(nEdges, nCorners, rows, cols, values);
-    auto dRhsVector = new_array_ptr(rhs);
+    auto dLhsMatrix = sMatrix(nEdges, nCorners, dRows, dCols, dValues);
+    auto dRhsVector = new_array_ptr(dRhs);
     M->constraint("Delaunay", Expr::mul(dLhsMatrix, a), Domain::lessThan(dRhsVector));
-
 }
 
 
@@ -492,8 +491,8 @@ void IntrinsicFlattening::buildBoundaryObjective(Model::t& M, Variable::t& a, Va
         }
         count++;
     }
-    auto oLhsMatrix = sMatrix(count, nCorners, rows, cols, values);
-    auto oRhsTargetVector = new_array_ptr(rhs);
+    auto oLhsMatrix = sMatrix(count, nCorners, oRows, oCols, oValues);
+    auto oRhsTargetVector = new_array_ptr(oRhs);
     //M->constraint("Flat boundary", Expr::mul(bdryFlat, a), Domain::equalsTo(bdryPI));
 
     // just setup the objective: L^2 of curvature differences
@@ -532,7 +531,7 @@ SolutionData IntrinsicFlattening::solveFromPlane( double interpolationWeight ) {
 
    // Dummy variable for the objective value
     Variable::t t = M->variable("t", 1, Domain::unbounded());
-    buildBoundaryObjective(M, a, t, 2);
+    buildBoundaryObjective(M, a, t, 2, interpolationWeight);
 
       M->solve();
    cout << M->getProblemStatus() << endl;

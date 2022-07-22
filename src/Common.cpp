@@ -15,7 +15,7 @@ BezierTriangle Coefficients () {
     return {};
 }
 */
-Eigen::Vector2d RationalBezierTriangle(BezierTriangle T, double t1, double t2, double t3) {
+Vector2 RationalBezierTriangle(BezierTriangle T, double t1, double t2, double t3) {
 
     double B200 = t1 * t1;
     double B020 = t2 * t2;

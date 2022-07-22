@@ -46,7 +46,7 @@ class EmbeddingOptimization {
         void buildEquivalenceClasses();
 
         vector<int> finalIndices;
-        void buildFinalIndices();
+        int buildFinalIndices();
 
         void buildSubdivision();
 

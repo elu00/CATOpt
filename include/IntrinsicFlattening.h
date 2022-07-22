@@ -16,6 +16,8 @@ using std::tuple;
 #include "Common.h"
 
 #include "fusion.h"
+
+using namespace mosek::fusion;
 using namespace monty;
 
 class IntrinsicFlattening {
