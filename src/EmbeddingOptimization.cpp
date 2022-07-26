@@ -200,8 +200,7 @@ void EmbeddingOptimization::evaluateEnergy(double& energy, const Eigen::VectorXd
 void EmbeddingOptimization::evaluateGradient(Eigen::VectorXd& gradient, const Eigen::VectorXd& v) {
 }
 
-Eigen::VectorXd EmbeddingOptimization::gradientDescent()
-{
+Eigen::VectorXd EmbeddingOptimization::gradientDescent() {
     double beta = 0.5;
     double EPSILON = 1e-7;
     int MAX_ITERS=10000;
