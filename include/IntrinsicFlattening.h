@@ -27,6 +27,7 @@ class IntrinsicFlattening {
         // 
         SolutionData solve();
         EdgeData<double> solveKSS();
+        CornerData<double> solveIntrinsicOnly();
         SolutionData solveFromPlane(double flatWeight);
     private:
         // convenience function

@@ -2,6 +2,7 @@
 #include <memory>
 #include <cmath>
 #include <iostream>
+#include <tuple>
 #include "glm/vec3.hpp"
 
 #include "geometrycentral/surface/manifold_surface_mesh.h"

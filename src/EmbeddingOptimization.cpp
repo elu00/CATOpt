@@ -7,6 +7,90 @@
 using namespace mosek::fusion;
 using namespace monty;
 
+
+// ======================= Basis Function Stuff ==================================
+double Angle (Vector2 u, Vector2 v) {
+    return atan2(cross(u,v), dot(u,v));
+}
+// solves for angle offsets alpha given Euclidean angles ti and beta values
+std::tuple<double, double, double> bendAngles(double t1, double t2, double t3, double b1, double b2, double b3) {
+    double aij = (b1+b2-b3-t1-t2+t3)/2;
+    double ajk = (-b1+b2+b3+t1-t2-t3)/2;
+    double aki = (b1-b2+b3-t1+t2-t3)/2;
+    return {aij, ajk, aki};
+}
+// isometrically projects triangle i j k to the plane.
+// for convenience, j is assumed to be on the x-axis, and i is set to 0
+std::tuple<Vector2,Vector2,Vector2> projectToPlane(Vector3 i, Vector3 j, Vector3 k) {
+    j -= i; k -= i;
+    Vector3 U = j.normalize();
+    Vector3 V = cross(j,cross(j,k)).normalize();
+    return {{0.,0.}, {j.norm(),0}, {dot(U, k), dot(V,k)}};
+}
+
+BezierTriangle Coefficients (Vector3 I, Vector3 J, Vector3 K, double Bi, double Bj, double Bk) {
+    auto [i,j,k] = projectToPlane(I,J,K);
+    Vector2 eij = i-j;
+    Vector2 ejk = j-k;
+    Vector2 eki = k-i;
+    Vector2 nij = eij.rotate90();
+    Vector2 njk = ejk.rotate90();
+    Vector2 nki = eki.rotate90();
+
+    double thetai = Angle(-nij,nki);
+    double thetaj = Angle(-njk,nij);
+    double thetak = Angle(-nki,njk);
+
+    auto [aij,ajk,aki] = bendAngles(thetai,thetaj,thetak,Bi,Bj,Bk);
+
+    Vector2 mij = (i+j)/2;
+    Vector2 mjk = (j+k)/2;
+    Vector2 mki = (k+i)/2;
+
+    Vector2 p200 = i;
+    Vector2 p020 = j;
+    Vector2 p002 = k;
+    double w200 = 1, w020 = 1, w002 = 1;
+
+    Vector2 p110 = mij + tan(aij)*nij/2;
+    double w110 = cos(aij);
+
+    Vector2 p011 = mjk + tan(ajk)*njk/2;
+    double w011 = cos(ajk);
+
+    Vector2 p101 = mki + tan(aki)*nki/2;
+    double w101 = cos(aki);
+    
+    return { p200, p020, p002, p110, p011, p101, w200, w020, w002, w110, w011, w101 };
+}
+Vector2 RationalBezierTriangle(BezierTriangle T, std::tuple<double,double,double> coords) {
+    auto [t1,t2,t3] = coords;
+
+    double B200 = t1 * t1;
+    double B020 = t2 * t2;
+    double B002 = t3 * t3;
+    double B110 = 2 * t1 * t2;
+    double B011 = 2 * t2 * t3;
+    double B101 = 2 * t1 * t3;
+    Vector2 y = 
+        B200 * T.w200 * T.p200 +
+        B020 * T.w020 * T.p020 +
+        B002 * T.w002 * T.p002 +
+        B110 * T.w110 * T.p110 +
+        B011 * T.w011 * T.p011 +
+        B101 * T.w101 * T.p101;
+    double h = 
+        B200 * T.w200 +
+        B020 * T.w020 +
+        B002 * T.w002 +
+        B110 * T.w110 +
+        B011 * T.w011 +
+        B101 * T.w101;
+    return y/h;
+}
+
+
+// ======================= Optimization Stuff ====================================
 // Given a corner c and integer weights X,Y representing local coordinates 
 // on c's quad, returns the associated point in R^3.
 // Here the integers X,Y are assumed to be in the range
@@ -20,19 +104,30 @@ Vector3 EmbeddingOptimization::bary(Corner c, int X, int Y) {
     double y = (double)Y/(n-1);
 
     // grab face coordinates
-    auto it = c.halfedge();
-    Vector3 i = geometry->inputVertexPositions[it.vertex()];
-    it = it.next();
-    Vector3 j = geometry->inputVertexPositions[it.vertex()];
-    it = it.next();
-    Vector3 k = geometry->inputVertexPositions[it.vertex()];
+    Halfedge ij = c.halfedge();
+    Vector3 i = geometry->inputVertexPositions[ij.vertex()];
+    Halfedge jk = ij.next();
+    Vector3 j = geometry->inputVertexPositions[jk.vertex()];
+    Halfedge ki = jk.next();
+    Vector3 k = geometry->inputVertexPositions[ki.vertex()];
 
 
     double jWeight = -(y-3) * x/6;
     double kWeight = -(x-3) * y/6;
     return (1 - jWeight - kWeight) * i + jWeight * j + kWeight * k;
 }
-EmbeddingOptimization::EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh, shared_ptr<VertexPositionGeometry> geometry) : mesh(mesh), geometry(geometry) {
+// a convenience function analagous to above that returns the barycentric coordinates associated to
+// a point on the grid
+std::tuple<double, double, double> EmbeddingOptimization::baryCoords(int X, int Y) {
+    // Normalize x and y
+    double x = (double)X/(n-1);
+    double y = (double)Y/(n-1);
+
+    double jWeight = -(y-3) * x/6;
+    double kWeight = -(x-3) * y/6;
+    return {(1 - jWeight - kWeight), jWeight, kWeight};
+}
+EmbeddingOptimization::EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh, shared_ptr<VertexPositionGeometry> geometry, EdgeData<double> beta) : mesh(mesh), geometry(geometry), beta(beta) {
     // Initialize quantities
     geometry->requireEdgeLengths();
     geometry->requireVertexGaussianCurvatures();
@@ -153,10 +248,10 @@ void EmbeddingOptimization::buildSubdivision(){
             for (int y = 0; y < n - 1; y++) {
                 // each quad within a corner quad is given by
                 // {(i,j), (i+1,j), (i+1,j+1), (i,j+1)} in local coordinates
-                size_t i = finalIndices[find(cOffset + x + n * y)];
-                size_t j = finalIndices[find(cOffset + (x+1) + n * y)];
-                size_t k = finalIndices[find(cOffset + (x+1) + n * (y+1))];
-                size_t l = finalIndices[find(cOffset + x + n * (y+1))];
+                size_t i = finalIndices[cOffset + x + n * y];
+                size_t j = finalIndices[cOffset + (x+1) + n * y];
+                size_t k = finalIndices[cOffset + (x+1) + n * (y+1)];
+                size_t l = finalIndices[cOffset + x + n * (y+1)];
                 polygons.push_back({i,j,k,l});
             }
         }
@@ -167,25 +262,69 @@ void EmbeddingOptimization::buildSubdivision(){
         size_t cOffset = c_[c] * n * n;
         for (int x = 0; x < n; x++) {
             for (int y = 0; y < n; y++) {
-                //debuging code
-                /*
-                if(positions[finalIndices[find(cOffset + x + n * y)]].norm() != 0) {
-                    double err = (positions[finalIndices[find(cOffset + x + n * y)]] 
+                //debugging code
+                if(positions[finalIndices[cOffset + x + n * y]].norm() != 0) {
+                    double err = (positions[finalIndices[cOffset + x + n * y]] 
                                 - bary(c, x, y)).norm();
                     if (err > 1e-6) {
                         cout << "reindex error:" << err << " from " 
                             << cOffset + x + n * y << endl;
                     }
                 } 
-                */
-                positions[finalIndices[find(cOffset + x + n * y)]] = bary(c, x, y);
+                positions[finalIndices[cOffset + x + n * y]] = bary(c, x, y);
             }
         }
     }
     subgeometry = std::unique_ptr<VertexPositionGeometry>(new VertexPositionGeometry(*submesh,positions));
+
+    // TODO: change this call to solve()
+    polyscope::registerSurfaceMesh("New mesh", positions, submesh->getFaceVertexList());
     return;
 }
 
+
+// writes the 
+// TODO: comment this
+void EmbeddingOptimization::buildIntrinsicCheckerboard(){
+    c_iso_0 = vector<double>(nCorners * (n-1) * (n-1));
+    c_iso_1 = vector<double>(nCorners * (n-1) * (n-1));
+    c_iso_2 = vector<double>(nCorners * (n-1) * (n-1));
+    VertexData<size_t> vMap = submesh->getVertexIndices();
+    for (Corner c: mesh->corners()) {
+        size_t cQuadOffset = c_[c] * (n-1) * (n-1);
+        // grab face coordinates
+        Halfedge IJ = c.halfedge();
+        Vector3 I = geometry->inputVertexPositions[IJ.vertex()];
+        Halfedge JK = IJ.next();
+        Vector3 J = geometry->inputVertexPositions[JK.vertex()];
+        Halfedge KI = JK.next();
+        Vector3 K = geometry->inputVertexPositions[KI.vertex()];
+
+        BezierTriangle T = Coefficients(I,J,K,beta[IJ.edge()],beta[JK.edge()],beta[KI.edge()]);
+        for (int x = 0; x < n - 1; x++) {
+            for (int y = 0; y < n - 1; y++) {
+                size_t index = cQuadOffset + x + (n-1)*y;
+                Vector2 i = RationalBezierTriangle(T,baryCoords(x, y));
+                Vector2 j = RationalBezierTriangle(T,baryCoords(x+1, y));
+                Vector2 k = RationalBezierTriangle(T,baryCoords(x+1, y+1));
+                Vector2 l = RationalBezierTriangle(T,baryCoords(x, y+1));
+                Vector2 e20 = i - k;
+                Vector2 e31 = j - l;
+                c_iso_0[index] = e20.norm2();
+                c_iso_1[index] = e31.norm2();
+                c_iso_2[index] = dot(e20,e31);
+            }
+        }
+    }
+}
+
+// TODO: turn into class method
+/*
+inline Vector3 getPos(size_t cQuadOffset, int x, int y, const Eigen::VectorXd& v) {
+    size_t vertexIndex = finalIndices[]
+    return {v[],v[finalIndices[]],v[finalIndices[]]};
+}
+*/
 
 void EmbeddingOptimization::evaluateEnergy(double& energy, const Eigen::VectorXd& v){
     // For each quad ijkl, the energy is
@@ -194,6 +333,28 @@ void EmbeddingOptimization::evaluateEnergy(double& energy, const Eigen::VectorXd
     //  /          /
     // i -------- j
     //
+    energy = 0.;
+    for (Corner c: mesh->corners()) {
+        size_t cQuadOffset = c_[c] * (n-1) * (n-1);
+        // grab face coordinates
+        for (int x = 0; x < n - 1; x++) {
+            for (int y = 0; y < n - 1; y++) {
+                size_t index = cQuadOffset + x + (n-1)*y;
+                /*
+                Vector2 i = RationalBezierTriangle(T,baryCoords(x, y));
+                Vector2 j = RationalBezierTriangle(T,baryCoords(x+1, y));
+                Vector2 k = RationalBezierTriangle(T,baryCoords(x+1, y+1));
+                Vector2 l = RationalBezierTriangle(T,baryCoords(x, y+1));
+                Vector2 e20 = i - k;
+                Vector2 e31 = j - l;
+                // c_iso_0 term
+                energy += e20.norm2();
+                c_iso_1[index] = e31.norm2();
+                c_iso_2[index] = dot(e20,e31);
+                */
+            }
+        }
+    }
 }
 
 void EmbeddingOptimization::evaluateGradient(Eigen::VectorXd& gradient, const Eigen::VectorXd& v) {
@@ -263,8 +424,10 @@ std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry> >E
 
     // Initialize submesh and subgeometry
     buildSubdivision();
+    
 
-    polyscope::registerSurfaceMesh("New mesh", subgeometry->vertexPositions, submesh->getFaceVertexList());
+    // TODO: why doesn't this work?
+    //polyscope::registerSurfaceMesh("New mesh", subgeometry->vertexPositions, submesh->getFaceVertexList());
     polyscope::show();
 
     return {submesh, subgeometry};

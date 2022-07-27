@@ -45,7 +45,9 @@ void planarMapping(int N) {
     }
 }
 void embedding(int N) {
-    EmbeddingOptimization E(mesh, geometry);
+    IntrinsicFlattening flattener(mesh, geometry);
+    EdgeData<double> beta = flattener.solveKSS();
+    EmbeddingOptimization E(mesh, geometry, beta);
     auto [submesh, subgeometry] = E.solve(N);
     
 }
@@ -77,7 +79,6 @@ int main(int argc, char **argv) {
 
     // Make sure a mesh name was given
     if (!inputFilename) {
-        //inputMeshPath = "/home/elu/repos/catopt/meshes/cube.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/spotwithhole.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/SmallDisk.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
@@ -100,8 +101,8 @@ int main(int argc, char **argv) {
       */
 
     mesh->compress();
-    planarMapping(100);
-    //embedding(3);
+    //planarMapping(100);
+    embedding(10);
     
     polyscope::show();
     

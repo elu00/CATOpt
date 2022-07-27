@@ -336,7 +336,6 @@ void IntrinsicFlattening::buildIntersectionAngleConstraints(Model::t& M, CornerD
          Domain::equalsTo(aRhsVector));
     return;
 }
-
 void IntrinsicFlattening::buildFaceConstraints(Model::t& M, Variable::t& a){
  // =========== Equation [2] =================================================
    
@@ -375,7 +374,6 @@ void IntrinsicFlattening::buildFaceConstraints(Model::t& M, Variable::t& a){
          Domain::equalsTo(triRhsVector));
     return;
 }
-
 void IntrinsicFlattening::buildVertexConstraints(Model::t& M, Variable::t& a){
    // =========== Equation [3] =================================================
 
@@ -500,63 +498,104 @@ void IntrinsicFlattening::buildBoundaryObjective(Model::t& M, Variable::t& a, Va
     M->objective(ObjectiveSense::Minimize, t);
 
 }
+CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
+
+    // get corner angles of input CAT mesh
+    CornerData<double> beta(*mesh);
+    for (Corner c : mesh->corners()) {
+        beta[c] = geometry->cornerAngle(c);
+    }
+
+    // Initialize MOSEK solver
+    Model::t M = new Model();
+    auto _M = finally([&]() { M->dispose(); });
+
+    // The values a at corners are the "angles" of a coherent angle system
+    // compatible with the prescribed intersection angles (including new boundary angles)
+    Variable::t a = M->variable("a", nCorners, Domain::inRange(0, 2 * PI));
+
+    // 
+    Variable::t Beta = M->variable("beta", nCorners, Domain::inRange(0, PI));
+
+    // intersection angles from a = intersection angles from beta
+    buildIntersectionAngleConstraints(M, beta, a);
+    // CAS sums to pi within each triangle
+    buildFaceConstraints(M, a);
+    // Vertex sums to 2 pi for each interior vertex
+    buildVertexConstraints(M, a);
+    // Delaunay constraint
+    // Since the input mesh is assumed to be Delaunay this shouldn't actually be necessary?
+    buildDelaunayConstraints(M, a);
+
+    // Dummy variable for the objective value
+    Variable::t t = M->variable("t", 1, Domain::unbounded());
+    //buildBoundaryObjective(M, a, t, 2, interpolationWeight);
+    M->solve();
+    cout << M->getProblemStatus() << endl;
+    cout << "Optimization Done" << endl;
+    std::cout << "Optimal primal objective: " << M->primalObjValue() << endl;
+
+    return beta;
+}
+
 // Given a CAT in the plane, and an assignment of new boundary curvatures (defined inline),
 // returns intersection angles for a conformally equivalent CAT, and new CAT corner angles (which are the same as input)
-SolutionData IntrinsicFlattening::solveFromPlane( double interpolationWeight ) {
+SolutionData IntrinsicFlattening::solveFromPlane(double interpolationWeight) {
 
-   // get corner angles of input CAT mesh
-   CornerData<double> beta(*mesh);
-   for (Corner c: mesh->corners()) {
-      beta[c] = geometry->cornerAngle(c);
-   }
+    // get corner angles of input CAT mesh
+    CornerData<double> beta(*mesh);
+    for (Corner c : mesh->corners()) {
+        beta[c] = geometry->cornerAngle(c);
+    }
 
-   // Initialize MOSEK solver
-   Model::t M = new Model();
-   auto _M = finally([&]() { M->dispose(); });
+    // Initialize MOSEK solver
+    Model::t M = new Model();
+    auto _M = finally([&]()
+                      { M->dispose(); });
 
-   // The values a at corners are the "angles" of a coherent angle system
-   // compatible with the prescribed intersection angles (including new boundary angles)
-   Variable::t a = M->variable("a", nCorners, Domain::inRange(0, 2 * PI));
+    // The values a at corners are the "angles" of a coherent angle system
+    // compatible with the prescribed intersection angles (including new boundary angles)
+    Variable::t a = M->variable("a", nCorners, Domain::inRange(0, 2 * PI));
 
-   // intersection angles from a = intersection angles from beta
-   buildIntersectionAngleConstraints(M, beta, a);
-   // CAS sums to pi within each triangle
-   buildFaceConstraints(M, a);
-   // Vertex sums to 2 pi for each interior vertex
-   buildVertexConstraints(M, a);
-   // Delaunay constraint
-   // Since the input mesh is assumed to be Delaunay this shouldn't actually be necessary?
-   buildDelaunayConstraints(M, a);
+    // intersection angles from a = intersection angles from beta
+    buildIntersectionAngleConstraints(M, beta, a);
+    // CAS sums to pi within each triangle
+    buildFaceConstraints(M, a);
+    // Vertex sums to 2 pi for each interior vertex
+    buildVertexConstraints(M, a);
+    // Delaunay constraint
+    // Since the input mesh is assumed to be Delaunay this shouldn't actually be necessary?
+    buildDelaunayConstraints(M, a);
 
-
-   // Dummy variable for the objective value
+    // Dummy variable for the objective value
     Variable::t t = M->variable("t", 1, Domain::unbounded());
     buildBoundaryObjective(M, a, t, 2, interpolationWeight);
+    M->solve();
+    cout << M->getProblemStatus() << endl;
+    cout << "Optimization Done" << endl;
+    std::cout << "Optimal primal objective: " << M->primalObjValue() << endl;
 
-      M->solve();
-   cout << M->getProblemStatus() << endl;
-   cout << "Optimization Done" << endl;
-   std::cout << "Optimal primal objective: " << M->primalObjValue() << endl;
+    EdgeData<double> thetaSolve(*mesh, 0);
+    auto asize = a->getSize();
+    auto asol = a->level();
+    for (Edge e : mesh->edges())
+    {
+        double a1 = e.halfedge().isInterior() && e.halfedge().isInterior()
+                        ? (*asol)[c_[e.halfedge().next().next().corner()]]
+                        : 0;
+        double a2 =
+            e.halfedge().twin().isInterior() && e.halfedge().twin().isInterior()
+                ? (*asol)[c_[e.halfedge().twin().next().next().corner()]]
+                : 0;
+        thetaSolve[e] = PI - a1 - a2;
+    }
 
-   EdgeData<double> thetaSolve(*mesh,0);
-   auto asize = a->getSize();
-   auto asol = a->level();
-   for (Edge e : mesh->edges()) {
-      double a1 = e.halfedge().isInterior() && e.halfedge().isInterior()
-         ? (*asol)[c_[e.halfedge().next().next().corner()]]
-         : 0;
-      double a2 =
-         e.halfedge().twin().isInterior() && e.halfedge().twin().isInterior()
-         ? (*asol)[c_[e.halfedge().twin().next().next().corner()]]
-         : 0;
-      thetaSolve[e] = PI - a1 - a2;
-   }
-
-   FaceData<bool> fMask(*mesh, true);
-   EdgeData<bool> eMask(*mesh, true);
-   EdgeData<bool> eBdry(*mesh, false);
-   for (Edge e : mesh->edges()) {
-      eBdry[e] = e.isBoundary();
-   }
-   return {mesh->vertex(0), eMask, eBdry, fMask, beta, thetaSolve};
+    FaceData<bool> fMask(*mesh, true);
+    EdgeData<bool> eMask(*mesh, true);
+    EdgeData<bool> eBdry(*mesh, false);
+    for (Edge e : mesh->edges())
+    {
+        eBdry[e] = e.isBoundary();
+    }
+    return {mesh->vertex(0), eMask, eBdry, fMask, beta, thetaSolve};
 }
