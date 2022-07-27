@@ -498,42 +498,71 @@ void IntrinsicFlattening::buildBoundaryObjective(Model::t& M, Variable::t& a, Va
     M->objective(ObjectiveSense::Minimize, t);
 
 }
+void IntrinsicFlattening::buildOffsetConstraints(Model::t& M, Variable::t& alpha, Variable::t& beta){
+    //TODO: comment this
+    vector<int> offsetRows;
+    vector<int> offsetCols;
+    vector<double> offsetValues;
+    // build LHS
+    for (Corner c: mesh->corners()) {
+        offsetCols.push_back(e_[c.halfedge().edge()]);
+        offsetRows.push_back(c_[c]);
+        offsetValues.push_back(1.);
+        offsetCols.push_back(e_[c.halfedge().twin().next().edge()]);
+        offsetRows.push_back(c_[c]);
+        offsetValues.push_back(1.);
+    }
+    // build RHS
+    vector<double> offsetRhs(nCorners);
+    for (Corner c: mesh->corners()) {
+        offsetRhs[c_[c]]=geometry->cornerAngle(c);
+    }
+    auto offsetLhsMatrix = sMatrix(nCorners, nEdges, offsetRows, offsetCols, offsetValues);
+    auto offsetRhsVector = new_array_ptr(offsetRhs);
+    M->constraint("Alpha-Beta constraint", Expr::sub(beta,Expr::mul(offsetLhsMatrix, alpha)), Domain::equalsTo(offsetRhsVector));
+}
 CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
 
-    // get corner angles of input CAT mesh
-    CornerData<double> beta(*mesh);
-    for (Corner c : mesh->corners()) {
-        beta[c] = geometry->cornerAngle(c);
-    }
 
     // Initialize MOSEK solver
     Model::t M = new Model();
     auto _M = finally([&]() { M->dispose(); });
 
-    // The values a at corners are the "angles" of a coherent angle system
-    // compatible with the prescribed intersection angles (including new boundary angles)
-    Variable::t a = M->variable("a", nCorners, Domain::inRange(0, 2 * PI));
+    // Angle offsets per edge representing the deviation from the 
+    // Euclidean angles intrinsically
+    Variable::t alpha = M->variable("alpha", nEdges, Domain::inRange(0, 2 * PI));
 
-    // 
-    Variable::t Beta = M->variable("beta", nCorners, Domain::inRange(0, PI));
+    // The intrisic "CAT angle" at each corner
+    Variable::t Beta = M->variable("beta", nCorners, Domain::inRange(0, 2*PI));
 
-    // intersection angles from a = intersection angles from beta
-    buildIntersectionAngleConstraints(M, beta, a);
-    // CAS sums to pi within each triangle
-    buildFaceConstraints(M, a);
-    // Vertex sums to 2 pi for each interior vertex
-    buildVertexConstraints(M, a);
-    // Delaunay constraint
-    // Since the input mesh is assumed to be Delaunay this shouldn't actually be necessary?
-    buildDelaunayConstraints(M, a);
+    // the betas are given by offsets by alpha
+    buildOffsetConstraints(M, alpha, Beta);
+
+    // Vertex sums of betas to 2 pi for each interior vertex
+    buildVertexConstraints(M, Beta);
 
     // Dummy variable for the objective value
     Variable::t t = M->variable("t", 1, Domain::unbounded());
-    //buildBoundaryObjective(M, a, t, 2, interpolationWeight);
+    // Minimize ||alpha||^2
+    M->constraint(Expr::vstack(t, alpha), Domain::inQCone());
+    M->objective(ObjectiveSense::Minimize, t);
     M->solve();
+
     cout << M->getProblemStatus() << endl;
-    cout << "Optimization Done" << endl;
+    cout << "Optimization done for intrinsic only flattening" << endl;
     std::cout << "Optimal primal objective: " << M->primalObjValue() << endl;
+
+    CornerData<double> beta(*mesh);
+    /*
+    auto alphaVal = alpha->level();
+    for (int i = 0; i < nEdges; i++) {
+        cout << (*alphaVal)[i] << endl;
+    }
+    */
+    auto xVal = Beta->level();
+    for (int i = 0; i < nCorners; i++) {
+        beta[i] = (*xVal)[i];
+    }
 
     return beta;
 }
@@ -578,8 +607,7 @@ SolutionData IntrinsicFlattening::solveFromPlane(double interpolationWeight) {
     EdgeData<double> thetaSolve(*mesh, 0);
     auto asize = a->getSize();
     auto asol = a->level();
-    for (Edge e : mesh->edges())
-    {
+    for (Edge e : mesh->edges()) {
         double a1 = e.halfedge().isInterior() && e.halfedge().isInterior()
                         ? (*asol)[c_[e.halfedge().next().next().corner()]]
                         : 0;

@@ -60,7 +60,7 @@ BezierTriangle Coefficients (Vector3 I, Vector3 J, Vector3 K, double Bi, double 
 
     Vector2 p101 = mki + tan(aki)*nki/2;
     double w101 = cos(aki);
-    
+
     return { p200, p020, p002, p110, p011, p101, w200, w020, w002, w110, w011, w101 };
 }
 Vector2 RationalBezierTriangle(BezierTriangle T, std::tuple<double,double,double> coords) {
@@ -127,7 +127,7 @@ std::tuple<double, double, double> EmbeddingOptimization::baryCoords(int X, int 
     double kWeight = -(x-3) * y/6;
     return {(1 - jWeight - kWeight), jWeight, kWeight};
 }
-EmbeddingOptimization::EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh, shared_ptr<VertexPositionGeometry> geometry, EdgeData<double> beta) : mesh(mesh), geometry(geometry), beta(beta) {
+EmbeddingOptimization::EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh, shared_ptr<VertexPositionGeometry> geometry, CornerData<double> beta) : mesh(mesh), geometry(geometry), beta(beta) {
     // Initialize quantities
     geometry->requireEdgeLengths();
     geometry->requireVertexGaussianCurvatures();
@@ -263,14 +263,16 @@ void EmbeddingOptimization::buildSubdivision(){
         for (int x = 0; x < n; x++) {
             for (int y = 0; y < n; y++) {
                 //debugging code
-                if(positions[finalIndices[cOffset + x + n * y]].norm() != 0) {
-                    double err = (positions[finalIndices[cOffset + x + n * y]] 
-                                - bary(c, x, y)).norm();
-                    if (err > 1e-6) {
-                        cout << "reindex error:" << err << " from " 
-                            << cOffset + x + n * y << endl;
-                    }
-                } 
+                /*
+                   if(positions[finalIndices[cOffset + x + n * y]].norm() != 0) {
+                   double err = (positions[finalIndices[cOffset + x + n * y]] 
+                   - bary(c, x, y)).norm();
+                   if (err > 1e-6) {
+                   cout << "reindex error:" << err << " from " 
+                   << cOffset + x + n * y << endl;
+                   }
+                   } 
+                   */
                 positions[finalIndices[cOffset + x + n * y]] = bary(c, x, y);
             }
         }
@@ -283,14 +285,26 @@ void EmbeddingOptimization::buildSubdivision(){
 }
 
 
-// writes the 
-// TODO: comment this
+// writes the expected edge lengths/angles associated to each quad to c_iso_i for
+// i = 0,1,2. 
+// c_iso_0 = |ik|^2, 
+// c_iso_1 = |jl|^2, 
+// c_iso_2 = < ki, lj >
+//
+//    l --------k
+//   /          /
+//  /          /
+// i -------- j
+
 void EmbeddingOptimization::buildIntrinsicCheckerboard(){
+    // initialize vectors.
+    // Note that these are lenghts per quad, hence the count is different from the number of vertices
     c_iso_0 = vector<double>(nCorners * (n-1) * (n-1));
     c_iso_1 = vector<double>(nCorners * (n-1) * (n-1));
     c_iso_2 = vector<double>(nCorners * (n-1) * (n-1));
     VertexData<size_t> vMap = submesh->getVertexIndices();
     for (Corner c: mesh->corners()) {
+        // see above
         size_t cQuadOffset = c_[c] * (n-1) * (n-1);
         // grab face coordinates
         Halfedge IJ = c.halfedge();
@@ -300,7 +314,8 @@ void EmbeddingOptimization::buildIntrinsicCheckerboard(){
         Halfedge KI = JK.next();
         Vector3 K = geometry->inputVertexPositions[KI.vertex()];
 
-        BezierTriangle T = Coefficients(I,J,K,beta[IJ.edge()],beta[JK.edge()],beta[KI.edge()]);
+        // solve for coefficients associated to input data
+        BezierTriangle T = Coefficients(I,J,K,beta[IJ.corner()],beta[JK.corner()],beta[KI.corner()]);
         for (int x = 0; x < n - 1; x++) {
             for (int y = 0; y < n - 1; y++) {
                 size_t index = cQuadOffset + x + (n-1)*y;
@@ -318,13 +333,13 @@ void EmbeddingOptimization::buildIntrinsicCheckerboard(){
     }
 }
 
-// TODO: turn into class method
 /*
-inline Vector3 getPos(size_t cQuadOffset, int x, int y, const Eigen::VectorXd& v) {
-    size_t vertexIndex = finalIndices[]
-    return {v[],v[finalIndices[]],v[finalIndices[]]};
-}
-*/
+   inline Vector3 getPos(size_t cQuadOffset, int x, int y, const Eigen::VectorXd& v) {
+   size_t vertexIndex = finalIndices[]
+   return {v[],v[finalIndices[]],v[finalIndices[]]};
+   }
+   */
+inline double sqr(double x) { return x * x; }
 
 void EmbeddingOptimization::evaluateEnergy(double& energy, const Eigen::VectorXd& v){
     // For each quad ijkl, the energy is
@@ -332,57 +347,157 @@ void EmbeddingOptimization::evaluateEnergy(double& energy, const Eigen::VectorXd
     //   /          /
     //  /          /
     // i -------- j
-    //
+    //  
+    // c_iso_0 = |ik|^2, 
+    // c_iso_1 = |jl|^2, 
+    // c_iso_2 = < ki, lj >
+
     energy = 0.;
     for (Corner c: mesh->corners()) {
         size_t cQuadOffset = c_[c] * (n-1) * (n-1);
+        size_t cVertexOffset = c_[c] * n * n;
         // grab face coordinates
         for (int x = 0; x < n - 1; x++) {
             for (int y = 0; y < n - 1; y++) {
-                size_t index = cQuadOffset + x + (n-1)*y;
-                /*
-                Vector2 i = RationalBezierTriangle(T,baryCoords(x, y));
-                Vector2 j = RationalBezierTriangle(T,baryCoords(x+1, y));
-                Vector2 k = RationalBezierTriangle(T,baryCoords(x+1, y+1));
-                Vector2 l = RationalBezierTriangle(T,baryCoords(x, y+1));
-                Vector2 e20 = i - k;
-                Vector2 e31 = j - l;
+                size_t iIndex = finalIndices[cVertexOffset + x + (n)*y];
+                Vector3 i = {v[3*iIndex], v[3*iIndex+1],v[3*iIndex+2]};
+
+                size_t jIndex = finalIndices[cVertexOffset + (x+1) + (n)*y];
+                Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
+
+                size_t kIndex = cQuadOffset + (x+1) + n*(y+1);
+                Vector3 k = {v[3*kIndex], v[3*kIndex+1],v[3*kIndex+2]};
+
+                size_t lIndex = cQuadOffset + x + n*(y+1);
+                Vector3 l = {v[3*lIndex], v[3*lIndex+1],v[3*lIndex+2]};
+
+                size_t quadIndex = cQuadOffset + x + (n-1)*y;
+
+                Vector3 e20 = i - k;
+                Vector3 e31 = j - l;
                 // c_iso_0 term
-                energy += e20.norm2();
-                c_iso_1[index] = e31.norm2();
-                c_iso_2[index] = dot(e20,e31);
+                energy += (sqr(e20.norm2() - c_iso_0[quadIndex]))/2;
+                /*
+                cout <<  ((e20.norm2() - c_iso_0[quadIndex])) << endl;
+                cout << energy << endl;
                 */
+                energy += (sqr(e31.norm2() - c_iso_1[quadIndex]))/2;
+                energy += (sqr(dot(e20,e31) - c_iso_2[quadIndex]))/2;
             }
         }
     }
 }
 
 void EmbeddingOptimization::evaluateGradient(Eigen::VectorXd& gradient, const Eigen::VectorXd& v) {
+    for (Corner c: mesh->corners()) {
+        size_t cQuadOffset = c_[c] * (n-1) * (n-1);
+        size_t cVertexOffset = c_[c] * n * n;
+        // grab face coordinates
+        for (int x = 0; x < n - 1; x++) {
+            for (int y = 0; y < n - 1; y++) {
+                size_t iIndex = finalIndices[cVertexOffset + x + (n)*y];
+                Vector3 i = {v[3*iIndex], v[3*iIndex+1],v[3*iIndex+2]};
+
+                size_t jIndex = finalIndices[cVertexOffset + (x+1) + (n)*y];
+                Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
+
+                size_t kIndex = cQuadOffset + (x+1) + n*(y+1);
+                Vector3 k = {v[3*kIndex], v[3*kIndex+1],v[3*kIndex+2]};
+
+                size_t lIndex = cQuadOffset + x + n*(y+1);
+                Vector3 l = {v[3*lIndex], v[3*lIndex+1],v[3*lIndex+2]};
+
+                size_t quadIndex = cQuadOffset + x + (n-1)*y;
+
+                Vector3 e20 = i - k;
+                Vector3 e31 = j - l;
+                //================== c_iso_0 gradients===================
+                double c_iso_0_weight = (e20.norm2() - c_iso_0[quadIndex]);
+                // partials with respect to i are
+                // (|e20|^2 - |e20'|^2|) * 2 * (i0 - k0)
+                // i gradients
+                gradient[3*iIndex] += c_iso_0_weight * 2 *(i.x - k.x);
+                gradient[3*iIndex+1] += c_iso_0_weight * 2 *(i.y - k.y);
+                gradient[3*iIndex+2] += c_iso_0_weight * 2 *(i.z - k.z);
+
+                // k gradients
+                gradient[3*kIndex] += c_iso_0_weight * 2 *(k.x - i.x);
+                gradient[3*kIndex+1] += c_iso_0_weight * 2 *(k.y - i.y);
+                gradient[3*kIndex+2] += c_iso_0_weight * 2 *(k.z - i.z);
+
+
+                //===================== c_iso_1 gradients===========================
+                double c_iso_1_weight = (e31.norm2() - c_iso_1[quadIndex]);
+                // j gradients
+                gradient[3*jIndex] += c_iso_1_weight * 2 *(j.x - l.x);
+                gradient[3*jIndex+1] += c_iso_1_weight * 2 *(j.y - l.y);
+                gradient[3*jIndex+2] += c_iso_1_weight * 2 *(j.z - l.z);
+
+                // l gradients
+                gradient[3*lIndex] += c_iso_1_weight * 2 *(l.x - j.x);
+                gradient[3*lIndex+1] += c_iso_1_weight * 2 *(l.y - j.y);
+                gradient[3*lIndex+2] += c_iso_1_weight * 2 *(l.z - j.z);
+
+                //===================== c_iso_2 gradients===========================
+                double c_iso_2_weight = (dot(e20,e31) - c_iso_2[quadIndex]);
+
+                // i partial: j - l
+                gradient[3*iIndex] += c_iso_2_weight *(j.x - l.x);
+                gradient[3*iIndex+1] += c_iso_2_weight *(j.y - l.y);
+                gradient[3*iIndex+2] += c_iso_2_weight *(j.z - l.z);
+
+                // k partial: l - j
+                gradient[3*kIndex] += c_iso_2_weight * (l.x - j.x);
+                gradient[3*kIndex+1] += c_iso_2_weight * (l.y - j.y);
+                gradient[3*kIndex+2] += c_iso_2_weight * (l.z - j.z);
+                // j partial: i - k
+                gradient[3*jIndex] += c_iso_2_weight * (i.x - k.x);
+                gradient[3*jIndex+1] += c_iso_2_weight * (i.y - k.y);
+                gradient[3*jIndex+2] += c_iso_2_weight * (i.z - k.z);
+
+                // l partial: k - i
+                gradient[3*lIndex] += c_iso_2_weight * (k.x - i.x);
+                gradient[3*lIndex+1] += c_iso_2_weight * (k.y - i.y);
+                gradient[3*lIndex+2] += c_iso_2_weight * (k.z - i.z);
+            }
+        }
+    }
 }
 
-Eigen::VectorXd EmbeddingOptimization::gradientDescent()
-{
+Eigen::VectorXd EmbeddingOptimization::gradientDescent() {
     double BETA = 0.5;
     double EPSILON = 1e-7;
-    int MAX_ITERS=10000;
+    int MAX_ITERS=1000;
     int k = 1;
     double f = 0.0, tp = 1.0;
     vector<double> obj;
-    Eigen::VectorXd x = Eigen::VectorXd::Zero(3*n);
+    Eigen::VectorXd x = Eigen::VectorXd::Zero(3*nSubdividedVertices);
+    for (Corner c: mesh->corners()) {
+        size_t cOffset = c_[c] * n * n;
+        for (int X = 0; X < n; X++) {
+            for (int Y = 0; Y < n; Y++) {
+                Vector3 pos = bary(c, X, Y);
+                size_t startIndex = 3*finalIndices[cOffset + X + n * Y];
+                x[startIndex] = pos.x;
+                x[startIndex + 1] = pos.y;
+                x[startIndex + 2] = pos.z;
+            }
+        }
+    }
     evaluateEnergy(f, x);
     obj.push_back(f);
-    Eigen::VectorXd xp = Eigen::VectorXd::Zero(3*n);
-    Eigen::VectorXd v = Eigen::VectorXd::Zero(3*n);
+    Eigen::VectorXd xp = Eigen::VectorXd::Zero(3*nSubdividedVertices);
+    Eigen::VectorXd v = Eigen::VectorXd::Zero(3*nSubdividedVertices);
 
     while (true) {
         // compute momentum term
         v = x;
         if (k > 1) v += (k-2)*(x - xp)/(k+1);
-        
+
         // compute update direction
-        Eigen::VectorXd g(3*n);
+        Eigen::VectorXd g(3*nSubdividedVertices);
         evaluateGradient(g, v);
-        
+
         // compute step size
         double t = tp;
         double fp = 0.0;
@@ -396,7 +511,7 @@ Eigen::VectorXd EmbeddingOptimization::gradientDescent()
             xnv = xn - v;
             evaluateEnergy(f, xn);
         }
-    
+
         // update
         tp = t;
         xp = x;
@@ -405,7 +520,9 @@ Eigen::VectorXd EmbeddingOptimization::gradientDescent()
         k++;
 
         // check termination condition
+        cout << f << endl;
         if (fabs(f - fp) < EPSILON || k > MAX_ITERS) break;
+        if (k % 100 == 0) cout << "iters:" << k << endl;
     }
 
     std::cout << "Iterations: " << k << std::endl;
@@ -420,14 +537,20 @@ std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry> >E
     next = vector<int> (n*n*nCorners, -1);
 
     buildEquivalenceClasses();
-    buildFinalIndices();
+    nSubdividedVertices = buildFinalIndices();
 
     // Initialize submesh and subgeometry
     buildSubdivision();
-    
+    buildIntrinsicCheckerboard();
+    Eigen::VectorXd x = gradientDescent();
+
+    VertexData<Vector3> positions(*submesh);
+    for (int i = 0; i < nSubdividedVertices; i++) {
+        positions[i] = {x[3*i],x[3*i+1],x[3*i+2]};
+    }
 
     // TODO: why doesn't this work?
-    //polyscope::registerSurfaceMesh("New mesh", subgeometry->vertexPositions, submesh->getFaceVertexList());
+    polyscope::registerSurfaceMesh("Mesh", positions, submesh->getFaceVertexList());
     polyscope::show();
 
     return {submesh, subgeometry};

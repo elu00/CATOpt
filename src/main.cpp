@@ -46,7 +46,11 @@ void planarMapping(int N) {
 }
 void embedding(int N) {
     IntrinsicFlattening flattener(mesh, geometry);
-    EdgeData<double> beta = flattener.solveKSS();
+    CornerData<double> beta = flattener.solveIntrinsicOnly();
+    CornerData<double> zero(*mesh);
+    for (Corner c: mesh->corners()) {
+        zero[c] = 0.;
+    }
     EmbeddingOptimization E(mesh, geometry, beta);
     auto [submesh, subgeometry] = E.solve(N);
     
@@ -102,7 +106,7 @@ int main(int argc, char **argv) {
 
     mesh->compress();
     //planarMapping(100);
-    embedding(10);
+    embedding(2);
     
     polyscope::show();
     

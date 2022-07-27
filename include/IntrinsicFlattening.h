@@ -31,6 +31,7 @@ class IntrinsicFlattening {
         SolutionData solveFromPlane(double flatWeight);
     private:
         // convenience function
+        void buildOffsetConstraints(Model::t& M, Variable::t& alpha, Variable::t& beta);
         void buildIntersectionAngleConstraints(Model::t& M, CornerData<double>& beta, Variable::t& a);
         void buildFaceConstraints(Model::t& M, Variable::t& a);
         void buildVertexConstraints(Model::t& M, Variable::t& a);

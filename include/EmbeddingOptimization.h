@@ -20,14 +20,14 @@ using namespace monty;
 
 class EmbeddingOptimization {
     public:
-        EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh, shared_ptr<VertexPositionGeometry> geometry, EdgeData<double> beta);
+        EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh, shared_ptr<VertexPositionGeometry> geometry, CornerData<double> beta);
         std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry>> solve(int N);
     private:
         // pointers to geometric data associated to the original mesh
         int n;
         shared_ptr<ManifoldSurfaceMesh> mesh;
         shared_ptr<VertexPositionGeometry> geometry;
-        EdgeData<double> beta;
+        CornerData<double> beta;
         // quantities to read off from the mesh
         size_t nVertices;
         size_t nEdges;
@@ -46,6 +46,7 @@ class EmbeddingOptimization {
         vector<double> c_iso_0;
         vector<double> c_iso_1;
         vector<double> c_iso_2;
+        size_t nSubdividedVertices;
 
 
         // Union find functions and data structures
