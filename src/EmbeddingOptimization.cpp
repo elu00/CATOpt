@@ -23,9 +23,18 @@ std::tuple<double, double, double> bendAngles(double t1, double t2, double t3, d
 // for convenience, j is assumed to be on the x-axis, and i is set to 0
 std::tuple<Vector2,Vector2,Vector2> projectToPlane(Vector3 i, Vector3 j, Vector3 k) {
     j -= i; k -= i;
+    /*
     Vector3 U = j.normalize();
     Vector3 V = cross(j,cross(j,k)).normalize();
+
     return {{0.,0.}, {j.norm(),0}, {dot(U, k), dot(V,k)}};
+    */
+    double lij = j.norm();
+    double ljk = (k-j).norm();
+    double lki = k.norm();
+    double thetai = acos((lij*lij - ljk*ljk + lki*lki)/(2*lij*lki));
+    Vector2 K = {lki,0.};
+    return {{0.,0.}, {j.norm(),0}, K.rotate(thetai)};
 }
 
 BezierTriangle Coefficients (Vector3 I, Vector3 J, Vector3 K, double Bi, double Bj, double Bk) {
@@ -140,6 +149,11 @@ EmbeddingOptimization::EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mes
     e_ = mesh->getEdgeIndices();
     v_ = mesh->getVertexIndices();
     f_ = mesh->getFaceIndices();
+
+/*
+    auto[i,j,k] = projectToPlane({0,0,0}, {3,0,0}, {0,4.,0});
+    cout << i << j << k;
+    */
 }
 
 // convenience function for making a sparse matrix
@@ -354,6 +368,7 @@ void EmbeddingOptimization::evaluateEnergy(double& energy, const Eigen::VectorXd
 
     energy = 0.;
     for (Corner c: mesh->corners()) {
+        // offset for the 3 stored intrinsic lengths
         size_t cQuadOffset = c_[c] * (n-1) * (n-1);
         size_t cVertexOffset = c_[c] * n * n;
         // grab face coordinates
@@ -365,10 +380,10 @@ void EmbeddingOptimization::evaluateEnergy(double& energy, const Eigen::VectorXd
                 size_t jIndex = finalIndices[cVertexOffset + (x+1) + (n)*y];
                 Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
 
-                size_t kIndex = cQuadOffset + (x+1) + n*(y+1);
+                size_t kIndex = finalIndices[cQuadOffset + (x+1) + n*(y+1)];
                 Vector3 k = {v[3*kIndex], v[3*kIndex+1],v[3*kIndex+2]};
 
-                size_t lIndex = cQuadOffset + x + n*(y+1);
+                size_t lIndex = finalIndices[cQuadOffset + x + n*(y+1)];
                 Vector3 l = {v[3*lIndex], v[3*lIndex+1],v[3*lIndex+2]};
 
                 size_t quadIndex = cQuadOffset + x + (n-1)*y;
@@ -377,12 +392,16 @@ void EmbeddingOptimization::evaluateEnergy(double& energy, const Eigen::VectorXd
                 Vector3 e31 = j - l;
                 // c_iso_0 term
                 energy += (sqr(e20.norm2() - c_iso_0[quadIndex]))/2;
+
                 /*
-                cout <<  ((e20.norm2() - c_iso_0[quadIndex])) << endl;
-                cout << energy << endl;
-                */
+                // c_iso_1 term
                 energy += (sqr(e31.norm2() - c_iso_1[quadIndex]))/2;
+                // c_iso_2 term
                 energy += (sqr(dot(e20,e31) - c_iso_2[quadIndex]))/2;
+                */
+                if (!std::isfinite(energy)) {
+                    throw;
+                }
             }
         }
     }
@@ -401,10 +420,10 @@ void EmbeddingOptimization::evaluateGradient(Eigen::VectorXd& gradient, const Ei
                 size_t jIndex = finalIndices[cVertexOffset + (x+1) + (n)*y];
                 Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
 
-                size_t kIndex = cQuadOffset + (x+1) + n*(y+1);
+                size_t kIndex = finalIndices[cQuadOffset + (x+1) + n*(y+1)];
                 Vector3 k = {v[3*kIndex], v[3*kIndex+1],v[3*kIndex+2]};
 
-                size_t lIndex = cQuadOffset + x + n*(y+1);
+                size_t lIndex = finalIndices[cQuadOffset + x + n*(y+1)];
                 Vector3 l = {v[3*lIndex], v[3*lIndex+1],v[3*lIndex+2]};
 
                 size_t quadIndex = cQuadOffset + x + (n-1)*y;
@@ -426,6 +445,7 @@ void EmbeddingOptimization::evaluateGradient(Eigen::VectorXd& gradient, const Ei
                 gradient[3*kIndex+2] += c_iso_0_weight * 2 *(k.z - i.z);
 
 
+                /*
                 //===================== c_iso_1 gradients===========================
                 double c_iso_1_weight = (e31.norm2() - c_iso_1[quadIndex]);
                 // j gradients
@@ -459,6 +479,7 @@ void EmbeddingOptimization::evaluateGradient(Eigen::VectorXd& gradient, const Ei
                 gradient[3*lIndex] += c_iso_2_weight * (k.x - i.x);
                 gradient[3*lIndex+1] += c_iso_2_weight * (k.y - i.y);
                 gradient[3*lIndex+2] += c_iso_2_weight * (k.z - i.z);
+                */
             }
         }
     }
@@ -529,6 +550,63 @@ Eigen::VectorXd EmbeddingOptimization::gradientDescent() {
     return x;
 }
 
+// check that our derivative code agrees with numerical
+// derivatives, up to a small error
+void EmbeddingOptimization::testFlatteningDerivatives() {
+    // perturbation size
+    const double eps = 1e-7;
+
+    // grab current configuration
+    Eigen::VectorXd x = Eigen::VectorXd::Zero(3*nSubdividedVertices);
+    for (Corner c: mesh->corners()) {
+        size_t cOffset = c_[c] * n * n;
+        for (int X = 0; X < n; X++) {
+            for (int Y = 0; Y < n; Y++) {
+                Vector3 pos = bary(c, X, Y);
+                size_t startIndex = 3*finalIndices[cOffset + X + n * Y];
+                x[startIndex] = pos.x;
+                x[startIndex + 1] = pos.y;
+                x[startIndex + 2] = pos.z;
+            }
+        }
+    }
+
+    // compute energy and its derivatives
+    double E0 = 0.;
+    evaluateEnergy(E0, x);
+    cout << E0 << endl;
+    Eigen::VectorXd dE(3*nSubdividedVertices); // differential of energy with respect to the variable
+    evaluateGradient(dE, x);
+
+    double worstError = 0.;
+    double averageError = 0.;
+
+    for (int i = 0; i < 3 * nSubdividedVertices; i++) {
+        double dEi;  // numerical derivative with respect to index i
+
+        x[i] += eps;  // perturb coordinate k
+        double E = 0.;
+        evaluateEnergy(E,x);
+        dEi = (E - E0) / eps;
+        x[i] -= eps;  // restore it
+
+        // compare to expression computed in code
+        double error = fabs(dEi - dE[i])/(1 + dEi);
+        if (error > 1) {
+            cout << dEi << " " << dE[i] << " error: " << error << endl;
+            cout << "i = " << i/3 << endl;
+        }
+
+        worstError = std::max(worstError, error);
+        averageError += error;
+    }
+
+    averageError /= (3 * nSubdividedVertices);
+
+    std::cout << "Worst error: " << worstError << std::endl;
+    std::cout << "Average error: " << averageError << std::endl;
+}
+
 std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry> >EmbeddingOptimization::solve(int N) {
     n = N;
     // Initialize union find data structure
@@ -542,7 +620,8 @@ std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry> >E
     // Initialize submesh and subgeometry
     buildSubdivision();
     buildIntrinsicCheckerboard();
-    Eigen::VectorXd x = gradientDescent();
+    testFlatteningDerivatives();
+    /*Eigen::VectorXd x = gradientDescent();
 
     VertexData<Vector3> positions(*submesh);
     for (int i = 0; i < nSubdividedVertices; i++) {
@@ -552,6 +631,8 @@ std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry> >E
     // TODO: why doesn't this work?
     polyscope::registerSurfaceMesh("Mesh", positions, submesh->getFaceVertexList());
     polyscope::show();
+    */
 
     return {submesh, subgeometry};
 }
+

@@ -441,7 +441,7 @@ void IntrinsicFlattening::buildDelaunayConstraints(Model::t& M, Variable::t& a){
     vector<int> dRows;
     vector<int> dCols;
     vector<double> dValues;
-    vector<double> dRhs(nEdges, 0);
+    vector<double> dRhs(nEdges, 1);
 
     // local delaunay constraint
     for (Edge e : mesh->edges()) {
@@ -451,6 +451,7 @@ void IntrinsicFlattening::buildDelaunayConstraints(Model::t& M, Variable::t& a){
             dRows.emplace_back(eInd);
             dCols.emplace_back(c_[e.halfedge().next().next().corner()]);
             dValues.emplace_back(1.); 
+
             dRows.emplace_back(eInd);
             dCols.emplace_back(c_[e.halfedge().twin().next().next().corner()]);
             dValues.emplace_back(1.); 
