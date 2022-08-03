@@ -47,10 +47,6 @@ void planarMapping(int N) {
 void embedding(int N) {
     IntrinsicFlattening flattener(mesh, geometry);
     CornerData<double> beta = flattener.solveIntrinsicOnly();
-    CornerData<double> zero(*mesh);
-    for (Corner c: mesh->corners()) {
-        zero[c] = 0.;
-    }
     EmbeddingOptimization E(mesh, geometry, beta);
     auto [submesh, subgeometry] = E.solve(N);
     
@@ -85,12 +81,12 @@ int main(int argc, char **argv) {
     if (!inputFilename) {
         inputMeshPath = "/home/elu/repos/catopt/meshes/spotwithhole.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/SmallDisk.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/BumpyTorusPatch.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
-        //inputMeshPath = "/home/elu/repos/catopt/meshes/beanhole.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/beanhole.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/nonconvex2.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/test.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/patch.obj";
-        //inputMeshPath = "/home/elu/repos/catopt/meshes/BumpyTorusPatch.obj";
     } else {
         inputMeshPath = args::get(inputFilename);
     }
@@ -108,7 +104,7 @@ int main(int argc, char **argv) {
     //planarMapping(100);
     embedding(3);
     
-    polyscope::show();
+    //polyscope::show();
     
     return EXIT_SUCCESS;
 }

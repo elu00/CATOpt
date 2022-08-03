@@ -68,6 +68,8 @@ class EmbeddingOptimization {
         void evaluateEnergy(double& energy, const Eigen::VectorXd& v);
         void evaluateGradient(Eigen::VectorXd& gradient, const Eigen::VectorXd& v);
         Eigen::VectorXd gradientDescent();
+
+        void basisFunctionDebugging();
         void testFlatteningDerivatives();
 
         // barycentric coordinates for each quad

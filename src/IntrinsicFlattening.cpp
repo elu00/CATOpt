@@ -529,23 +529,22 @@ CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
     Model::t M = new Model();
     auto _M = finally([&]() { M->dispose(); });
 
-    // Angle offsets per edge representing the deviation from the 
-    // Euclidean angles intrinsically
-    Variable::t alpha = M->variable("alpha", nEdges, Domain::inRange(0, 2 * PI));
-
     // The intrisic "CAT angle" at each corner
     Variable::t Beta = M->variable("beta", nCorners, Domain::inRange(0, 2*PI));
-
-    // the betas are given by offsets by alpha
-    buildOffsetConstraints(M, alpha, Beta);
 
     // Vertex sums of betas to 2 pi for each interior vertex
     buildVertexConstraints(M, Beta);
 
     // Dummy variable for the objective value
     Variable::t t = M->variable("t", 1, Domain::unbounded());
+    vector<double> originalAngles(nCorners);
+    for (Corner c: mesh->corners()) {
+        originalAngles[c_[c]]=geometry->cornerAngle(c);
+    }
+    auto originalAnglesVector = new_array_ptr(originalAngles);
+
     // Minimize ||alpha||^2
-    M->constraint(Expr::vstack(t, alpha), Domain::inQCone());
+    M->constraint(Expr::vstack(t, Expr::sub(Beta, originalAnglesVector)), Domain::inQCone());
     M->objective(ObjectiveSense::Minimize, t);
     M->solve();
 
@@ -561,9 +560,22 @@ CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
     }
     */
     auto xVal = Beta->level();
-    for (int i = 0; i < nCorners; i++) {
-        beta[i] = (*xVal)[i];
+    for (Corner c: mesh->corners()) {
+        //cout << "setting index " <<  c_[c] << " to " << (*xVal)[c_[c]] << endl;
+        beta[c] = (*xVal)[c_[c]];
+        //beta[c] = PI;
     }
+    //DEBUG'
+    /*
+    for (Corner c: mesh->corners()) {
+        cout << beta[c] << endl;
+    }
+
+    for (int i = 0; i < nCorners; i++) {
+        //beta[i] = (*xVal)[i];
+        cout << beta[i] << "wah" << endl;
+    }
+    */
 
     return beta;
 }
