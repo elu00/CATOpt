@@ -1,11 +1,8 @@
-#include "fusion.h"
 #include "EmbeddingOptimization.h"
 
 #include "polyscope/polyscope.h"
 #include "polyscope/surface_mesh.h"
 
-using namespace mosek::fusion;
-using namespace monty;
 
 
 // ======================= Basis Function Stuff ==================================
@@ -165,14 +162,6 @@ EmbeddingOptimization::EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mes
        */
 }
 
-// convenience function for making a sparse matrix
-monty::rc_ptr<mosek::fusion::Matrix> EmbeddingOptimization::sMatrix(int m, int n, vector<int>& rows, vector<int>& cols, vector<double>& values ) {
-    auto r = new_array_ptr<int>(rows);
-    auto c = new_array_ptr<int>(cols);
-    auto v = new_array_ptr<double>(values);
-    auto res =  Matrix::sparse(m,n,r,c,v);
-    return res;
-}
 
 // Union find-like method that collapes the equivalence classes of a and b
 // Somewhat important detail: always chooses the lower index as the new representative of the equivalence class

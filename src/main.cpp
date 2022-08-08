@@ -16,6 +16,9 @@ using std::shared_ptr;
 #include "EmbeddingOptimization.h"
 #include "CircleWrapper.h"
 
+#include "nasoq/nasoq_eigen.h"
+typedef Eigen::Triplet<double> T;
+
 shared_ptr<ManifoldSurfaceMesh> mesh;
 shared_ptr<VertexPositionGeometry> geometry;
 polyscope::SurfaceMesh *psMesh;
@@ -33,7 +36,7 @@ void planarMapping(int N) {
             vertexSum[v] = accum;
         }
         /*
-        psMesh->addVertexScalarQuantity("vertex sums", vertexSum);
+           psMesh->addVertexScalarQuantity("vertex sums", vertexSum);
         //psMesh->addHalfedgeScalarQuantity("solved", sol.betas);
         psMesh->addEdgeScalarQuantity("thetas", sol.thetas);
         //psMesh->addVertexScalarQuantity("infinite vertex", sol.infVertex);
@@ -52,16 +55,13 @@ void embedding(int N) {
     CornerData<double> beta = flattener.solveIntrinsicOnly();
     E = (new EmbeddingOptimization(mesh, geometry, beta));
     auto [submesh, subgeometry] = E->solve(N);
-    
+
 }
 void surfaceToPlane() {
     IntrinsicFlattening flattener(mesh, geometry);
     EdgeData<double> intersectionAngles = flattener.solveKSS();
     CircleWrapper patterns(mesh, intersectionAngles, psMesh);
     patterns.solveKSS();
-}
-void mySubroutine(double t) {
-    E->optimize(t);
 }
 void myCallback() {
 
@@ -72,9 +72,47 @@ void myCallback() {
     ImGui::InputFloat("param value", &t, 0.01f, 1.0f);  // set a float variable
 
     if (ImGui::Button("run subroutine")) {
-        // executes when button is pressed
-        mySubroutine(t);
+        E->optimize(t);
     }
+}
+void nasoqTest() {
+    vector<T> HList = {T(0,0,1), T(1,1,1)};
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int> H(2,2);
+    H.setFromTriplets(HList.begin(), HList.end());
+
+    vector<T> AList;
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int> A(1,2); 
+    A.setFromTriplets(AList.begin(), AList.end());
+
+    vector<T> CList = {T(1,1,-1)};
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int> C(2,2); 
+    C.setFromTriplets(CList.begin(), CList.end());
+
+    Eigen::VectorXd q(2);
+    q[0] = 0; q[1] = 0;
+    Eigen::VectorXd b(1);
+    b[0] = 0;
+    Eigen::VectorXd d(2);
+    d[1] = -2;
+
+
+
+    /// New settings if provided
+    int iter;
+    std::string nasoq_mode;
+    double pert, eps, tol;
+    nasoq::QPSettings *qs = NULL;
+
+    /// output vectors
+    Eigen::VectorXd x, y, z;
+
+
+    /// call the wrapper.
+    int ret = nasoq::quadprog(H,q,A,b,C,d,x,y,z,qs);
+    for (int i = 0; i < 2; i++) {
+        cout << "wah" << x[i] << endl;
+    }
+    
 }
 int main(int argc, char **argv) {
     // Configure the argument parser
@@ -112,18 +150,19 @@ int main(int argc, char **argv) {
     // polyscope sanity checks
     polyscope::init();
     /*
-    psMesh = polyscope::registerSurfaceMesh(
-      "waaah",
-      geometry->inputVertexPositions, mesh->getFaceVertexList(),
-      polyscopePermutations(*mesh));
-      */
+       psMesh = polyscope::registerSurfaceMesh(
+       "waaah",
+       geometry->inputVertexPositions, mesh->getFaceVertexList(),
+       polyscopePermutations(*mesh));
+       */
 
     mesh->compress();
     polyscope::state::userCallback = myCallback;
     //planarMapping(100);
-    embedding(5);
-    
+    //embedding(5);
+
     //polyscope::show();
-    
+    nasoqTest();
+
     return EXIT_SUCCESS;
 }

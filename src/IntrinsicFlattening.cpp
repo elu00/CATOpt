@@ -1,9 +1,6 @@
-#include "fusion.h"
 #include "IntrinsicFlattening.h"
 
 
-using namespace mosek::fusion;
-using namespace monty;
 
 IntrinsicFlattening::IntrinsicFlattening(shared_ptr<ManifoldSurfaceMesh> mesh,shared_ptr<VertexPositionGeometry> geometry):
     mesh(mesh), geometry(geometry) {
@@ -26,169 +23,8 @@ IntrinsicFlattening::IntrinsicFlattening(shared_ptr<ManifoldSurfaceMesh> mesh,sh
 }
 
 
-// convenience function for making a sparse matrix
-monty::rc_ptr<mosek::fusion::Matrix> IntrinsicFlattening::sMatrix(int m, int n, vector<int>& rows, vector<int>& cols, vector<double>& values ) {
-    auto r = new_array_ptr<int>(rows);
-    auto c = new_array_ptr<int>(cols);
-    auto v = new_array_ptr<double>(values);
-    auto res =  Matrix::sparse(m,n,r,c,v);
-    return res;
-}
-
-// calls mosek to generate and return optimal betas
-SolutionData IntrinsicFlattening::solve() {
-    // Model initialization
-    Model::t M = new Model();
-    auto _M = finally([&]() { M->dispose(); });
-    // the fixed offset from the Euclidean angles at each edge
-    Variable::t alpha = M->variable("alpha", nEdges, Domain::inRange(-PI, PI));
-    // the "total angle" at each corner
-    Variable::t beta = M->variable("beta", nCorners, Domain::inRange(0, PI));
-    // the witness of our "coherent angle system"
-    Variable::t a = M->variable("a", nCorners, Domain::inRange(0, 2 * PI));
-
-    // dummy vectors for building matrices
-    vector<int> rows;
-    vector<int> cols;
-    vector<double> values;
-    // Equality constraints: beta has to sum to 2 \pi at interior vertices and 
-    // \pi at exterior vertices!
-    vector<double> rhs(nVertices);
-    cout << "nCorners:" << nCorners << endl;
-    for (Vertex v: mesh->vertices()) {
-        size_t index = v_[v];
-        for (Corner c: v.adjacentCorners()) {
-            rows.emplace_back(index);
-            cols.emplace_back(c_[c]);
-            values.emplace_back(1.);
-        }
-        if (v.isBoundary()) {
-            rhs[index] = (PI);
-        } else {
-            rhs[index] = (2*PI);
-        }
-    }
-    auto sumEquality = sMatrix(nVertices, nCorners, rows, cols, values);
-    M->constraint("angle sum equalities", Expr::mul(sumEquality, beta), Domain::equalsTo(new_array_ptr(rhs)));
-    rhs.clear();
-
-    // More equality constraints: each beta has to be "explained by" the corresponding alphas
-    for (Corner c: mesh->corners()) {
-        rhs.push_back(geometry->cornerAngle(c));
-
-        // the two adjacent edges to the corner
-        rows.emplace_back(c_[c]);
-        cols.emplace_back(e_[c.halfedge().next().next().edge()]);
-        values.emplace_back(1.);
-
-        rows.emplace_back(c_[c]);
-        cols.emplace_back(e_[c.halfedge().edge()]);
-        values.emplace_back(1.);
-    }
-    auto adjacency = sMatrix(nCorners, nEdges, rows, cols, values);
-    // beta = corner angle + alphas
-    M->constraint("beta-alpha equalities", Expr::sub(beta, Expr::mul(adjacency,alpha)), Domain::equalsTo(new_array_ptr(rhs)));
-    rhs.clear();
-    
-
-    // coherent angle system stuff
-    //VertexData<bool> mark(*mesh, false);
-    Vertex infVertex;
-
-    // Flat Boundary Constraint: Total geodesic curvature is 0 on "most" of the boundary
-    size_t excl = 4;
-    size_t count = 0;
-    for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
-        if (count == 1) infVertex = v;
-        if (count >= excl) {
-            for (Corner c : v.adjacentCorners()) {
-                rows.emplace_back(count);
-                cols.emplace_back(c_[c]);
-                values.emplace_back(1.);
-            }
-            rhs.push_back(PI);
-        } else {
-            rhs.push_back(0);
-        }
-        count++;
-    }
-    auto bdryFlat = sMatrix(count, nCorners, rows, cols, values);
-    auto bdryPI = new_array_ptr(rhs);
-    M->constraint("Flat boundary", Expr::mul(bdryFlat, a), Domain::equalsTo(bdryPI));
-    rhs.clear();
-
-    FaceData<bool> fMask(*mesh, true);
-    VertexData<bool> vNewBdry(*mesh, false);
-    // halfedges that are now exterior to the mesh after deleting the vertex at infinity
-    // I think I shouldn't be using this anymore, but out of laziness I'm keeping the calculation here.
-    //HalfedgeData<bool> hOutsideBdry(*mesh, false);
-    EdgeData<bool> eMask(*mesh, true);
-    EdgeData<bool> eBdry(*mesh, false);
-    
-    // mark all the boundary edges as the new boundary
-    for (Edge e : mesh->edges()) {
-        eBdry[e] = e.isBoundary();
-    }
-    /*
-    for (Edge e : mesh->boundaryLoop(0).adjacentEdges()) {
-        eBdry[e] = true;
-    }
-    */
-    // the edges adjacent to the infinite vertex shouldn't be included in
-    // future calculations of the boundary
-    /*
-    for (Halfedge h: infVertex.incomingHalfedges()) {
-        vNewBdry[h.vertex()] = true;
-    }
-    for (Edge e: infVertex.adjacentEdges()) {
-        eMask[e] = false;
-        eBdry[e] = false;
-    }
-
-    for (Face f: infVertex.adjacentFaces()) {
-        fMask[f] = false;
-        // extra boundary edges
-        for (Edge e: f.adjacentEdges()) {
-            if (eMask[e]) eBdry[e] = true;
-        }
-        for (Halfedge h: f.adjacentHalfedges()) {
-            hOutsideBdry[h] = true;
-        }
-    }
-    */
-
-
-    // just setup the objective: \sum alpha^2
-    Variable::t t = M->variable("t", 1, Domain::unbounded());
-    M->constraint(Expr::vstack(t, alpha), Domain::inQCone());
-    M->objective(ObjectiveSense::Minimize, t);
-    M->solve();
-    cout << M->getProblemStatus() << endl;
-    cout << "Optimization Done" << endl;
-    auto xsize = beta->getSize();
-    auto xVal = beta->level();
-    std::cout << "Optimal primal objective: " << M->primalObjValue() << endl;
-    CornerData<double> betaSolve(*mesh);
-    for (Corner c: mesh->corners()) {
-        betaSolve[c] = ((*xVal)[c_[c]]);
-    }
-
-    EdgeData<double> thetaSolve(*mesh,0);
-    auto asize = a->getSize();
-    auto asol = a->level();
-    for (Edge e : mesh->edges()) {
-        double a1 = e.halfedge().isInterior() && e.halfedge().isInterior()
-                        ? (*asol)[c_[e.halfedge().next().next().corner()]]
-                        : 0;
-        double a2 =
-            e.halfedge().twin().isInterior() && e.halfedge().twin().isInterior()
-                ? (*asol)[c_[e.halfedge().twin().next().next().corner()]]
-                : 0;
-        thetaSolve[e] = PI - a1 - a2;
-    }
-    return {infVertex, eMask, eBdry, fMask, betaSolve, thetaSolve};
-}
 EdgeData<double> IntrinsicFlattening::solveKSS() {
+    /*
     // Model initialization
     Model::t M = new Model();
     auto _M = finally([&]() { M->dispose(); });
@@ -242,8 +78,8 @@ EdgeData<double> IntrinsicFlattening::solveKSS() {
     M->solve();
     cout << M->getProblemStatus() << endl;
     cout << "Optimization Done" << endl;
-    EdgeData<double> thetaSolve(*mesh,0);
     std::cout << "Optimal primal objective: " << M->primalObjValue() << endl;
+    EdgeData<double> thetaSolve(*mesh,0);
 
     auto asize = a->getSize();
     auto asol = a->level();
@@ -257,9 +93,12 @@ EdgeData<double> IntrinsicFlattening::solveKSS() {
                 : 0;
         thetaSolve[e] = PI - a1 - a2;
     }
+    */
+    EdgeData<double> thetaSolve(*mesh,0);
     return thetaSolve;
 }
 
+/*
 void IntrinsicFlattening::buildIntersectionAngleConstraints(Model::t& M, CornerData<double>& beta, Variable::t& a) {
     // =========== Equation [1] =================================================
    // For each interior edge, add a constraint which ensures that
@@ -522,7 +361,9 @@ void IntrinsicFlattening::buildOffsetConstraints(Model::t& M, Variable::t& alpha
     auto offsetRhsVector = new_array_ptr(offsetRhs);
     M->constraint("Alpha-Beta constraint", Expr::sub(beta,Expr::mul(offsetLhsMatrix, alpha)), Domain::equalsTo(offsetRhsVector));
 }
+*/
 CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
+    /*
     // Initialize MOSEK solver
     Model::t M = new Model();
     auto _M = finally([&]() { M->dispose(); });
@@ -558,12 +399,10 @@ CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
     std::cout << "Optimal primal objective: " << M->primalObjValue() << endl;
 
     CornerData<double> beta(*mesh);
-    /*
-    auto alphaVal = alpha->level();
-    for (int i = 0; i < nEdges; i++) {
-        cout << (*alphaVal)[i] << endl;
-    }
-    */
+    //auto alphaVal = alpha->level();
+    //for (int i = 0; i < nEdges; i++) {
+    //    cout << (*alphaVal)[i] << endl;
+    //}
     auto xVal = Beta->level();
     for (Corner c: mesh->corners()) {
         //cout << "setting index " <<  c_[c] << " to " << (*xVal)[c_[c]] << endl;
@@ -580,17 +419,18 @@ CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
         }
     }
     //DEBUG'
-    /*
-    for (Corner c: mesh->corners()) {
-        cout << beta[c] << endl;
-    }
+    //for (Corner c: mesh->corners()) {
+    //    cout << beta[c] << endl;
+    //}
 
-    for (int i = 0; i < nCorners; i++) {
-        //beta[i] = (*xVal)[i];
-        cout << beta[i] << "wah" << endl;
-    }
+    //for (int i = 0; i < nCorners; i++) {
+    //    //beta[i] = (*xVal)[i];
+    //    cout << beta[i] << "wah" << endl;
+    //}
     */
 
+    //DEBUG
+    CornerData<double> beta(*mesh);
     return beta;
 }
 
@@ -604,6 +444,7 @@ SolutionData IntrinsicFlattening::solveFromPlane(double interpolationWeight) {
         beta[c] = geometry->cornerAngle(c);
     }
 
+    /*
     // Initialize MOSEK solver
     Model::t M = new Model();
     auto _M = finally([&]()
@@ -645,6 +486,7 @@ SolutionData IntrinsicFlattening::solveFromPlane(double interpolationWeight) {
         thetaSolve[e] = PI - a1 - a2;
     }
 
+    */
     FaceData<bool> fMask(*mesh, true);
     EdgeData<bool> eMask(*mesh, true);
     EdgeData<bool> eBdry(*mesh, false);
@@ -652,5 +494,7 @@ SolutionData IntrinsicFlattening::solveFromPlane(double interpolationWeight) {
     {
         eBdry[e] = e.isBoundary();
     }
+    // DEBUG: TEMPORARY
+    EdgeData<double> thetaSolve(*mesh, 0);
     return {mesh->vertex(0), eMask, eBdry, fMask, beta, thetaSolve};
 }

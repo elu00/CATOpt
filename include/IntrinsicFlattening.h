@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <tuple>
 #include <map>
+#include <iostream>
 #include <vector>
 #include <memory>
 #include <tuple>
@@ -15,22 +16,19 @@ using std::tuple;
 
 #include "Common.h"
 
-#include "fusion.h"
 
-using namespace mosek::fusion;
-using namespace monty;
 
 class IntrinsicFlattening {
     public:
         // constructor from geometry-central data
         IntrinsicFlattening(shared_ptr<ManifoldSurfaceMesh> mesh,shared_ptr<VertexPositionGeometry> geometry);
         // 
-        SolutionData solve();
         EdgeData<double> solveKSS();
         CornerData<double> solveIntrinsicOnly();
         SolutionData solveFromPlane(double flatWeight);
     private:
         // convenience function
+        /*
         void buildOffsetConstraints(Model::t& M, Variable::t& alpha, Variable::t& beta);
         void buildIntersectionAngleConstraints(Model::t& M, CornerData<double>& beta, Variable::t& a);
         void buildFaceConstraints(Model::t& M, Variable::t& a);
@@ -38,6 +36,7 @@ class IntrinsicFlattening {
         void buildDelaunayConstraints(Model::t& M, Variable::t& a);
         void buildBoundaryObjective(Model::t& M, Variable::t& a, Variable::t& t, size_t excl, double interpolationWeight);
         monty::rc_ptr<mosek::fusion::Matrix> sMatrix(int m, int n, vector<int>& rows, vector<int>& cols, vector<double>& values);
+        */
 
 
         // pointers to geometric data

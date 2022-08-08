@@ -30,7 +30,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STR
   # using Clang (linux or apple) or GCC
   message("Using clang/gcc compiler flags")
   SET(BASE_CXX_FLAGS "-std=c++17 -Wall -Wextra -Werror -g3")
-  SET(DISABLED_WARNINGS " -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function -Wno-deprecated-declarations -Wno-missing-braces -Wno-comment -Wno-reorder -Wno-sign-compare -Wno-switch -Wno-delete-non-virtual-dtor -Wno-tautological-compare")
+  SET(DISABLED_WARNINGS " -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function -Wno-deprecated-declarations -Wno-missing-braces -Wno-comment -Wno-reorder -Wno-sign-compare -Wno-switch -Wno-delete-non-virtual-dtor -Wno-tautological-compare -Wno-type-limits -Wno-sequence-point -Wno-parentheses")
   SET(TRACE_INCLUDES " -H -Wno-error=unused-command-line-argument")
 
   if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
@@ -71,7 +71,9 @@ endif()
 # == Deps
 add_subdirectory(deps/geometry-central)
 add_subdirectory(deps/polyscope)
-add_subdirectory(deps/mosek)
+set(NASOQ_BLAS_BACKEND "OpenBLAS")
+set(NASOQ_USE_CLAPACK ON)
+add_subdirectory(deps/nasoq)
 
 # == Build our project stuff
 
@@ -87,8 +89,6 @@ set(SRCS
 
 add_executable(catopt "${SRCS}")
 target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/" )
-target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/catviz/src" )
-target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/catviz/deps/glm" )
 target_include_directories(catopt PUBLIC "${SuiteSparse_INCLUDE_DIRS}")
 
-target_link_libraries(catopt PUBLIC geometry-central polyscope mosek)
+target_link_libraries(catopt PUBLIC geometry-central polyscope nasoq nasoq_eigen)

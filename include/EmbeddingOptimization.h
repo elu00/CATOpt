@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <tuple>
 #include <map>
+#include <iostream>
 #include <vector>
 #include <memory>
 #include <tuple>
@@ -15,8 +16,6 @@ using std::tuple;
 
 #include "Common.h"
 
-#include "fusion.h"
-using namespace monty;
 
 class EmbeddingOptimization {
     public:
@@ -77,6 +76,4 @@ class EmbeddingOptimization {
         // barycentric coordinates for each quad
         Vector3 bary(Corner c, int x, int y);
         tuple<double, double, double> baryCoords(int x, int y);
-
-        monty::rc_ptr<mosek::fusion::Matrix> sMatrix(int m, int n, vector<int>& rows, vector<int>& cols, vector<double>& values);
 };
