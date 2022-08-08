@@ -25,11 +25,11 @@ std::tuple<Vector2,Vector2,Vector2> projectToPlane(Vector3 i, Vector3 j, Vector3
     j -= i; k -= i;
     i -= i;
     /*
-    Vector3 U = j.normalize();
-    Vector3 V = cross(j,cross(j,k)).normalize();
+       Vector3 U = j.normalize();
+       Vector3 V = cross(j,cross(j,k)).normalize();
 
-    return {{0.,0.}, {j.norm(),0}, {dot(U, k), dot(V,k)}};
-    */
+       return {{0.,0.}, {j.norm(),0}, {dot(U, k), dot(V,k)}};
+       */
     double lij = j.norm();
     double ljk = (k-j).norm();
     double lki = k.norm();
@@ -159,10 +159,10 @@ EmbeddingOptimization::EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mes
     v_ = mesh->getVertexIndices();
     f_ = mesh->getFaceIndices();
 
-/*
-    auto[i,j,k] = projectToPlane({0,0,0}, {3,0,0}, {0,4.,0});
-    cout << i << j << k;
-    */
+    /*
+       auto[i,j,k] = projectToPlane({0,0,0}, {3,0,0}, {0,4.,0});
+       cout << i << j << k;
+       */
 }
 
 // convenience function for making a sparse matrix
@@ -301,7 +301,7 @@ void EmbeddingOptimization::buildSubdivision(){
         }
     }
     subgeometry = std::unique_ptr<VertexPositionGeometry>(new VertexPositionGeometry(*submesh,positions));
-
+    writeSurfaceMesh(*submesh, *subgeometry, "my_mesh.obj");
     // TODO: change this call to solve()
     polyscope::registerSurfaceMesh("New mesh", positions, submesh->getFaceVertexList());
     return;
@@ -361,6 +361,94 @@ void EmbeddingOptimization::buildIntrinsicCheckerboard(){
 }
 
 inline double sqr(double x) { return x * x; }
+// Given indices for vertices i, j
+// adds the term (|i-j|^2 - target)^2/2 and it's corresponding gradient to the energy
+inline void addLengthTerm(double& energy, const Eigen::VectorXd& v, size_t iIndex, size_t jIndex, double target) {
+    Vector3 i = {v[3*iIndex], v[3*iIndex+1],v[3*iIndex+2]};
+    Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
+    Vector3 ij = i -j;
+    energy += sqr(ij.norm2() - target)/2;
+}
+inline void addLengthGradient(Eigen::VectorXd& gradient, const Eigen::VectorXd& v, size_t iIndex, size_t jIndex, double target) {
+    Vector3 i = {v[3*iIndex], v[3*iIndex+1],v[3*iIndex+2]};
+    Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
+    Vector3 ij = i -j;
+    double weight = (ij.norm2() - target);
+    // partials with respect to i are
+    // (|i-j|^2 - |target|^2|) * 2 * (i0 - j0)
+    // i gradients
+    gradient[3*iIndex] += weight * 2 *(i.x - j.x);
+    gradient[3*iIndex+1] += weight * 2 *(i.y - j.y);
+    gradient[3*iIndex+2] += weight * 2 *(i.z - j.z);
+
+    // j gradients
+    gradient[3*jIndex] += weight * 2 *(j.x - i.x);
+    gradient[3*jIndex+1] += weight * 2 *(j.y - i.y);
+    gradient[3*jIndex+2] += weight * 2 *(j.z - i.z);
+}
+inline void addAngleTerm(double& energy, const Eigen::VectorXd& v, size_t iIndex, size_t jIndex, size_t kIndex, size_t lIndex, double target) {
+    Vector3 i = {v[3*iIndex], v[3*iIndex+1],v[3*iIndex+2]};
+    Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
+    Vector3 k = {v[3*kIndex], v[3*kIndex+1],v[3*kIndex+2]};
+    Vector3 l = {v[3*lIndex], v[3*lIndex+1],v[3*lIndex+2]};
+    energy += sqr(dot(i-k,j-l) - target)/2;
+
+}
+inline void addAngleGradient(Eigen::VectorXd& gradient, const Eigen::VectorXd& v, size_t iIndex, size_t jIndex, size_t kIndex, size_t lIndex, double target) {
+    Vector3 i = {v[3*iIndex], v[3*iIndex+1],v[3*iIndex+2]};
+    Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
+    Vector3 k = {v[3*kIndex], v[3*kIndex+1],v[3*kIndex+2]};
+    Vector3 l = {v[3*lIndex], v[3*lIndex+1],v[3*lIndex+2]};
+    double weight = (dot(i-k,j-l) - target);
+
+    // i partial: j - l
+    gradient[3*iIndex] += weight *(j.x - l.x);
+    gradient[3*iIndex+1] += weight *(j.y - l.y);
+    gradient[3*iIndex+2] += weight *(j.z - l.z);
+
+    // k partial: l - j
+    gradient[3*kIndex] += weight * (l.x - j.x);
+    gradient[3*kIndex+1] += weight * (l.y - j.y);
+    gradient[3*kIndex+2] += weight * (l.z - j.z);
+
+    // j partial: i - k
+    gradient[3*jIndex] += weight * (i.x - k.x);
+    gradient[3*jIndex+1] += weight * (i.y - k.y);
+    gradient[3*jIndex+2] += weight * (i.z - k.z);
+
+    // l partial: k - i
+    gradient[3*lIndex] += weight* (k.x - i.x);
+    gradient[3*lIndex+1] += weight * (k.y - i.y);
+    gradient[3*lIndex+2] += weight * (k.z - i.z);
+}
+inline void addCenterTerm(double& energy, const Eigen::VectorXd& v, size_t iIndex, size_t jIndex, size_t kIndex) {
+    Vector3 i = {v[3*iIndex], v[3*iIndex+1],v[3*iIndex+2]};
+    Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
+    Vector3 k = {v[3*kIndex], v[3*kIndex+1],v[3*kIndex+2]};
+    energy += (i-2*j+k).norm2()/2;
+}
+inline void addCenterGradient(Eigen::VectorXd& gradient, const Eigen::VectorXd& v, size_t iIndex, size_t jIndex, size_t kIndex) {
+    Vector3 i = {v[3*iIndex], v[3*iIndex+1],v[3*iIndex+2]};
+    Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
+    Vector3 k = {v[3*kIndex], v[3*kIndex+1],v[3*kIndex+2]};
+    Vector3 diff = (i-2*j+k);
+
+    // i partial:
+    gradient[3*iIndex] += diff.x;
+    gradient[3*iIndex+1] += diff.y;
+    gradient[3*iIndex+2] += diff.z;
+
+    // k partial: 
+    gradient[3*jIndex] += -2 * diff.x;
+    gradient[3*jIndex+1] += -2 * diff.y;
+    gradient[3*jIndex+2] += -2 * diff.z;
+
+    // j partial: 
+    gradient[3*kIndex] += diff.x;
+    gradient[3*kIndex+1] += diff.y;
+    gradient[3*kIndex+2] += diff.z;
+}
+
 
 void EmbeddingOptimization::evaluateEnergy(double& energy, const Eigen::VectorXd& v){
     // For each quad ijkl, the energy is
@@ -382,137 +470,103 @@ void EmbeddingOptimization::evaluateEnergy(double& energy, const Eigen::VectorXd
         for (int x = 0; x < n - 1; x++) {
             for (int y = 0; y < n - 1; y++) {
                 size_t iIndex = finalIndices[cVertexOffset + x + (n)*y];
-                Vector3 i = {v[3*iIndex], v[3*iIndex+1],v[3*iIndex+2]};
-
                 size_t jIndex = finalIndices[cVertexOffset + (x+1) + (n)*y];
-                Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
-
                 size_t kIndex = finalIndices[cVertexOffset + (x+1) + n*(y+1)];
-                Vector3 k = {v[3*kIndex], v[3*kIndex+1],v[3*kIndex+2]};
-
                 size_t lIndex = finalIndices[cVertexOffset + x + n*(y+1)];
-                Vector3 l = {v[3*lIndex], v[3*lIndex+1],v[3*lIndex+2]};
 
                 size_t quadIndex = cQuadOffset + x + (n-1)*y;
 
-                Vector3 e20 = i - k;
                 // c_iso_0 term
-                energy += (sqr(e20.norm2() - c_iso_0[quadIndex]))/2;
-                //DEBUG
-                //cout << "i : " << i << " k: " << k << "norm: " << e20.norm() << "should: "<< sqrt(c_iso_0[quadIndex]) << endl;
-                Vector3 e31 = j - l;
-
-                //cout << "actual: " <<  e20.norm2() << " expected:  " << c_iso_0[quadIndex] << endl;
-
+                addLengthTerm(energy, v, iIndex, kIndex, c_iso_0[quadIndex]);
                 // c_iso_1 term
-                energy += (sqr(e31.norm2() - c_iso_1[quadIndex]))/2;
+                addLengthTerm(energy, v, jIndex, lIndex, c_iso_1[quadIndex]);
                 // c_iso_2 term
-                energy += (sqr(dot(e20,e31) - c_iso_2[quadIndex]))/2;
+                addAngleTerm(energy, v, iIndex, jIndex, kIndex, lIndex, c_iso_2[quadIndex]);
             }
         }
-        // regularization term
+        /*
+        // regularization term - horizontal
+        for (int x = 0; x < n - 1; x++) {
+            for (int y = 0; y < n - 1; y++) {
+                size_t iIndex = finalIndices[cVertexOffset + x + n*y];
+                size_t jIndex = finalIndices[cVertexOffset + (x+1) + n*y];
+                size_t kIndex = finalIndices[cVertexOffset + x+2 + n*y];
+                addCenterTerm(energy, v, iIndex, jIndex, kIndex);
+            }
+        }
+        // regularization term - vertical
+        // Note x is allowed to take the value n-1 here
+        for (int x = 0; x < n; x++) {
+            for (int y = 0; y < n - 1; y++) {
+                size_t iIndex = finalIndices[cVertexOffset + x + n*y];
+                size_t jIndex = finalIndices[cVertexOffset + x + n*(y+1)];
+                size_t kIndex = finalIndices[cVertexOffset + x + n*(y+2)];
+                addCenterTerm(energy, v, iIndex, jIndex, kIndex);
+
+            }
+        }
+        */
     }
 }
 
 void EmbeddingOptimization::evaluateGradient(Eigen::VectorXd& gradient, const Eigen::VectorXd& v) {
+    for (int i = 0; i < 3 * nSubdividedVertices; i++) {
+        gradient[i] = 0.;
+    }
+
     for (Corner c: mesh->corners()) {
-        for (int i = 0; i < 3 * nSubdividedVertices; i++) {
-            gradient[i] = 0.;
-        }
         size_t cQuadOffset = c_[c] * (n-1) * (n-1);
         size_t cVertexOffset = c_[c] * n * n;
         // grab face coordinates
         for (int x = 0; x < n - 1; x++) {
             for (int y = 0; y < n - 1; y++) {
                 size_t iIndex = finalIndices[cVertexOffset + x + (n)*y];
-                Vector3 i = {v[3*iIndex], v[3*iIndex+1],v[3*iIndex+2]};
-
                 size_t jIndex = finalIndices[cVertexOffset + (x+1) + (n)*y];
-                Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
-
-                size_t kIndex = finalIndices[cQuadOffset + (x+1) + n*(y+1)];
-                Vector3 k = {v[3*kIndex], v[3*kIndex+1],v[3*kIndex+2]};
-
-                size_t lIndex = finalIndices[cQuadOffset + x + n*(y+1)];
-                Vector3 l = {v[3*lIndex], v[3*lIndex+1],v[3*lIndex+2]};
+                size_t kIndex = finalIndices[cVertexOffset + (x+1) + n*(y+1)];
+                size_t lIndex = finalIndices[cVertexOffset + x + n*(y+1)];
 
                 size_t quadIndex = cQuadOffset + x + (n-1)*y;
 
-                Vector3 e20 = i - k;
-                Vector3 e31 = j - l;
                 //================== c_iso_0 gradients===================
-                double c_iso_0_weight = (e20.norm2() - c_iso_0[quadIndex]);
-                // partials with respect to i are
-                // (|e20|^2 - |e20'|^2|) * 2 * (i0 - k0)
-                // i gradients
-                gradient[3*iIndex] += c_iso_0_weight * 2 *(i.x - k.x);
-                gradient[3*iIndex+1] += c_iso_0_weight * 2 *(i.y - k.y);
-                gradient[3*iIndex+2] += c_iso_0_weight * 2 *(i.z - k.z);
-
-                // k gradients
-                gradient[3*kIndex] += c_iso_0_weight * 2 *(k.x - i.x);
-                gradient[3*kIndex+1] += c_iso_0_weight * 2 *(k.y - i.y);
-                gradient[3*kIndex+2] += c_iso_0_weight * 2 *(k.z - i.z);
-
-
+                addLengthGradient(gradient, v, iIndex, kIndex, c_iso_0[quadIndex]);
                 //===================== c_iso_1 gradients===========================
-                double c_iso_1_weight = (e31.norm2() - c_iso_1[quadIndex]);
-                // j gradients
-                gradient[3*jIndex] += c_iso_1_weight * 2 *(j.x - l.x);
-                gradient[3*jIndex+1] += c_iso_1_weight * 2 *(j.y - l.y);
-                gradient[3*jIndex+2] += c_iso_1_weight * 2 *(j.z - l.z);
-
-                // l gradients
-                gradient[3*lIndex] += c_iso_1_weight * 2 *(l.x - j.x);
-                gradient[3*lIndex+1] += c_iso_1_weight * 2 *(l.y - j.y);
-                gradient[3*lIndex+2] += c_iso_1_weight * 2 *(l.z - j.z);
-
+                addLengthGradient(gradient, v, jIndex, lIndex, c_iso_1[quadIndex]);
                 //===================== c_iso_2 gradients===========================
-                double c_iso_2_weight = (dot(e20,e31) - c_iso_2[quadIndex]);
-
-                // i partial: j - l
-                gradient[3*iIndex] += c_iso_2_weight *(j.x - l.x);
-                gradient[3*iIndex+1] += c_iso_2_weight *(j.y - l.y);
-                gradient[3*iIndex+2] += c_iso_2_weight *(j.z - l.z);
-
-                // k partial: l - j
-                gradient[3*kIndex] += c_iso_2_weight * (l.x - j.x);
-                gradient[3*kIndex+1] += c_iso_2_weight * (l.y - j.y);
-                gradient[3*kIndex+2] += c_iso_2_weight * (l.z - j.z);
-
-                // j partial: i - k
-                gradient[3*jIndex] += c_iso_2_weight * (i.x - k.x);
-                gradient[3*jIndex+1] += c_iso_2_weight * (i.y - k.y);
-                gradient[3*jIndex+2] += c_iso_2_weight * (i.z - k.z);
-
-                // l partial: k - i
-                gradient[3*lIndex] += c_iso_2_weight * (k.x - i.x);
-                gradient[3*lIndex+1] += c_iso_2_weight * (k.y - i.y);
-                gradient[3*lIndex+2] += c_iso_2_weight * (k.z - i.z);
+                addAngleGradient(gradient, v, iIndex, jIndex, kIndex, lIndex, c_iso_2[quadIndex]);
             }
         }
+        /*
+        // regularization term - horizontal
+        for (int x = 0; x < n - 1; x++) {
+            for (int y = 0; y < n - 1; y++) {
+                size_t iIndex = finalIndices[cVertexOffset + x + n*y];
+                size_t jIndex = finalIndices[cVertexOffset + (x+1) + n*y];
+                size_t kIndex = finalIndices[cVertexOffset + x+2 + n*y];
+                addCenterGradient(gradient, v, iIndex, jIndex, kIndex);
+            }
+        }
+        // regularization term - vertical
+        // Note x is allowed to take the value n-1 here
+        for (int x = 0; x < n; x++) {
+            for (int y = 0; y < n - 1; y++) {
+                size_t iIndex = finalIndices[cVertexOffset + x + n*y];
+                size_t jIndex = finalIndices[cVertexOffset + x + n*(y+1)];
+                size_t kIndex = finalIndices[cVertexOffset + x + n*(y+2)];
+                addCenterGradient(gradient, v, iIndex, jIndex, kIndex);
+            }
+        }
+        */
     }
 }
 
-Eigen::VectorXd EmbeddingOptimization::gradientDescent() {
+Eigen::VectorXd EmbeddingOptimization::gradientDescent(double t) {
     double BETA = 0.5;
     double EPSILON = 1e-7;
-    double ALPHA = 0.25;
-    int MAX_ITERS=1000;
+    double ALPHA = 0.01;
+    int MAX_ITERS=5000;
     int k = 1;
-    Eigen::VectorXd v = Eigen::VectorXd::Zero(3*nSubdividedVertices);
-    for (Corner c: mesh->corners()) {
-        size_t cOffset = c_[c] * n * n;
-        for (int X = 0; X < n; X++) {
-            for (int Y = 0; Y < n; Y++) {
-                Vector3 pos = bary(c, X, Y);
-                size_t startIndex = 3*finalIndices[cOffset + X + n * Y];
-                v[startIndex] = pos.x;
-                v[startIndex + 1] = pos.y;
-                v[startIndex + 2] = pos.z;
-            }
-        }
-    }
+    
+    Eigen::VectorXd v = x;
     Eigen::VectorXd v_new = Eigen::VectorXd::Zero(3*nSubdividedVertices);
 
     while (true) {
@@ -526,23 +580,27 @@ Eigen::VectorXd EmbeddingOptimization::gradientDescent() {
         double grad_size = sqrt(g.dot(g));
 
         // compute step size
-        double t = 1.;
         v_new = v - t * g;
         evaluateEnergy(energy_new, v_new);
+        /*
         while (energy_new > energy - ALPHA * t * grad_size) {
             t = BETA*t;
             v_new = v - t * g;
             evaluateEnergy(energy_new, v_new);
         }
+        */
+        v = v_new;
 
         // update
         k++;
 
         // check termination condition
-        cout << "ENERGY: " << energy << endl;
-        cout << grad_size << endl;
         if (grad_size < EPSILON || k > MAX_ITERS) break;
-        if (k % 100 == 0) cout << "iters:" << k << endl;
+        if (k % 100 == 0) {
+            cout << "ENERGY: " << energy << endl;
+            cout << grad_size << endl;
+            cout << "iters:" << k << endl;
+        }
     }
 
     std::cout << "Iterations: " << k << std::endl;
@@ -592,7 +650,7 @@ void EmbeddingOptimization::testFlatteningDerivatives() {
         double error = fabs(dEi - dE[i])/(1 + dEi);
         if (error > 1) {
             cout << dEi << " " << dE[i] << " error: " << error << endl;
-            cout << "i = " << i/3 << endl;
+            cout << "i = " << i << endl;
         }
 
         worstError = std::max(worstError, error);
@@ -610,20 +668,20 @@ void EmbeddingOptimization::basisFunctionDebugging() {
     // ==================================TEST============================================
     std::ofstream ss("test.svg", std::ofstream::out);
     ss << "<?xml version=\"1.0\" standalone=\"no\" ?>" << endl
-       << "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" "
-          "\"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">"
-       << endl
-       << "<svg width=\"1000\" height=\"1000\" "
-          "xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\" >"
-          //<< "<rect width=\"100%\" height =\"100%\" fill=\"#ffffff\"/>"
-       << endl;
+        << "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" "
+        "\"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">"
+        << endl
+        << "<svg width=\"1000\" height=\"1000\" "
+        "xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\" >"
+        //<< "<rect width=\"100%\" height =\"100%\" fill=\"#ffffff\"/>"
+        << endl;
     BezierTriangle T0 = Coefficients({0,0,0},{400,0,0},{0,400,0},2*PI/3,PI/4,PI/4);
     for (int x = 0; x <= N; x++) {
         for (int y = 0; x+y <= N; y++) {
             Vector2 i = RationalBezierTriangle(T0, {x/N, y/N,(1-x/N-y/N)});
             cout << i << endl;
-                ss << "<circle cx=\"" << 500+(i.x) << "\" cy=\""
-                    << 500+(i.y) << "\" r=\"3\" fill=\"red\"/>" << endl;
+            ss << "<circle cx=\"" << 500+(i.x) << "\" cy=\""
+                << 500+(i.y) << "\" r=\"3\" fill=\"red\"/>" << endl;
         }
     }
 
@@ -633,9 +691,9 @@ void EmbeddingOptimization::basisFunctionDebugging() {
             for (int y = 0; y < n; y++) {
                 Vector2 i = RationalBezierTriangle(T,baryCoords(x, y));
                 //cout << i << endl;
-                   //Vector2 j = RationalBezierTriangle(T,baryCoords(x+1, y));
-                   //Vector2 k = RationalBezierTriangle(T,baryCoords(x+1, y+1));
-                   //Vector2 l = RationalBezierTriangle(T,baryCoords(x, y+1));
+                //Vector2 j = RationalBezierTriangle(T,baryCoords(x+1, y));
+                //Vector2 k = RationalBezierTriangle(T,baryCoords(x+1, y+1));
+                //Vector2 l = RationalBezierTriangle(T,baryCoords(x, y+1));
                 ss << "<circle cx=\"" << 500+(i.x) << "\" cy=\""
                     << 500+(i.y) << "\" r=\"3\" fill=\"green\"/>" << endl;
             }
@@ -645,13 +703,28 @@ void EmbeddingOptimization::basisFunctionDebugging() {
     ss << "</svg>";
 
 }
+void EmbeddingOptimization::optimize(double t) {
+    
+
+    //Eigen::VectorXd x = 
+    x = gradientDescent(t);
+    VertexData<Vector3> positions(*submesh);
+    /*
+       for (int i = 0; i < nSubdividedVertices; i++) {
+       positions[i] = {x[3*i],x[3*i+1],x[3*i+2]};
+       }
+       */
+    VertexData<size_t> subVertexIndices = submesh->getVertexIndices();
+    for (Vertex v: submesh->vertices()) {
+        size_t i = subVertexIndices[v];
+        positions[v] = {x[3*i],x[3*i+1],x[3*i+2]};
+        //cout << positions[v] << endl;
+    }
+
+    polyscope::registerSurfaceMesh("Optimized Mesh", positions, submesh->getFaceVertexList());
+}
 std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry> >EmbeddingOptimization::solve(int N) {
     n = N;
-    //===============DEBUG===================
-    //basisFunctionDebugging();
-    //testFlatteningDerivatives();
-    //return {submesh, subgeometry};
-    //=======================================
 
     // Initialize union find data structure
     top = vector<int> (n*n*nCorners);
@@ -665,20 +738,27 @@ std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry> >E
     buildSubdivision();
     buildIntrinsicCheckerboard();
 
-
-
-    Eigen::VectorXd x = gradientDescent();
-
-    VertexData<Vector3> positions(*submesh);
-    for (int i = 0; i < nSubdividedVertices; i++) {
-        positions[i] = {x[3*i],x[3*i+1],x[3*i+2]};
+    //===============DEBUG===================
+    //basisFunctionDebugging();
+    testFlatteningDerivatives();
+    //return {submesh, subgeometry};
+    // initialize inital guess for x
+    x = Eigen::VectorXd::Zero(3*nSubdividedVertices);
+    for (Corner c: mesh->corners()) {
+        size_t cOffset = c_[c] * n * n;
+        for (int X = 0; X < n; X++) {
+            for (int Y = 0; Y < n; Y++) {
+                Vector3 pos = bary(c, X, Y);
+                size_t startIndex = 3*finalIndices[cOffset + X + n * Y];
+                x[startIndex] = pos.x;
+                x[startIndex + 1] = pos.y;
+                x[startIndex + 2] = pos.z;
+            }
+        }
     }
 
-    // TODO: why doesn't this work?
-    polyscope::registerSurfaceMesh("Mesh", positions, submesh->getFaceVertexList());
+
     polyscope::show();
-    /*
-    */
 
     return {submesh, subgeometry};
 }

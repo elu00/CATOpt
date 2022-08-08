@@ -22,6 +22,7 @@ class EmbeddingOptimization {
     public:
         EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh, shared_ptr<VertexPositionGeometry> geometry, CornerData<double> beta);
         std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry>> solve(int N);
+        void optimize(double t);
     private:
         // pointers to geometric data associated to the original mesh
         int n;
@@ -67,7 +68,8 @@ class EmbeddingOptimization {
         // Optimization procedures
         void evaluateEnergy(double& energy, const Eigen::VectorXd& v);
         void evaluateGradient(Eigen::VectorXd& gradient, const Eigen::VectorXd& v);
-        Eigen::VectorXd gradientDescent();
+        Eigen::VectorXd gradientDescent(double t);
+        Eigen::VectorXd x;
 
         void basisFunctionDebugging();
         void testFlatteningDerivatives();

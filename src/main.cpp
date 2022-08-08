@@ -44,11 +44,14 @@ void planarMapping(int N) {
         patterns.solve("fin" + std::string(3 - std::to_string(m).length(), '0') +  std::to_string(m) );
     }
 }
+
+EmbeddingOptimization* E;
+float t = 1e-4;
 void embedding(int N) {
     IntrinsicFlattening flattener(mesh, geometry);
     CornerData<double> beta = flattener.solveIntrinsicOnly();
-    EmbeddingOptimization E(mesh, geometry, beta);
-    auto [submesh, subgeometry] = E.solve(N);
+    E = (new EmbeddingOptimization(mesh, geometry, beta));
+    auto [submesh, subgeometry] = E->solve(N);
     
 }
 void surfaceToPlane() {
@@ -57,7 +60,22 @@ void surfaceToPlane() {
     CircleWrapper patterns(mesh, intersectionAngles, psMesh);
     patterns.solveKSS();
 }
+void mySubroutine(double t) {
+    E->optimize(t);
+}
+void myCallback() {
 
+    // Since options::openImGuiWindowForUserCallback == true by default, 
+    // we can immediately start using ImGui commands to build a UI
+
+
+    ImGui::InputFloat("param value", &t, 0.01f, 1.0f);  // set a float variable
+
+    if (ImGui::Button("run subroutine")) {
+        // executes when button is pressed
+        mySubroutine(t);
+    }
+}
 int main(int argc, char **argv) {
     // Configure the argument parser
     string inputMeshPath;
@@ -101,8 +119,9 @@ int main(int argc, char **argv) {
       */
 
     mesh->compress();
+    polyscope::state::userCallback = myCallback;
     //planarMapping(100);
-    embedding(3);
+    embedding(5);
     
     //polyscope::show();
     

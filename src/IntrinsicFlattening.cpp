@@ -523,14 +523,19 @@ void IntrinsicFlattening::buildOffsetConstraints(Model::t& M, Variable::t& alpha
     M->constraint("Alpha-Beta constraint", Expr::sub(beta,Expr::mul(offsetLhsMatrix, alpha)), Domain::equalsTo(offsetRhsVector));
 }
 CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
-
-
     // Initialize MOSEK solver
     Model::t M = new Model();
     auto _M = finally([&]() { M->dispose(); });
 
+    // Angle offsets per edge representing the deviation from the 
+    // Euclidean angles intrinsically
+    Variable::t alpha = M->variable("alpha", nEdges, Domain::inRange(-2 * PI, 2 * PI));
+
     // The intrisic "CAT angle" at each corner
     Variable::t Beta = M->variable("beta", nCorners, Domain::inRange(0, 2*PI));
+
+    // the betas are given by offsets by alpha
+    buildOffsetConstraints(M, alpha, Beta);
 
     // Vertex sums of betas to 2 pi for each interior vertex
     buildVertexConstraints(M, Beta);
@@ -564,6 +569,15 @@ CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
         //cout << "setting index " <<  c_[c] << " to " << (*xVal)[c_[c]] << endl;
         beta[c] = (*xVal)[c_[c]];
         //beta[c] = PI;
+    }
+    for (Vertex v: mesh->vertices()) {
+        if (!v.isBoundary()) {
+            double accum = 0.;
+            for (Corner c: v.adjacentCorners()) {
+                accum += beta[c];
+            }
+            cout << "angle sum: " << accum << endl;
+        }
     }
     //DEBUG'
     /*
