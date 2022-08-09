@@ -11,29 +11,34 @@ using std::cout;
 using std::vector;
 using std::shared_ptr;
 using std::endl;
+using std::pair;
 using std::tuple;
 
 
 #include "Common.h"
 
 
+typedef tuple<int, int, double> T;
 
 class IntrinsicFlattening {
     public:
         // constructor from geometry-central data
         IntrinsicFlattening(shared_ptr<ManifoldSurfaceMesh> mesh,shared_ptr<VertexPositionGeometry> geometry);
-        // 
-        EdgeData<double> solveKSS();
+        pair<CornerData<double>, CornerData<double>> CoherentAngleSystem(VertexData<double> targetCurvatures, CornerData<double> targetBetas);
         CornerData<double> solveIntrinsicOnly();
-        SolutionData solveFromPlane(double flatWeight);
+        pair<CornerData<double>, CornerData<double>> solveFromPlane(double flatWeight);
     private:
         // convenience function
+        void shiftTriples(vector<T>& tripletList, int i, int j); 
+        pair<vector<T>, vector<double>> PositiveAngleConstraint();
+        pair<vector<T>, vector<double>> FaceAngleSumConstraint();
+        pair<vector<T>, vector<double>> VertexAngleSumConstraint(VertexData<double> curvatures);
+        pair<vector<T>, vector<double>> EdgeDelaunayConstraint();
+        pair<vector<T>, vector<double>> EdgeIntersectionAngleConstraint();
+        pair<vector<T>, vector<double>> CATValidityConstraint();
+        pair<vector<T>, vector<double>> AngleDeviationPenalty(CornerData<double> beta);
         /*
         void buildOffsetConstraints(Model::t& M, Variable::t& alpha, Variable::t& beta);
-        void buildIntersectionAngleConstraints(Model::t& M, CornerData<double>& beta, Variable::t& a);
-        void buildFaceConstraints(Model::t& M, Variable::t& a);
-        void buildVertexConstraints(Model::t& M, Variable::t& a);
-        void buildDelaunayConstraints(Model::t& M, Variable::t& a);
         void buildBoundaryObjective(Model::t& M, Variable::t& a, Variable::t& t, size_t excl, double interpolationWeight);
         monty::rc_ptr<mosek::fusion::Matrix> sMatrix(int m, int n, vector<int>& rows, vector<int>& cols, vector<double>& values);
         */

@@ -72,7 +72,7 @@ endif()
 add_subdirectory(deps/geometry-central)
 add_subdirectory(deps/polyscope)
 set(NASOQ_BLAS_BACKEND "OpenBLAS")
-set(NASOQ_USE_CLAPACK ON)
+#set(NASOQ_USE_CLAPACK ON)
 add_subdirectory(deps/nasoq)
 
 # == Build our project stuff
@@ -82,7 +82,7 @@ set(SRCS
   src/main.cpp
   src/IntrinsicFlattening.cpp
   src/EmbeddingOptimization.cpp
-  src/circleWrapper.cpp
+  src/CircleWrapper.cpp
   src/CirclePatterns.cpp
   src/Solver.cpp
 )
@@ -91,4 +91,4 @@ add_executable(catopt "${SRCS}")
 target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/" )
 target_include_directories(catopt PUBLIC "${SuiteSparse_INCLUDE_DIRS}")
 
-target_link_libraries(catopt PUBLIC geometry-central polyscope nasoq nasoq_eigen)
+target_link_libraries(catopt PUBLIC geometry-central polyscope nasoq_eigen)

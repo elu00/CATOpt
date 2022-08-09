@@ -1,14 +1,9 @@
 #include "CirclePatterns.h"
 #include <Eigen/SparseQR>
 
-CirclePatterns::CirclePatterns(shared_ptr<ManifoldSurfaceMesh> mesh0, Vertex infVertex, 
-    EdgeData<bool> eMask, EdgeData<bool> eBdry,FaceData<bool> fMask, int optScheme0,
+CirclePatterns::CirclePatterns(shared_ptr<ManifoldSurfaceMesh> mesh0, int optScheme0,
      Eigen::VectorXd thetas):
 mesh(mesh0),
-infVertex(infVertex),
-eMask(eMask),
-eBdry(eBdry),
-fMask(fMask),
 angles(mesh->nHalfedges()),
 thetas(thetas),
 radii(mesh->nFaces()),
@@ -81,10 +76,9 @@ void CirclePatterns::computeEnergy(double& energy, const Eigen::VectorXd& rho)
 
     // sum over edges
     for (Edge e : mesh->edges()) {
-        if (eMask[e]) {
             int fk = fInd[e.halfedge().face()];
 
-            if (eBdry[e]) {
+            if (e.isBoundary()) {
                 energy -= 2 * (M_PI - thetas[eInd[e]]) * rho[fk];
 
             } else {
@@ -92,12 +86,11 @@ void CirclePatterns::computeEnergy(double& energy, const Eigen::VectorXd& rho)
                 energy += ImLi2Sum(rho[fk] - rho[fl], thetas[eInd[e]]) -
                           (M_PI - thetas[eInd[e]]) * (rho[fk] + rho[fl]);
             }
-        }
     }
 
     // sum over faces
     for (Face f: mesh->faces()) {
-        if (!f.isBoundaryLoop() && fMask[f]) energy += 2*M_PI*rho[fInd[f]];
+        if (!f.isBoundaryLoop()) energy += 2*M_PI*rho[fInd[f]];
     }
 }
 
@@ -105,7 +98,7 @@ void CirclePatterns::computeGradient(Eigen::VectorXd& gradient, const Eigen::Vec
 {
     // loop over faces
     for (Face f : mesh->faces()) {
-        if (!f.isBoundaryLoop() && fMask[f]) {
+        if (!f.isBoundaryLoop()) {
             int fk = fInd[f];
             gradient[fk] = 2*M_PI;
             
@@ -113,7 +106,7 @@ void CirclePatterns::computeGradient(Eigen::VectorXd& gradient, const Eigen::Vec
             Halfedge he = f.halfedge();
             do {
                 Edge e = he.edge();
-                if (eBdry[e]) {
+                if (e.isBoundary()) {
                     gradient[fk] -= 2*(M_PI - thetas[eInd[e]]);
                     
                 } else {
@@ -133,7 +126,7 @@ void CirclePatterns::computeHessian(Eigen::SparseMatrix<double>& hessian, const 
     std::vector<Eigen::Triplet<double>> HTriplets;
     
     for (Edge e : mesh->edges()) {
-        if (!eBdry[e] && eMask[e]) {
+        if (!e.isBoundary()) {
             int fk = fInd[e.halfedge().face()];
             int fl = fInd[e.halfedge().twin().face()];
                         
@@ -151,7 +144,7 @@ void CirclePatterns::computeHessian(Eigen::SparseMatrix<double>& hessian, const 
 void CirclePatterns::setRadii()
 {
     for (Face f : mesh->faces()) {
-        if (!f.isBoundaryLoop() && fMask[f]) radii[fInd[f]] = exp(solver.x[fInd[f]]);
+        if (!f.isBoundaryLoop()) radii[fInd[f]] = exp(solver.x[fInd[f]]);
     }
 }
 
@@ -177,10 +170,9 @@ bool CirclePatterns::computeRadii()
 void CirclePatterns::computeAnglesAndEdgeLengths(Eigen::VectorXd& lengths)
 {
     for (Edge e : mesh->edges()) {
-        if(eMask[e]) {
             Halfedge h1 = e.halfedge();
         
-            if (eBdry[e]) {
+            if (e.isBoundary()) {
                 angles[hInd[h1]] = M_PI - thetas[eInd[e]];
             
             } else {
@@ -191,7 +183,6 @@ void CirclePatterns::computeAnglesAndEdgeLengths(Eigen::VectorXd& lengths)
             }
         
             lengths[eInd[e]] = 2.0*radii[fInd[h1.face()]]*sin(angles[hInd[h1]]);
-        }
     }
 }
 
@@ -199,7 +190,7 @@ void CirclePatterns::performFaceLayout(Halfedge he, const Eigen::Vector2d& dir,
                                        Eigen::VectorXd& lengths, std::unordered_map<int, bool>& visited,
                                        std::stack<Edge>& stack)
 {
-    if (he.isInterior() && fMask[he.face()]) {
+    if (he.isInterior()) {
         int fIdx = fInd[he.face()];
         if (visited.find(fIdx) == visited.end()) {
             Halfedge next = he.next();
@@ -214,10 +205,10 @@ void CirclePatterns::performFaceLayout(Halfedge he, const Eigen::Vector2d& dir,
             
             // mark face as visited
             visited[fIdx] = true;
-            
+
             // push edges onto stack
-            if(eMask[next.edge()]) stack.push(next.edge());
-            if(eMask[prev.edge()]) stack.push(prev.edge());
+            stack.push(next.edge());
+            stack.push(prev.edge());
         }
     }
 }
@@ -232,10 +223,8 @@ void CirclePatterns::setUVs()
     std::stack<Edge> stack;
     Edge e0;
     for (Edge e :mesh->edges()) {
-        if(eMask[e]) {
-            e0 = e;
-            break;
-        }
+        e0 = e;
+        break;
     };
     stack.push(e0);
 
@@ -268,14 +257,12 @@ VertexData<Eigen::Vector2d> CirclePatterns::parameterize() {
     // set interior edge indices
     int eIdx = 0;
     for (Edge e : mesh->edges()) {
-        if (eMask[e]) {
-            if (!eBdry[e])
+            if (e.isBoundary())
                 eIntIndices[eInd[e]] = eIdx++;
             else {
                 eIntIndices[eInd[e]] = -1;
                 imaginaryHe++;
             }
-        }
     }
 
     // compute radii
@@ -289,7 +276,7 @@ VertexData<Eigen::Vector2d> CirclePatterns::parameterize() {
     return uv;
 }
 double CirclePatterns::uvArea(Face f) {
-    if (f.isBoundaryLoop() || !fMask[f]) {
+    if (f.isBoundaryLoop()) {
         return 0;
     }
     
@@ -304,7 +291,7 @@ double CirclePatterns::uvArea(Face f) {
 }
 
 Eigen::Vector2d CirclePatterns::uvBarycenter(Face f) {
-    if (f.isBoundaryLoop() || !fMask[f]) {
+    if (f.isBoundaryLoop()) {
         return Eigen::Vector2d::Zero();
     }
     
@@ -332,11 +319,9 @@ void CirclePatterns::normalize() {
     uv[infVertex.getIndex()].y() = 5;
     */
     for (Face f : mesh->faces()) {
-        if (fMask[f]){
             double area = uvArea(f);
             center += area * uvBarycenter(f);
             totalArea += area;
-        }
     }
     center /= totalArea;
     

@@ -1,7 +1,44 @@
 #include "IntrinsicFlattening.h"
 
+#include "nasoq/nasoq_eigen.h"
+void nasoqTest() {
+    vector<Eigen::Triplet<double>> HList = {Eigen::Triplet<double>(0,0,1), Eigen::Triplet<double>(1,1,1)};
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int> H(2,2);
+    H.setFromTriplets(HList.begin(), HList.end());
+
+    vector<Eigen::Triplet<double>> AList;
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int> A(1,2); 
+    A.setFromTriplets(AList.begin(), AList.end());
+
+    vector<Eigen::Triplet<double>> CList = {Eigen::Triplet<double>(1,1,-1)};
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int> C(2,2); 
+    C.setFromTriplets(CList.begin(), CList.end());
+
+    Eigen::VectorXd q(2);
+    q[0] = 0; q[1] = 0;
+    Eigen::VectorXd b(1);
+    b[0] = 0;
+    Eigen::VectorXd d(2);
+    d[1] = -2;
 
 
+    /// New settings if provided
+    int iter;
+    std::string nasoq_mode;
+    double pert, eps, tol;
+    nasoq::QPSettings *qs = NULL;
+
+    /// output vectors
+    Eigen::VectorXd x, y, z;
+
+
+    /// call the wrapper.
+    int ret = nasoq::quadprog(H,q,A,b,C,d,x,y,z,qs);
+    for (int i = 0; i < 2; i++) {
+        cout << "wah" << x[i] << endl;
+    }
+    
+}
 IntrinsicFlattening::IntrinsicFlattening(shared_ptr<ManifoldSurfaceMesh> mesh,shared_ptr<VertexPositionGeometry> geometry):
     mesh(mesh), geometry(geometry) {
     geometry->requireEdgeLengths();
@@ -23,84 +60,124 @@ IntrinsicFlattening::IntrinsicFlattening(shared_ptr<ManifoldSurfaceMesh> mesh,sh
 }
 
 
-EdgeData<double> IntrinsicFlattening::solveKSS() {
-    /*
-    // Model initialization
-    Model::t M = new Model();
-    auto _M = finally([&]() { M->dispose(); });
-    // the witness of our "coherent angle system"
-    Variable::t a = M->variable("a", nCorners, Domain::inRange(0, 2 * PI));
+void IntrinsicFlattening::shiftTriples(vector<T>& tripletList, int i, int j) {
+    for (auto& [a,b,v]: tripletList) {
+        a += i;
+        b += j;
+    }
+}
+// |C| x |C|
+pair<vector<T>, vector<double>> IntrinsicFlattening::PositiveAngleConstraint () {
+    vector<T> tripletList;
+    vector<double> rhs = vector<double>(nCorners, 0);
+    for (int i = 0; i < nCorners; i++) {
+        tripletList.push_back({-i,-i,1.});
+    }
+    return {tripletList, rhs};
+}
+// |F| x |C|
+pair<vector<T>, vector<double>> IntrinsicFlattening::FaceAngleSumConstraint () {
+    // =========== Equation [2] =================================================
 
-    // dummy vectors for building matrices
-    vector<int> rows;
-    vector<int> cols;
-    vector<double> values;
-    vector<double> rhs(0);
+    // For each triangle, add a constraint that says that the
+    // interior angles from the coherent angle system sum to π:
+    //
+    //    α0 + α1 + α2 = π       [2]
+    //
+    //        *
+    //       /0\
+    //      /   \
+    //     /     \
+    //    /1     2\
+    //   *---------*
+    //
 
-    // Flat Boundary Constraint: Total geodesic curvature is 0 on "most" of the boundary
-    size_t excl = 4;
-    size_t count = 0;
-    for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
-        if (count >= excl) {
-            for (Corner c : v.adjacentCorners()) {
-                rows.emplace_back(count);
-                cols.emplace_back(c_[c]);
-                values.emplace_back(1.);
+   // arrays for building sparse linear system for Equation [2]
+   vector<T> tripletList;
+   vector<double> rhs = vector<double>(nFaces, PI); // set all values to π
+
+   for (Face f : mesh->faces()) {
+      for (Corner c : f.adjacentCorners()) {
+         tripletList.push_back({f_[f],c_[c],1.}); 
+      }
+   }
+
+    return {tripletList, rhs};
+}
+// |V| x |C|
+pair<vector<T>, vector<double>> IntrinsicFlattening::VertexAngleSumConstraint(VertexData<double> curvatures) {
+   // =========== Equation [3] =================================================
+   // For each interior vertex, add a constraint that says the
+   // angles around the vertex sum to 2π:
+   //
+   //     _______
+   //    /\     /\
+   //   /  \   /  \
+   //  /   2\1/0   \
+   //  ------*------
+   //  \   3/…\n   /
+   //   \  /   \  /
+   //    \/_____\/
+   // and similarly for boundary vertices
+
+    vector<T> tripletList;
+    vector<double> rhs = vector<double>(nVertices, 0);
+
+    for (Vertex v: mesh->vertices()) {
+        if (!v.isBoundary()) {
+            for (Corner c: v.adjacentCorners()) {
+                tripletList.push_back({v_[v],c_[c],1.});
             }
-            rhs.push_back(PI);
-        } else {
-            rhs.push_back(0);
+            rhs[v_[v]] = 2 * PI - curvatures[v];
+        } else if (curvatures[v] > -1e3) {
+            // only add these constraints if we want to actually constrain the curvature on the boundary
+            for (Corner c: v.adjacentCorners()) {
+                tripletList.push_back({v_[v],c_[c],1.});
+            }
+            rhs[v_[v]] = PI - curvatures[v];
         }
-        count++;
     }
-    auto bdryFlat = sMatrix(count, nCorners, rows, cols, values);
-    auto bdryPI = new_array_ptr(rhs);
-    //M->constraint("Flat boundary", Expr::mul(bdryFlat, a), Domain::equalsTo(bdryPI));
-    rhs.clear();
+    return {tripletList, rhs};
+}
+// |E| x |C|
+pair<vector<T>, vector<double>> IntrinsicFlattening::EdgeDelaunayConstraint(){
+   // =========== Equation [4] =================================================
+   // For each interior edge, add a constraint which ensures that
+   // the two opposite angles in the CAS satisfy the Delaunay condition , namely
+   //
+   //   α0 + α1 < π       [4]
+   //
+   // where α are the angles in the coherent angle system and corners are indexed as below:
+   //
+   //        *
+   //       /0\
+   //      /   \
+   //     /2   3\
+   //    *-------*
+   //     \5   4/
+   //      \   /
+   //       \1/
+   //        *
+   //
 
-    FaceData<bool> fMask(*mesh, true);
-    // halfedges that are now exterior to the mesh after deleting the vertex at infinity
-    EdgeData<bool> eBdry(*mesh, false);
-    
-    // mark all the boundary edges as the new boundary
+    vector<T> tripletList;
+    vector<double> rhs = vector<double>(nEdges, 0);
+
+    // local delaunay constraint
     for (Edge e : mesh->edges()) {
-        eBdry[e] = e.isBoundary();
+        if(!e.isBoundary()) {
+            size_t eInd = e_[e];
+            rhs[eInd] = PI;
+            tripletList.push_back({eInd,c_[e.halfedge().next().next().corner()],1.}); 
+            tripletList.push_back({eInd,c_[e.halfedge().twin().next().next().corner()],1.}); 
+        } 
     }
-    vector<double> origAngles(nCorners+1,0);
-    for (Corner c: mesh->corners()) {
-        origAngles[c_[c] + 1] = geometry->cornerAngle(c);
-    }
-
-    // just setup the objective: ||a - original angles||_{L^2}
-    Variable::t t = M->variable("t", 1, Domain::unbounded());
-    M->constraint(Expr::sub(Expr::vstack(t, a),new_array_ptr(origAngles)), Domain::inQCone());
-    M->objective(ObjectiveSense::Minimize, t);
-    M->solve();
-    cout << M->getProblemStatus() << endl;
-    cout << "Optimization Done" << endl;
-    std::cout << "Optimal primal objective: " << M->primalObjValue() << endl;
-    EdgeData<double> thetaSolve(*mesh,0);
-
-    auto asize = a->getSize();
-    auto asol = a->level();
-    for (Edge e : mesh->edges()) {
-        double a1 = e.halfedge().isInterior() && e.halfedge().isInterior()
-                        ? (*asol)[c_[e.halfedge().next().next().corner()]]
-                        : 0;
-        double a2 =
-            e.halfedge().twin().isInterior() && e.halfedge().twin().isInterior()
-                ? (*asol)[c_[e.halfedge().twin().next().next().corner()]]
-                : 0;
-        thetaSolve[e] = PI - a1 - a2;
-    }
-    */
-    EdgeData<double> thetaSolve(*mesh,0);
-    return thetaSolve;
+    return {tripletList, rhs};
 }
 
-/*
-void IntrinsicFlattening::buildIntersectionAngleConstraints(Model::t& M, CornerData<double>& beta, Variable::t& a) {
-    // =========== Equation [1] =================================================
+// |E| x 2 |C|
+pair<vector<T>, vector<double>>IntrinsicFlattening::EdgeIntersectionAngleConstraint() {
+   // =========== Equation [1] =================================================
    // For each interior edge, add a constraint which ensures that
    // the coherent angle system exhibits the same circumcircle
    // intersection angles as the input CAT, namely
@@ -121,11 +198,10 @@ void IntrinsicFlattening::buildIntersectionAngleConstraints(Model::t& M, CornerD
    //        *
    //
 
-   // temporary arrays for building sparse linear system for Equation [1]
-   vector<int> aRows;
-   vector<int> aCols;
-   vector<double> aVals;
-   vector<double> aRhs = vector<double>(nEdges,0.); // right hand side of Equation [1]
+    vector<T> tripletList;
+    vector<double> rhs = vector<double>(nEdges, 0);
+
+
 
    for (Edge e : mesh->edges()) {
       size_t ind = e_[e];
@@ -148,160 +224,156 @@ void IntrinsicFlattening::buildIntersectionAngleConstraints(Model::t& M, CornerD
          Corner c4 = h45.corner();
          Corner c5 = h51.corner();
 
-         aRhs[ind] = PI;
-         aRhs[ind] += beta[c0]/2.;
-         aRhs[ind] += beta[c1]/2.;
-         aRhs[ind] -= beta[c2]/2.;
-         aRhs[ind] -= beta[c3]/2.;
-         aRhs[ind] -= beta[c4]/2.;
-         aRhs[ind] -= beta[c5]/2.;
 
-         // left-hand side (α0 + α1)
-         aRows.push_back(ind);
-         aCols.push_back(c_[c0]);
-         aVals.push_back(1.);
+         tripletList.push_back({ind, nCorners + c_[c0] , -0.5});
+         tripletList.push_back({ind, nCorners + c_[c1] , -0.5});
 
-         aRows.push_back(ind);
-         aCols.push_back(c_[c1]);
-         aVals.push_back(1.);
+         tripletList.push_back({ind, nCorners + c_[c2] , 0.5});
+         tripletList.push_back({ind, nCorners + c_[c3] , 0.5});
+         tripletList.push_back({ind, nCorners + c_[c4] , 0.5});
+         tripletList.push_back({ind, nCorners + c_[c5] , 0.5});
+
+         // (α0 + α1)
+         tripletList.push_back({ind, c_[c0] , 1.});
+         tripletList.push_back({ind, c_[c1] , 1.});
+         rhs[ind] = PI;
       }
    }
 
-   // add Equation [1] to the solver
-   auto aLhsMatrix = sMatrix(nEdges, nCorners, aRows, aCols, aVals);
-   auto aRhsVector = new_array_ptr(aRhs);
-   M->constraint("Intersection Agreement", 
-         (Expr::mul(aLhsMatrix, a)),
-         Domain::equalsTo(aRhsVector));
-    return;
+   return {tripletList, rhs};
 }
-void IntrinsicFlattening::buildFaceConstraints(Model::t& M, Variable::t& a){
- // =========== Equation [2] =================================================
-   
-   // For each triangle, add a constraint that says that the
-   // interior angles from the coherent angle system sum to π:
-   //
-   //    α0 + α1 + α2 = π       [2]
-   //
-   //        *
-   //       /0\
-   //      /   \
-   //     /     \
-   //    /1     2\
-   //   *---------*
-   //
-
-   // temporary arrays for building sparse linear system for Equation [2]
-   vector<int> triRows;
-   vector<int> triCols;
-   vector<double> triValues;
-   vector<double> triRhs = vector<double>(nFaces, PI); // set all values to π
-
-   for (Face f : mesh->faces()) {
-      for (Corner c : f.adjacentCorners()) {
-         triRows.emplace_back(f_[f]);
-         triCols.emplace_back(c_[c]);
-         triValues.emplace_back(1.); 
-      }
-   }
-
-   // add Equation [2] to the solver
-   auto triLhsMatrix = sMatrix(nFaces, nCorners, triRows, triCols, triValues);
-   auto triRhsVector = new_array_ptr(triRhs);
-   M->constraint("triangle sum constraint",
-         Expr::mul(triLhsMatrix, a),
-         Domain::equalsTo(triRhsVector));
-    return;
-}
-void IntrinsicFlattening::buildVertexConstraints(Model::t& M, Variable::t& a){
-   // =========== Equation [3] =================================================
-
-   // For each interior vertex, add a constraint that says the
-   // angles around the vertex sum to 2π:
-   //
-   //     _______
-   //    /\     /\
-   //   /  \   /  \
-   //  /   2\1/0   \
-   //  ------*------
-   //  \   3/…\n   /
-   //   \  /   \  /
-   //    \/_____\/
-   //
-   //   
-
-   // temporary vectors for building sparse matrices
-   vector<int> vRows;
-   vector<int> vCols;
-   vector<double> vValues;
-   vector<double> vRhs;
-
-
-   // Sum to 2pi around each vertex
-   vRhs = vector<double>(nVertices, 0);
-   for (Vertex v : mesh->vertices()) {
-      if(!v.isBoundary()) {
-         vRhs[v_[v]] = 2*PI;
-         for (Corner c : v.adjacentCorners()) {
-            vRows.emplace_back(v_[v]);
-            vCols.emplace_back(c_[c]);
-            vValues.emplace_back(1.); 
-         }
-      } 
-   }
-   // add Equation [3] to the solver
-   auto vLhsMatrix = sMatrix(nVertices, nCorners, vRows, vCols, vValues);
-   auto vRhsVector = new_array_ptr(vRhs);
-   M->constraint("vertex sum constraint", Expr::mul(vLhsMatrix, a), Domain::equalsTo(vRhsVector));
-   return;
-}
-void IntrinsicFlattening::buildDelaunayConstraints(Model::t& M, Variable::t& a){
-   // =========== Equation [4] =================================================
-   // For each interior edge, add a constraint which ensures that
-   // the two opposite angles in the CAS satisfy the Delaunay condition , namely
-   //
-   //   α0 + α1 < π       [4]
-   //
-   // where α are the angles in the coherent angle system and corners are indexed as below:
-   //
-   //        *
-   //       /0\
-   //      /   \
-   //     /2   3\
-   //    *-------*
-   //     \5   4/
-   //      \   /
-   //       \1/
-   //        *
-   //
-
-
-    // temporary vectors for building sparse matrices
-    vector<int> dRows;
-    vector<int> dCols;
-    vector<double> dValues;
-    vector<double> dRhs(nEdges, 1);
-
-    // local delaunay constraint
-    for (Edge e : mesh->edges()) {
-        if(!e.isBoundary()) {
-            size_t eInd = e_[e];
-            dRhs[eInd] = PI;
-            dRows.emplace_back(eInd);
-            dCols.emplace_back(c_[e.halfedge().next().next().corner()]);
-            dValues.emplace_back(1.); 
-
-            dRows.emplace_back(eInd);
-            dCols.emplace_back(c_[e.halfedge().twin().next().next().corner()]);
-            dValues.emplace_back(1.); 
-        } 
+// 4 |C| x |C|
+pair<vector<T>, vector<double>>IntrinsicFlattening::CATValidityConstraint() {
+    vector<T> tripletList;
+    vector<double> rhs = vector<double>(4*nCorners, 0);
+    
+    for (int i = 0; i < nCorners; i++) {
+        tripletList.push_back({i, i, -1});
+        tripletList.push_back({nCorners + i, i, 1});
     }
-    auto dLhsMatrix = sMatrix(nEdges, nCorners, dRows, dCols, dValues);
-    auto dRhsVector = new_array_ptr(dRhs);
-    M->constraint("Delaunay", Expr::mul(dLhsMatrix, a), Domain::lessThan(dRhsVector));
+    for (Corner c: mesh->corners()) {
+        int i = c_[c]; 
+        int j = c_[c.halfedge().next().corner()]; 
+        int k = c_[c.halfedge().next().next().corner()]; 
+        tripletList.push_back({2*nCorners + i,i,-1});
+        tripletList.push_back({2*nCorners + i,j,1});
+        tripletList.push_back({2*nCorners + i,k,1});
+
+        tripletList.push_back({3*nCorners + i,i,1});
+        tripletList.push_back({3*nCorners + i,j,-1});
+        tripletList.push_back({3*nCorners + i,k,-1});
+    }
+    for (int i = 0; i < nCorners; i++) {
+        rhs[i] = 0;
+        rhs[nCorners + i] = 2 * PI;
+        rhs[2*nCorners + i] = 3 * PI;
+        rhs[3*nCorners + i] = PI;
+    }
+    return {tripletList, rhs};
+}
+//|C| x |C|
+pair<vector<T>, vector<double>>IntrinsicFlattening::AngleDeviationPenalty(CornerData<double> beta) {
+    vector<T> tripletList;
+    vector<double> linearTerm = vector<double>(nCorners, 0);
+    for (int i = 0; i < nCorners; i++) {
+        tripletList.push_back({i,i,1.});
+    }
+    for (Corner c: mesh->corners()) {
+        linearTerm[c_[c]] = -beta[c];
+    }
+    return {tripletList, linearTerm};
+}
+
+pair<CornerData<double>, CornerData<double>> IntrinsicFlattening::CoherentAngleSystem(VertexData<double> targetCurvatures, CornerData<double> targetBetas) {
+    // Initialize A, b
+    auto [A0t, bt] = AngleDeviationPenalty(targetBetas);
+    vector<Eigen::Triplet<double>> At;
+    for (auto [i,j,v] : A0t) {
+        At.push_back(Eigen::Triplet<double>(i,j,v));
+    }
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int> A(nCorners,nCorners);
+    A.setFromTriplets(At.begin(), At.end());
+    Eigen::VectorXd b(nCorners);
+    for (int i = 0; i < nCorners; i++) {
+        b[i] = bt[i];
+    }
+
+    // |C| x |C|
+    auto [C0t, d0] = PositiveAngleConstraint();
+    // |E| x |C|
+    auto [C1t, d1] = EdgeDelaunayConstraint();
+    // 4 |C| x |C|
+    auto [C2t, d2] = CATValidityConstraint();
+    // Initialize C and d
+    // C = C0 0
+    //     C1 0
+    //     0  C2
+    shiftTriples(C1t, nCorners, 0);
+    shiftTriples(C2t, nCorners + nEdges, nCorners);
+    vector<Eigen::Triplet<double>> Ct;
+    for (auto [i,j,v]: C0t) Ct.push_back(Eigen::Triplet<double>(i,j,v));
+    for (auto [i,j,v]: C1t) Ct.push_back(Eigen::Triplet<double>(i,j,v));
+    for (auto [i,j,v]: C2t) Ct.push_back(Eigen::Triplet<double>(i,j,v));
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int> C(nCorners + nEdges + 4*nCorners,2*nCorners);
+    C.setFromTriplets(Ct.begin(), Ct.end());
+    Eigen::VectorXd d(nCorners + nEdges + 4*nCorners);
+    for (int i = 0; i < nCorners; i++) {
+        d[i] = d0[i];
+    }
+    for (int i = 0; i < nEdges; i++) {
+        d[nCorners + i] = d1[i];
+    }
+    for (int i = 0; i < 4*nCorners; i++) {
+        d[nCorners + nEdges + i] = d2[i];
+    }
+
+    // |F| x |C|
+    auto [E0t, f0] = FaceAngleSumConstraint();
+    // |V| x |C|
+    auto [E1t, f1] = VertexAngleSumConstraint(targetCurvatures);
+    // |E| x  2 |C|
+    auto [E2t, f2] = CATValidityConstraint();
+    // Initialize E and f
+    // E = E0 0
+    //     E1 0
+    //     E2
+    shiftTriples(E1t, nFaces, 0);
+    shiftTriples(E2t, nFaces + nVertices, 0);
+    vector<Eigen::Triplet<double>> Et;
+    for (auto [i,j,v]: E0t) Et.push_back(Eigen::Triplet<double>(i,j,v));
+    for (auto [i,j,v]: E1t) Et.push_back(Eigen::Triplet<double>(i,j,v));
+    for (auto [i,j,v]: E2t) Et.push_back(Eigen::Triplet<double>(i,j,v));
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int> E(nFaces + nVertices + nEdges, 2*nCorners);
+    E.setFromTriplets(Et.begin(), Et.end());
+    Eigen::VectorXd f(nFaces + nVertices + nEdges);
+    for (int i = 0; i < nFaces; i++) {
+        f[i] = f0[i];
+    }
+    for (int i = 0; i < nVertices; i++) {
+        f[nFaces + i] = f1[i];
+    }
+    for (int i = 0; i < nEdges; i++) {
+        f[nFaces + nVertices + i] = f2[i];
+    }
+
+
+    // output vectors
+    Eigen::VectorXd x, y, z;
+    nasoq::QPSettings *qs = NULL;
+    // call the wrapper.
+    int ret = nasoq::quadprog(A,b,C,d,E,f,x,y,z,qs);
+    CornerData<double> thetas(*mesh);
+    CornerData<double> betas(*mesh);
+    for (Corner c: mesh->corners()) {
+        size_t index = c_[c];
+        thetas[c] = x[index];
+        betas[c] = x[nCorners + index];
+    }
+    return {thetas, betas};
 }
 
 
+   /*
 void IntrinsicFlattening::buildBoundaryObjective(Model::t& M, Variable::t& a, Variable::t& t, size_t excl, double interpolationWeight){
     vector<int> oRows;
     vector<int> oCols;
@@ -436,8 +508,7 @@ CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
 
 // Given a CAT in the plane, and an assignment of new boundary curvatures (defined inline),
 // returns intersection angles for a conformally equivalent CAT, and new CAT corner angles (which are the same as input)
-SolutionData IntrinsicFlattening::solveFromPlane(double interpolationWeight) {
-
+pair<CornerData<double>, CornerData<double>> IntrinsicFlattening::solveFromPlane(double interpolationWeight) {
     // get corner angles of input CAT mesh
     CornerData<double> beta(*mesh);
     for (Corner c : mesh->corners()) {
@@ -494,7 +565,7 @@ SolutionData IntrinsicFlattening::solveFromPlane(double interpolationWeight) {
     {
         eBdry[e] = e.isBoundary();
     }
-    // DEBUG: TEMPORARY
+    // DEBUG: TEMPORARY. REPLACE THIS
     EdgeData<double> thetaSolve(*mesh, 0);
-    return {mesh->vertex(0), eMask, eBdry, fMask, beta, thetaSolve};
+    return {beta, beta};
 }
