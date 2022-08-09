@@ -72,7 +72,6 @@ endif()
 add_subdirectory(deps/geometry-central)
 add_subdirectory(deps/polyscope)
 set(NASOQ_BLAS_BACKEND "OpenBLAS")
-#set(NASOQ_USE_CLAPACK ON)
 add_subdirectory(deps/nasoq)
 
 # == Build our project stuff

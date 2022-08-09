@@ -29,6 +29,13 @@ class IntrinsicFlattening {
         pair<CornerData<double>, CornerData<double>> solveFromPlane(double flatWeight);
     private:
         // convenience function
+        void nasoqTest();
+        Eigen::VectorXd QPSolve( Eigen::SparseMatrix<double,Eigen::ColMajor,int> A,
+                Eigen::Matrix<double,Eigen::Dynamic,1> b,
+                Eigen::SparseMatrix<double,Eigen::ColMajor,int> C,
+                Eigen::Matrix<double,Eigen::Dynamic,1> d,
+                Eigen::SparseMatrix<double,Eigen::ColMajor,int> E,
+                Eigen::Matrix<double,Eigen::Dynamic,1> f);
         void shiftTriples(vector<T>& tripletList, int i, int j); 
         pair<vector<T>, vector<double>> PositiveAngleConstraint();
         pair<vector<T>, vector<double>> FaceAngleSumConstraint();
@@ -37,11 +44,7 @@ class IntrinsicFlattening {
         pair<vector<T>, vector<double>> EdgeIntersectionAngleConstraint();
         pair<vector<T>, vector<double>> CATValidityConstraint();
         pair<vector<T>, vector<double>> AngleDeviationPenalty(CornerData<double> beta);
-        /*
-        void buildOffsetConstraints(Model::t& M, Variable::t& alpha, Variable::t& beta);
-        void buildBoundaryObjective(Model::t& M, Variable::t& a, Variable::t& t, size_t excl, double interpolationWeight);
-        monty::rc_ptr<mosek::fusion::Matrix> sMatrix(int m, int n, vector<int>& rows, vector<int>& cols, vector<double>& values);
-        */
+        pair<vector<T>, vector<double>> OffsetConstraints();
 
 
         // pointers to geometric data

@@ -1,43 +1,97 @@
 #include "IntrinsicFlattening.h"
 
 #include "nasoq/nasoq_eigen.h"
-void nasoqTest() {
-    vector<Eigen::Triplet<double>> HList = {Eigen::Triplet<double>(0,0,1), Eigen::Triplet<double>(1,1,1)};
-    Eigen::SparseMatrix<double,Eigen::ColMajor,int> H(2,2);
+void IntrinsicFlattening::nasoqTest() {
+    vector<Eigen::Triplet<double>> HList = {Eigen::Triplet<double>(0,0,1),
+        Eigen::Triplet<double>(1,1,1),
+        Eigen::Triplet<double>(2,2,1)};
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int> H(6,6);
     H.setFromTriplets(HList.begin(), HList.end());
 
-    vector<Eigen::Triplet<double>> AList;
-    Eigen::SparseMatrix<double,Eigen::ColMajor,int> A(1,2); 
+    vector<Eigen::Triplet<double>> AList = {Eigen::Triplet<double>(0,0,1),
+        Eigen::Triplet<double>(0,3,-1),
+        Eigen::Triplet<double>(0,5,-1),
+        Eigen::Triplet<double>(1,1,1),
+        Eigen::Triplet<double>(1,4,-1),
+        Eigen::Triplet<double>(1,3,-1),
+        Eigen::Triplet<double>(2,2,1),
+        Eigen::Triplet<double>(2,5,-1),
+        Eigen::Triplet<double>(2,4,-1)};
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int> A(3,6); 
     A.setFromTriplets(AList.begin(), AList.end());
 
-    vector<Eigen::Triplet<double>> CList = {Eigen::Triplet<double>(1,1,-1)};
-    Eigen::SparseMatrix<double,Eigen::ColMajor,int> C(2,2); 
+    vector<Eigen::Triplet<double>> CList = {Eigen::Triplet<double>(0,0,1),
+        Eigen::Triplet<double>(1,1,1),
+        Eigen::Triplet<double>(2,2,1),
+        Eigen::Triplet<double>(3,0,-1),
+        Eigen::Triplet<double>(6,0,1),
+        Eigen::Triplet<double>(4,1,-1),
+        Eigen::Triplet<double>(7,1,1),
+        Eigen::Triplet<double>(5,2,-1),
+        Eigen::Triplet<double>(8,2,1),
+        Eigen::Triplet<double>(9,0,-1),
+        Eigen::Triplet<double>(9,1,1),
+        Eigen::Triplet<double>(9,2,1),
+        Eigen::Triplet<double>(12,0,1),
+        Eigen::Triplet<double>(12,1,-1),
+        Eigen::Triplet<double>(12,2,-1),
+        Eigen::Triplet<double>(10,1,-1),
+        Eigen::Triplet<double>(10,2,1),
+        Eigen::Triplet<double>(10,0,1),
+        Eigen::Triplet<double>(13,1,1),
+        Eigen::Triplet<double>(13,2,-1),
+        Eigen::Triplet<double>(13,0,-1),
+        Eigen::Triplet<double>(11,2,-1),
+        Eigen::Triplet<double>(11,0,1),
+        Eigen::Triplet<double>(11,1,1),
+        Eigen::Triplet<double>(14,2,1),
+        Eigen::Triplet<double>(14,0,-1),
+        Eigen::Triplet<double>(14,1,-1)};
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int> C(15,6); 
     C.setFromTriplets(CList.begin(), CList.end());
 
-    Eigen::VectorXd q(2);
-    q[0] = 0; q[1] = 0;
-    Eigen::VectorXd b(1);
-    b[0] = 0;
-    Eigen::VectorXd d(2);
+    Eigen::VectorXd q(6);
+    q[0] = 0; q[1] = 0; q[2] = 0;
+    q[3] = 0; q[4] = 0; q[5] = 0;
+    Eigen::VectorXd b(3);
+    b[0] = 0; b[1] = 1; b[2] = 0;
+    Eigen::VectorXd d(15);
     d[1] = -2;
+    for (int i = 0; i < 15; i++) d[i] = 0;
 
 
-    /// New settings if provided
-    int iter;
-    std::string nasoq_mode;
-    double pert, eps, tol;
-    nasoq::QPSettings *qs = NULL;
-
-    /// output vectors
-    Eigen::VectorXd x, y, z;
-
-
-    /// call the wrapper.
-    int ret = nasoq::quadprog(H,q,A,b,C,d,x,y,z,qs);
+    Eigen::VectorXd x = QPSolve(H,q,C,d,A,b);
     for (int i = 0; i < 2; i++) {
         cout << "wah" << x[i] << endl;
     }
     
+}
+Eigen::VectorXd IntrinsicFlattening::QPSolve(
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int> A,
+    Eigen::Matrix<double,Eigen::Dynamic,1> b,
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int> C,
+    Eigen::Matrix<double,Eigen::Dynamic,1> d,
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int> E,
+    Eigen::Matrix<double,Eigen::Dynamic,1> f) {
+
+    Eigen::VectorXd x, y, z;
+    // DEBUG
+    //cout << A.isApprox(A.triangularView<Eigen::Lower>(),0) << "WASSIM" << endl;
+    cout << A.nonZeros() << endl;
+    cout << C.nonZeros() << endl;
+    cout << E.nonZeros() << "E" << endl;
+
+    nasoq::QPSettings *qs = new nasoq::QPSettings;
+    qs->diag_perturb=pow(10,-9);
+    qs->eps=pow(10,-3);
+    qs->max_iter = 0;
+    qs->nasoq_variant = "fixed";
+
+
+    // TODO: do something if this is bad
+    cout << "calling solver..." << endl;
+    int status = nasoq::quadprog(A,b,E,f,C,d,x,y,z,qs);
+    return x;
 }
 IntrinsicFlattening::IntrinsicFlattening(shared_ptr<ManifoldSurfaceMesh> mesh,shared_ptr<VertexPositionGeometry> geometry):
     mesh(mesh), geometry(geometry) {
@@ -129,7 +183,7 @@ pair<vector<T>, vector<double>> IntrinsicFlattening::VertexAngleSumConstraint(Ve
                 tripletList.push_back({v_[v],c_[c],1.});
             }
             rhs[v_[v]] = 2 * PI - curvatures[v];
-        } else if (curvatures[v] > -1e3) {
+        } else if (curvatures[v] > PI) {
             // only add these constraints if we want to actually constrain the curvature on the boundary
             for (Corner c: v.adjacentCorners()) {
                 tripletList.push_back({v_[v],c_[c],1.});
@@ -291,11 +345,12 @@ pair<CornerData<double>, CornerData<double>> IntrinsicFlattening::CoherentAngleS
     for (auto [i,j,v] : A0t) {
         At.push_back(Eigen::Triplet<double>(i,j,v));
     }
-    Eigen::SparseMatrix<double,Eigen::ColMajor,int> A(nCorners,nCorners);
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int> A(2*nCorners,2*nCorners);
     A.setFromTriplets(At.begin(), At.end());
-    Eigen::VectorXd b(nCorners);
+    Eigen::VectorXd b(2*nCorners);
     for (int i = 0; i < nCorners; i++) {
         b[i] = bt[i];
+        b[nCorners + i] = 0;
     }
 
     // |C| x |C|
@@ -332,7 +387,7 @@ pair<CornerData<double>, CornerData<double>> IntrinsicFlattening::CoherentAngleS
     // |V| x |C|
     auto [E1t, f1] = VertexAngleSumConstraint(targetCurvatures);
     // |E| x  2 |C|
-    auto [E2t, f2] = CATValidityConstraint();
+    auto [E2t, f2] = EdgeIntersectionAngleConstraint();
     // Initialize E and f
     // E = E0 0
     //     E1 0
@@ -358,10 +413,7 @@ pair<CornerData<double>, CornerData<double>> IntrinsicFlattening::CoherentAngleS
 
 
     // output vectors
-    Eigen::VectorXd x, y, z;
-    nasoq::QPSettings *qs = NULL;
-    // call the wrapper.
-    int ret = nasoq::quadprog(A,b,C,d,E,f,x,y,z,qs);
+    Eigen::VectorXd x = QPSolve(A,b,C,d,E,f);
     CornerData<double> thetas(*mesh);
     CornerData<double> betas(*mesh);
     for (Corner c: mesh->corners()) {
@@ -371,115 +423,118 @@ pair<CornerData<double>, CornerData<double>> IntrinsicFlattening::CoherentAngleS
     }
     return {thetas, betas};
 }
+// |C| x |C| + |E|
+pair<vector<T>, vector<double>>IntrinsicFlattening::OffsetConstraints() {
+    vector<T> tripletList;
+    vector<double> rhs = vector<double>(nCorners, 0);
 
-
-   /*
-void IntrinsicFlattening::buildBoundaryObjective(Model::t& M, Variable::t& a, Variable::t& t, size_t excl, double interpolationWeight){
-    vector<int> oRows;
-    vector<int> oCols;
-    vector<double> oValues;
-    vector<double> oRhs;
-    // Flat Boundary Constraint: Total geodesic curvature is 0 on "most" of the boundary
-    size_t count = 0;
-    for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
-        count++;
-    }
-    double bdryCount = (double) count;
-    count = 0;
-    for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
-        if (count >= excl) {
-            double origSum = 0;
-            for (Corner c : v.adjacentCorners()) {
-                oRows.emplace_back(count);
-                oCols.emplace_back(c_[c]);
-                oValues.emplace_back(1.);
-                origSum += geometry->cornerAngle(c);
-            }
-            oRhs.push_back((interpolationWeight * (PI -  2 * PI/bdryCount) + (1-interpolationWeight) * origSum));
-        } else {
-            oRhs.push_back(0);
-        }
-        count++;
-    }
-    auto oLhsMatrix = sMatrix(count, nCorners, oRows, oCols, oValues);
-    auto oRhsTargetVector = new_array_ptr(oRhs);
-    //M->constraint("Flat boundary", Expr::mul(bdryFlat, a), Domain::equalsTo(bdryPI));
-
-    // just setup the objective: L^2 of curvature differences
-    M->constraint(Expr::vstack(t, Expr::sub(Expr::mul(oLhsMatrix, a),oRhsTargetVector)), Domain::inQCone());
-    M->objective(ObjectiveSense::Minimize, t);
-
-}
-void IntrinsicFlattening::buildOffsetConstraints(Model::t& M, Variable::t& alpha, Variable::t& beta){
-    //TODO: comment this
-    vector<int> offsetRows;
-    vector<int> offsetCols;
-    vector<double> offsetValues;
-    // build LHS
     for (Corner c: mesh->corners()) {
-        offsetCols.push_back(e_[c.halfedge().edge()]);
-        offsetRows.push_back(c_[c]);
-        offsetValues.push_back(1.);
-        offsetCols.push_back(e_[c.halfedge().twin().next().edge()]);
-        offsetRows.push_back(c_[c]);
-        offsetValues.push_back(1.);
+        size_t index = c_[c];
+        tripletList.push_back({index, index,1.});
+
+        tripletList.push_back({index, nCorners + e_[c.halfedge().edge()], -1.});
+        tripletList.push_back({index, nCorners + e_[c.halfedge().twin().next().edge()], -1.});
+
+        rhs[index]=geometry->cornerAngle(c);
     }
-    // build RHS
-    vector<double> offsetRhs(nCorners);
-    for (Corner c: mesh->corners()) {
-        offsetRhs[c_[c]]=geometry->cornerAngle(c);
-    }
-    auto offsetLhsMatrix = sMatrix(nCorners, nEdges, offsetRows, offsetCols, offsetValues);
-    auto offsetRhsVector = new_array_ptr(offsetRhs);
-    M->constraint("Alpha-Beta constraint", Expr::sub(beta,Expr::mul(offsetLhsMatrix, alpha)), Domain::equalsTo(offsetRhsVector));
+    return {tripletList, rhs};
 }
-*/
+
+
 CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
-    /*
-    // Initialize MOSEK solver
-    Model::t M = new Model();
-    auto _M = finally([&]() { M->dispose(); });
-
-    // Angle offsets per edge representing the deviation from the 
-    // Euclidean angles intrinsically
-    Variable::t alpha = M->variable("alpha", nEdges, Domain::inRange(-2 * PI, 2 * PI));
-
-    // The intrisic "CAT angle" at each corner
-    Variable::t Beta = M->variable("beta", nCorners, Domain::inRange(0, 2*PI));
-
-    // the betas are given by offsets by alpha
-    buildOffsetConstraints(M, alpha, Beta);
-
-    // Vertex sums of betas to 2 pi for each interior vertex
-    buildVertexConstraints(M, Beta);
-
-    // Dummy variable for the objective value
-    Variable::t t = M->variable("t", 1, Domain::unbounded());
-    vector<double> originalAngles(nCorners);
-    for (Corner c: mesh->corners()) {
-        originalAngles[c_[c]]=geometry->cornerAngle(c);
-    }
-    auto originalAnglesVector = new_array_ptr(originalAngles);
-
-    // Minimize ||alpha||^2
-    M->constraint(Expr::vstack(t, Expr::sub(Beta, originalAnglesVector)), Domain::inQCone());
-    M->objective(ObjectiveSense::Minimize, t);
-    M->solve();
-
-    cout << M->getProblemStatus() << endl;
-    cout << "Optimization done for intrinsic only flattening" << endl;
-    std::cout << "Optimal primal objective: " << M->primalObjValue() << endl;
-
+    // x = beta
+    //     alpha
+    // 
     CornerData<double> beta(*mesh);
-    //auto alphaVal = alpha->level();
-    //for (int i = 0; i < nEdges; i++) {
-    //    cout << (*alphaVal)[i] << endl;
-    //}
-    auto xVal = Beta->level();
+    // DEBUG
+    nasoqTest();
+    return beta;
+    CornerData<double> originalAngles(*mesh);
     for (Corner c: mesh->corners()) {
-        //cout << "setting index " <<  c_[c] << " to " << (*xVal)[c_[c]] << endl;
-        beta[c] = (*xVal)[c_[c]];
-        //beta[c] = PI;
+        originalAngles[c]=geometry->cornerAngle(c);
+    }
+ 
+    // Minimizing ||beta - origAngles||
+    // Initialize A, b
+    auto [A0t, bt] = AngleDeviationPenalty(originalAngles);
+    vector<Eigen::Triplet<double>> At;
+    cout << "A" << endl;
+    for (auto [i,j,v] : A0t) {
+        At.push_back(Eigen::Triplet<double>(i,j,v));
+        cout << "Eigen::Triplet<double>(" << i << "," << j << "," << v << ")," << endl;
+    }
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int> A(nCorners+nEdges,nCorners+nEdges);
+    A.setFromTriplets(At.begin(), At.end());
+    Eigen::VectorXd b(nCorners+nEdges);
+    for (int i = 0; i < nCorners; i++) {
+        b[i] = bt[i];
+    }
+    for (int i = 0; i < nEdges; i++) {
+        b[nCorners + i] = 0;
+    }
+
+
+
+    VertexData<double> targetCurvatures(*mesh);
+    for (Vertex v: mesh->vertices()) {
+        if (v.isBoundary()) {
+            // unconstrained boundary curvature
+            targetCurvatures[v] = 2 * PI;
+        } else {
+            targetCurvatures[v] = 0;
+        }
+    }
+    // |V| x |C|
+    auto [C0t, d0t] = VertexAngleSumConstraint(targetCurvatures);
+    // 4 * |E| x |C|
+    auto [C1t, d1t] = CATValidityConstraint();
+    shiftTriples(C1t, nVertices, 0);
+
+    cout << "C (inequality)" << endl;
+    vector<Eigen::Triplet<double>> Ct;
+    for (auto [i,j,v] : C0t) {
+        Ct.push_back(Eigen::Triplet<double>(i,j,v));
+        // DEBUG
+        cout << "Eigen::Triplet<double>(" << i << "," << j << "," << v << ")," << endl;
+    }
+    for (auto [i,j,v] : C1t) {
+        Ct.push_back(Eigen::Triplet<double>(i,j,v));
+        cout << "Eigen::Triplet<double>(" << i << "," << j << "," << v << ")," << endl;
+    }
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int> C(nVertices + 4*nCorners, nCorners+nEdges);
+    C.setFromTriplets(Ct.begin(), Ct.end());
+
+    Eigen::VectorXd d(nVertices + 4*nCorners);
+    
+    for (int i = 0; i < nVertices; i++) {
+        d[i] = d0t[i];
+    }
+    for (int i = 0; i < 4*nCorners; i++) {
+        d[nVertices + i] = d1t[i];
+    }
+
+    cout << "E (equality)" << endl;
+    auto [E0t, ft] = OffsetConstraints();
+    vector<Eigen::Triplet<double>> Et;
+    // DEBUG
+    for (auto [i,j,v] : E0t) {
+        Et.push_back(Eigen::Triplet<double>(i,j,v));
+        cout << "Eigen::Triplet<double>(" << i << "," << j << "," << v << ")," << endl;
+    }
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int> E(nCorners,nCorners+nEdges);
+    E.setFromTriplets(Et.begin(), Et.end());
+    Eigen::VectorXd f(nCorners);
+    for (int i = 0; i < nCorners; i++) {
+        f[i] = ft[i];
+    }
+
+
+
+    // call the wrapper.
+    Eigen::VectorXd x = QPSolve(A,b,C,d,E,f);
+    for (Corner c: mesh->corners()) {
+        size_t index = c_[c];
+        beta[c] = x[index];
     }
     for (Vertex v: mesh->vertices()) {
         if (!v.isBoundary()) {
@@ -490,19 +545,6 @@ CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
             cout << "angle sum: " << accum << endl;
         }
     }
-    //DEBUG'
-    //for (Corner c: mesh->corners()) {
-    //    cout << beta[c] << endl;
-    //}
-
-    //for (int i = 0; i < nCorners; i++) {
-    //    //beta[i] = (*xVal)[i];
-    //    cout << beta[i] << "wah" << endl;
-    //}
-    */
-
-    //DEBUG
-    CornerData<double> beta(*mesh);
     return beta;
 }
 

@@ -721,11 +721,15 @@ std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry> >E
     next = vector<int> (n*n*nCorners, -1);
 
     buildEquivalenceClasses();
+    cout << "built equivalence classes" << endl;
     nSubdividedVertices = buildFinalIndices();
+    cout << "built final indices" << endl;
 
     // Initialize submesh and subgeometry
     buildSubdivision();
+    cout << "built subdivision" << endl;
     buildIntrinsicCheckerboard();
+    cout << "built intrinsic lengths" << endl;
 
     //===============DEBUG===================
     //basisFunctionDebugging();

@@ -43,7 +43,9 @@ EmbeddingOptimization* E;
 float t = 1e-4;
 void embedding(int N) {
     IntrinsicFlattening flattener(mesh, geometry);
+    cout << "solving intrinsic..." << endl;
     CornerData<double> beta = flattener.solveIntrinsicOnly();
+    cout << "solved" << endl;
     E = (new EmbeddingOptimization(mesh, geometry, beta));
     auto [submesh, subgeometry] = E->solve(N);
 
@@ -89,6 +91,7 @@ int main(int argc, char **argv) {
         inputMeshPath = "/home/elu/repos/catopt/meshes/BumpyTorusPatch.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/beanhole.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/triangle.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/nonconvex2.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/test.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/patch.obj";
@@ -108,7 +111,7 @@ int main(int argc, char **argv) {
     mesh->compress();
     polyscope::state::userCallback = myCallback;
     //planarMapping(100);
-    //embedding(5);
+    embedding(2);
 
     //polyscope::show();
 
