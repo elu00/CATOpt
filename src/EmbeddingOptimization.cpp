@@ -484,7 +484,6 @@ void EmbeddingOptimization::evaluateEnergy(double& energy, const Eigen::VectorXd
                 addAngleTerm(energy, v, iIndex, jIndex, kIndex, lIndex, c_iso_2[quadIndex]);
             }
         }
-        /*
         // regularization term - horizontal
         for (int x = 0; x < n - 1; x++) {
             for (int y = 0; y < n - 1; y++) {
@@ -505,7 +504,6 @@ void EmbeddingOptimization::evaluateEnergy(double& energy, const Eigen::VectorXd
 
             }
         }
-        */
     }
 }
 
@@ -535,7 +533,6 @@ void EmbeddingOptimization::evaluateGradient(Eigen::VectorXd& gradient, const Ei
                 addAngleGradient(gradient, v, iIndex, jIndex, kIndex, lIndex, c_iso_2[quadIndex]);
             }
         }
-        /*
         // regularization term - horizontal
         for (int x = 0; x < n - 1; x++) {
             for (int y = 0; y < n - 1; y++) {
@@ -555,15 +552,14 @@ void EmbeddingOptimization::evaluateGradient(Eigen::VectorXd& gradient, const Ei
                 addCenterGradient(gradient, v, iIndex, jIndex, kIndex);
             }
         }
-        */
     }
 }
 
 Eigen::VectorXd EmbeddingOptimization::gradientDescent(double t) {
-    double BETA = 0.5;
+    double mu = 1e-6;
     double EPSILON = 1e-7;
     double ALPHA = 0.01;
-    int MAX_ITERS=5000;
+    int MAX_ITERS=100;
     int k = 1;
     
     Eigen::VectorXd v = x;
@@ -572,6 +568,7 @@ Eigen::VectorXd EmbeddingOptimization::gradientDescent(double t) {
     while (true) {
         double energy = 0.0;
         evaluateEnergy(energy, v);
+        cout << energy << endl;
 
         // compute update direction
         double energy_new = 0.;

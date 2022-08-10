@@ -570,15 +570,6 @@ CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
         beta[c] = (*xVal)[c_[c]];
         //beta[c] = PI;
     }
-    for (Vertex v: mesh->vertices()) {
-        if (!v.isBoundary()) {
-            double accum = 0.;
-            for (Corner c: v.adjacentCorners()) {
-                accum += beta[c];
-            }
-            cout << "angle sum: " << accum << endl;
-        }
-    }
     //DEBUG'
     /*
     for (Corner c: mesh->corners()) {

@@ -60,9 +60,6 @@ void surfaceToPlane() {
     CircleWrapper patterns(mesh, intersectionAngles, psMesh);
     patterns.solveKSS();
 }
-void mySubroutine(double t) {
-    E->optimize(t);
-}
 void myCallback() {
 
     // Since options::openImGuiWindowForUserCallback == true by default, 
@@ -72,8 +69,7 @@ void myCallback() {
     ImGui::InputFloat("param value", &t, 0.01f, 1.0f);  // set a float variable
 
     if (ImGui::Button("run subroutine")) {
-        // executes when button is pressed
-        mySubroutine(t);
+        E->optimize(t);
     }
 }
 int main(int argc, char **argv) {
