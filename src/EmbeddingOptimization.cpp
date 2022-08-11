@@ -310,7 +310,7 @@ void EmbeddingOptimization::buildSubdivision(){
 
 void EmbeddingOptimization::buildIntrinsicCheckerboard(){
     // initialize vectors.
-    // Note that these are lenghts per quad, hence the count is different from the number of vertices
+    // Note that these are lengths per quad, hence the count is different from the number of vertices
     c_iso_0 = vector<double>(nCorners * (n-1) * (n-1));
     c_iso_1 = vector<double>(nCorners * (n-1) * (n-1));
     c_iso_2 = vector<double>(nCorners * (n-1) * (n-1));

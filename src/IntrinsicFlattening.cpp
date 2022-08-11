@@ -2,6 +2,7 @@
 
 #include "nasoq/nasoq_eigen.h"
 void IntrinsicFlattening::nasoqTest() {
+
     vector<Eigen::Triplet<double>> HList = {Eigen::Triplet<double>(0,0,1),
         Eigen::Triplet<double>(1,1,1),
         Eigen::Triplet<double>(2,2,1)};
@@ -51,19 +52,23 @@ void IntrinsicFlattening::nasoqTest() {
     C.setFromTriplets(CList.begin(), CList.end());
 
     Eigen::VectorXd q(6);
-    q[0] = 0; q[1] = 0; q[2] = 0;
-    q[3] = 0; q[4] = 0; q[5] = 0;
+    q << -1.5708,-0.785398,-0.785398,0,0,0;
+
     Eigen::VectorXd b(3);
-    b[0] = 0; b[1] = 1; b[2] = 0;
+    b << 1.5708,0.785398,0.785398;
     Eigen::VectorXd d(15);
-    d[1] = -2;
-    for (int i = 0; i < 15; i++) d[i] = 0;
+    d << -3.14159,-3.14159,-3.14159,0,0,0,6.28319,6.28319,6.28319,9.42478,9.42478,9.42478,3.14159,3.14159,3.14159;
 
+    nasoq::QPSettings *qs = NULL;
+    Eigen::VectorXd x,y,z;
+    int wah = nasoq::quadprog(H,q,A,b,C,d,x,y,z,qs);
 
+    /*
     Eigen::VectorXd x = QPSolve(H,q,C,d,A,b);
     for (int i = 0; i < 2; i++) {
         cout << "wah" << x[i] << endl;
     }
+    */
     
 }
 Eigen::VectorXd IntrinsicFlattening::QPSolve(
@@ -91,6 +96,7 @@ Eigen::VectorXd IntrinsicFlattening::QPSolve(
     // TODO: do something if this is bad
     cout << "calling solver..." << endl;
     int status = nasoq::quadprog(A,b,E,f,C,d,x,y,z,qs);
+    cout << "status: " << status << endl;
     return x;
 }
 IntrinsicFlattening::IntrinsicFlattening(shared_ptr<ManifoldSurfaceMesh> mesh,shared_ptr<VertexPositionGeometry> geometry):
@@ -447,8 +453,10 @@ CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
     // 
     CornerData<double> beta(*mesh);
     // DEBUG
+    /*
     nasoqTest();
     return beta;
+    */
     CornerData<double> originalAngles(*mesh);
     for (Corner c: mesh->corners()) {
         originalAngles[c]=geometry->cornerAngle(c);
@@ -458,12 +466,15 @@ CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
     // Initialize A, b
     auto [A0t, bt] = AngleDeviationPenalty(originalAngles);
     vector<Eigen::Triplet<double>> At;
-    cout << "A" << endl;
+    //cout << "A" << endl;
     for (auto [i,j,v] : A0t) {
         At.push_back(Eigen::Triplet<double>(i,j,v));
-        cout << "Eigen::Triplet<double>(" << i << "," << j << "," << v << ")," << endl;
+        //cout << "Eigen::Triplet<double>(" << i << "," << j << "," << v << ")," << endl;
     }
     Eigen::SparseMatrix<double,Eigen::ColMajor,int> A(nCorners+nEdges,nCorners+nEdges);
+    for (int i = 0; i < nCorners + nEdges; i++) {
+        At.push_back(Eigen::Triplet<double>(i,i,0));
+    }
     A.setFromTriplets(At.begin(), At.end());
     Eigen::VectorXd b(nCorners+nEdges);
     for (int i = 0; i < nCorners; i++) {
@@ -472,6 +483,11 @@ CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
     for (int i = 0; i < nEdges; i++) {
         b[nCorners + i] = 0;
     }
+    /*
+    cout << "{";
+    for(int i = 0; i < nCorners + nEdges; i++)  cout << b[i] << ",";
+    cout << "}" <<endl;
+    */
 
 
 
@@ -490,16 +506,16 @@ CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
     auto [C1t, d1t] = CATValidityConstraint();
     shiftTriples(C1t, nVertices, 0);
 
-    cout << "C (inequality)" << endl;
+    //cout << "C (inequality)" << endl;
     vector<Eigen::Triplet<double>> Ct;
     for (auto [i,j,v] : C0t) {
         Ct.push_back(Eigen::Triplet<double>(i,j,v));
         // DEBUG
-        cout << "Eigen::Triplet<double>(" << i << "," << j << "," << v << ")," << endl;
+        //cout << "Eigen::Triplet<double>(" << i << "," << j << "," << v << ")," << endl;
     }
     for (auto [i,j,v] : C1t) {
         Ct.push_back(Eigen::Triplet<double>(i,j,v));
-        cout << "Eigen::Triplet<double>(" << i << "," << j << "," << v << ")," << endl;
+        //cout << "Eigen::Triplet<double>(" << i << "," << j << "," << v << ")," << endl;
     }
     Eigen::SparseMatrix<double,Eigen::ColMajor,int> C(nVertices + 4*nCorners, nCorners+nEdges);
     C.setFromTriplets(Ct.begin(), Ct.end());
@@ -512,14 +528,20 @@ CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
     for (int i = 0; i < 4*nCorners; i++) {
         d[nVertices + i] = d1t[i];
     }
+    /*
+    cout << "{";
+    for(int i = 0; i < nVertices + 4 * nCorners; i++)  cout << d[i] << ",";
+    cout << "}" <<endl;
+    */
 
-    cout << "E (equality)" << endl;
+
+    //cout << "E (equality)" << endl;
     auto [E0t, ft] = OffsetConstraints();
     vector<Eigen::Triplet<double>> Et;
     // DEBUG
     for (auto [i,j,v] : E0t) {
         Et.push_back(Eigen::Triplet<double>(i,j,v));
-        cout << "Eigen::Triplet<double>(" << i << "," << j << "," << v << ")," << endl;
+        //cout << "Eigen::Triplet<double>(" << i << "," << j << "," << v << ")," << endl;
     }
     Eigen::SparseMatrix<double,Eigen::ColMajor,int> E(nCorners,nCorners+nEdges);
     E.setFromTriplets(Et.begin(), Et.end());
@@ -527,6 +549,12 @@ CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
     for (int i = 0; i < nCorners; i++) {
         f[i] = ft[i];
     }
+    /*
+    cout << "{";
+    for(int i = 0; i < nCorners; i++)  cout << f[i] << ",";
+    cout << "}" <<endl;
+    */
+
 
 
 
