@@ -25,14 +25,6 @@ void planarMapping(int N) {
     for (int m = 0; m <= N; m++){
         IntrinsicFlattening flattener(mesh, geometry);
         auto [thetas, betas] = flattener.solveFromPlane((double)m/(double)N);
-        VertexData<double> vertexSum(*mesh);
-        for (Vertex v: mesh->vertices()) {
-            double accum = 0;
-            for (Corner c: v.adjacentCorners()) {
-                accum += betas[c];
-            }
-            vertexSum[v] = accum;
-        }
 
         CircleWrapper patterns(mesh, betas, psMesh);
         patterns.solve("fin" + std::string(3 - std::to_string(m).length(), '0') +  std::to_string(m) );
@@ -89,9 +81,9 @@ int main(int argc, char **argv) {
         inputMeshPath = "/home/elu/repos/catopt/meshes/spotwithhole.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/SmallDisk.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/BumpyTorusPatch.obj";
-        inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/triangle.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/beanhole.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/nonconvex2.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/test.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/patch.obj";
@@ -110,8 +102,8 @@ int main(int argc, char **argv) {
 
     mesh->compress();
     polyscope::state::userCallback = myCallback;
-    //planarMapping(100);
-    embedding(2);
+    planarMapping(100);
+    //embedding(2);
 
     //polyscope::show();
 

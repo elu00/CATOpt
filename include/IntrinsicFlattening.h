@@ -26,7 +26,7 @@ class IntrinsicFlattening {
         IntrinsicFlattening(shared_ptr<ManifoldSurfaceMesh> mesh,shared_ptr<VertexPositionGeometry> geometry);
         pair<CornerData<double>, CornerData<double>> CoherentAngleSystem(VertexData<double> targetCurvatures, CornerData<double> targetBetas);
         CornerData<double> solveIntrinsicOnly();
-        pair<CornerData<double>, CornerData<double>> solveFromPlane(double flatWeight);
+        pair<EdgeData<double>, CornerData<double>> solveFromPlane(double flatWeight);
     private:
         // convenience function
         void nasoqTest();
@@ -36,7 +36,9 @@ class IntrinsicFlattening {
                 Eigen::Matrix<double,Eigen::Dynamic,1> d,
                 Eigen::SparseMatrix<double,Eigen::ColMajor,int> E,
                 Eigen::Matrix<double,Eigen::Dynamic,1> f);
-        void shiftTriples(vector<T>& tripletList, int i, int j); 
+        void addTriples(vector<Eigen::Triplet<double>>& triples, vector<T>& tuples, int i = 0, int j = 0); 
+
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int> constructMatrix(vector<Eigen::Triplet<double>>& triples, int m, int n);
         pair<vector<T>, vector<double>> PositiveAngleConstraint();
         pair<vector<T>, vector<double>> FaceAngleSumConstraint();
         pair<vector<T>, vector<double>> VertexAngleSumConstraint(VertexData<double> curvatures);
