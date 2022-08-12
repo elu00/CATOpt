@@ -223,7 +223,8 @@ void CircleWrapper::setOffsets() {
         }
         expected /= 2;
         //cout << "actual intersection angle: " << actual << " expected: " << expected << endl;
-        if (abs(actual-expected) > 1e-3) cout << "diff: " << actual - expected << endl;
+        // DEBUG: ADD THIS BACK
+        //if (abs(actual-expected) > 1e-3) cout << "diff: " << actual - expected << endl;
     }
 
     // check boundary conditions of adding to PI

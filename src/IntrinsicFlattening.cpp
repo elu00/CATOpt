@@ -82,9 +82,13 @@ Eigen::VectorXd IntrinsicFlattening::QPSolve(
     Eigen::VectorXd x, y, z;
     // DEBUG
     //cout << A.isApprox(A.triangularView<Eigen::Lower>(),0) << "WASSIM" << endl;
-    cout << A.nonZeros() << endl;
-    cout << C.nonZeros() << endl;
-    cout << E.nonZeros() << "E" << endl;
+    /*
+    cout << C << endl;
+    cout << d << endl;
+    cout << E << endl;
+    cout << f << endl;
+    */
+
 
     nasoq::QPSettings *qs = new nasoq::QPSettings;
     qs->diag_perturb=pow(10,-9);
@@ -207,7 +211,7 @@ pair<vector<T>, vector<double>> IntrinsicFlattening::VertexAngleSumConstraint(Ve
                 tripletList.push_back({v_[v],c_[c],1.});
             }
             rhs[v_[v]] = 2 * PI - curvatures[v];
-        } else if (curvatures[v] > PI) {
+        } else if (curvatures[v] < PI) {
             // only add these constraints if we want to actually constrain the curvature on the boundary
             for (Corner c: v.adjacentCorners()) {
                 tripletList.push_back({v_[v],c_[c],1.});
@@ -368,17 +372,21 @@ pair<CornerData<double>, CornerData<double>> IntrinsicFlattening::CoherentAngleS
     vector<Eigen::Triplet<double>> At;
     addTriples(At, A0t);
     for (int i = nCorners; i < 2*nCorners; i++) {
-        At.push_back(Eigen::Triplet<double>(i,i,0));
+        At.push_back(Eigen::Triplet<double>(i,i,1e-6));
     }
     auto A = constructMatrix(At,2*nCorners,2*nCorners);
     Eigen::VectorXd b = concat(2*nCorners, bt);
 
     // |C| x |C|
     auto [C0t, d0] = PositiveAngleConstraint();
+    //C0t.clear(); d0 = vector<double>(nCorners, 0.);
     // |E| x |C|
     auto [C1t, d1] = EdgeDelaunayConstraint();
+    //C1t.clear(); d1 = vector<double>(nEdges, 0.);
     // 4 |C| x |C|
     auto [C2t, d2] = CATValidityConstraint();
+    //C2t.clear(); d2 = vector<double>(4*nCorners, 0.);
+    // DEBUG
     // Initialize C and d
     // C = C0 0
     //     C1 0
@@ -396,6 +404,8 @@ pair<CornerData<double>, CornerData<double>> IntrinsicFlattening::CoherentAngleS
     auto [E1t, f1] = VertexAngleSumConstraint(targetCurvatures);
     // |E| x  2 |C|
     auto [E2t, f2] = EdgeIntersectionAngleConstraint();
+    //E2t.clear(); f2 = vector<double>(nEdges, 0.);
+    // 4 |C| x |C|
     // Initialize E and f
     // E = E0 0
     //     E1 0
@@ -442,11 +452,6 @@ CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
     //     alpha
     // 
     CornerData<double> beta(*mesh);
-    // DEBUG
-    /*
-    nasoqTest();
-    return beta;
-    */
     CornerData<double> originalAngles(*mesh);
     for (Corner c: mesh->corners()) {
         originalAngles[c]=geometry->cornerAngle(c);
@@ -461,7 +466,7 @@ CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
         At.push_back(Eigen::Triplet<double>(i,i,0));
     }
     auto A = constructMatrix(At,nCorners+nEdges,nCorners+nEdges);
-    Eigen::VectorXd b(nCorners+nEdges) = concat(nCorners + nEdges, b0t);
+    Eigen::VectorXd b = concat(nCorners + nEdges, b0t);
 
 
     VertexData<double> targetCurvatures(*mesh);
@@ -478,7 +483,7 @@ CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
     auto [C0t, d0t] = CATValidityConstraint();
     vector<Eigen::Triplet<double>> Ct;
     addTriples(Ct, C0t);
-    auto C = constructMatrix(Ct,4*nCorners, nCorners+nEdges);
+    auto C = constructMatrix(Ct, 4*nCorners, nCorners+nEdges);
 
     Eigen::VectorXd d = concat(4*nCorners, d0t);
 
@@ -521,17 +526,25 @@ pair<EdgeData<double>, CornerData<double>> IntrinsicFlattening::solveFromPlane(d
         targetBetas[c] = geometry->cornerAngle(c);
     }
 
+    // this next block should be replaced at some point
+    size_t count = 0;
+    for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
+        count++;
+    }
+    double bdryCount = (double) count; 
+
+
+
+
     VertexData<double> targetCurvatures(*mesh);
-    int count = 3;
     for (Vertex v: mesh->vertices()) {
         if (v.isBoundary()) {
             // any value > PI corresponds to
             // unconstrained boundary curvature
-            targetCurvatures[v] = 2 * PI;
-            if (count > 0) {
-                targetCurvatures[v] = 0;
-            }
-            count--;
+            //targetCurvatures[v] = 2 * PI;
+            targetCurvatures[v] = interpolationWeight * (2*PI/bdryCount) + (1-interpolationWeight) * geometry->vertexGaussianCurvature(v);
+            targetCurvatures[v] = geometry->vertexGaussianCurvature(v) - PI;
+            //cout << targetCurvatures[v] << endl;
         } else {
             targetCurvatures[v] = 0;
         }

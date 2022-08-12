@@ -83,6 +83,7 @@ int main(int argc, char **argv) {
         inputMeshPath = "/home/elu/repos/catopt/meshes/BumpyTorusPatch.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/triangle.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/beanhole.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/square.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/nonconvex2.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/test.obj";
@@ -102,8 +103,9 @@ int main(int argc, char **argv) {
 
     mesh->compress();
     polyscope::state::userCallback = myCallback;
-    planarMapping(100);
     //embedding(2);
+    planarMapping(5);
+    //planarMapping(100);
 
     //polyscope::show();
 
