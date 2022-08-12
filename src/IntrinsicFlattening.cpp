@@ -190,7 +190,7 @@ pair<vector<T>, vector<double>> IntrinsicFlattening::FaceAngleSumConstraint () {
 pair<vector<T>, vector<double>> IntrinsicFlattening::VertexAngleSumConstraint(VertexData<double> curvatures) {
    // =========== Equation [3] =================================================
    // For each interior vertex, add a constraint that says the
-   // angles around the vertex sum to 2π:
+   // angles around the vertex sum to 2π - Ω_i:
    //
    //     _______
    //    /\     /\
@@ -370,12 +370,13 @@ pair<CornerData<double>, CornerData<double>> IntrinsicFlattening::CoherentAngleS
     // Initialize A, b
     auto [A0t, bt] = AngleDeviationPenalty(targetBetas);
     vector<Eigen::Triplet<double>> At;
-    addTriples(At, A0t);
-    for (int i = nCorners; i < 2*nCorners; i++) {
+    addTriples(At, A0t, nCorners, nCorners);
+    for (int i = 0; i < 2*nCorners; i++) {
         At.push_back(Eigen::Triplet<double>(i,i,1e-6));
     }
+    vector<double> temp(nCorners, 0);
     auto A = constructMatrix(At,2*nCorners,2*nCorners);
-    Eigen::VectorXd b = concat(2*nCorners, bt);
+    Eigen::VectorXd b = concat(2*nCorners, temp, bt);
 
     // |C| x |C|
     auto [C0t, d0] = PositiveAngleConstraint();
@@ -542,8 +543,13 @@ pair<EdgeData<double>, CornerData<double>> IntrinsicFlattening::solveFromPlane(d
             // any value > PI corresponds to
             // unconstrained boundary curvature
             //targetCurvatures[v] = 2 * PI;
+            double angleSum = 0.;
+            for (Corner c: v.adjacentCorners()) {
+                angleSum += geometry->cornerAngle(c);
+            }
             targetCurvatures[v] = interpolationWeight * (2*PI/bdryCount) + (1-interpolationWeight) * geometry->vertexGaussianCurvature(v);
-            targetCurvatures[v] = geometry->vertexGaussianCurvature(v) - PI;
+            targetCurvatures[v] = geometry->vertexGaussianCurvature(v);
+            targetCurvatures[v] = PI - angleSum;
             //cout << targetCurvatures[v] << endl;
         } else {
             targetCurvatures[v] = 0;
@@ -559,7 +565,8 @@ pair<EdgeData<double>, CornerData<double>> IntrinsicFlattening::solveFromPlane(d
             e.halfedge().twin().isInterior() ? CAS[e.halfedge().twin().next().next().corner()] : 0;
         thetaSolve[e] = PI - a1 - a2;
     }
-
-    // DEBUG: TEMPORARY. REPLACE THIS
+    for (Corner c: mesh->corners()) {
+        cout << abs(beta[c] - geometry->cornerAngle(c)) << endl;
+    }
     return {thetaSolve, beta};
 }
