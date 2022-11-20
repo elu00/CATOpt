@@ -16,12 +16,20 @@ using std::tuple;
 
 #include "Common.h"
 
+#include "unsupported/Eigen/LevenbergMarquardt"
 
 class EmbeddingOptimization {
     public:
         EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh, shared_ptr<VertexPositionGeometry> geometry, CornerData<double> beta);
         std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry>> solve(int N);
         void optimize(double t);
+        // Optimization procedures
+        void evaluateEnergy(const Eigen::VectorXd& v, Eigen::VectorXd& energy);
+        void evaluateJacobian(const Eigen::VectorXd& v, Eigen::SparseMatrix<double>& J);
+        Eigen::VectorXd gradientDescent(double t);
+        Eigen::VectorXd x;
+
+
     private:
         // pointers to geometric data associated to the original mesh
         int n;
@@ -64,16 +72,32 @@ class EmbeddingOptimization {
         void buildSubdivision();
         void buildIntrinsicCheckerboard();
 
-        // Optimization procedures
-        void evaluateEnergy(double& energy, const Eigen::VectorXd& v);
-        void evaluateGradient(Eigen::VectorXd& gradient, const Eigen::VectorXd& v);
-        Eigen::VectorXd gradientDescent(double t);
-        Eigen::VectorXd x;
-
+        
         void basisFunctionDebugging();
-        void testFlatteningDerivatives();
 
         // barycentric coordinates for each quad
         Vector3 bary(Corner c, int x, int y);
         tuple<double, double, double> baryCoords(int x, int y);
 };
+struct EnergyFunctor : Eigen::SparseFunctor<double,int>
+{
+    typedef Eigen::Matrix<double,Eigen::Dynamic,1> VectorType;
+    typedef Eigen::SparseFunctor<double,int> Base;
+    typedef typename Base::JacobianType JacobianType;
+    EnergyFunctor(int inputs, int values, EmbeddingOptimization* E) : SparseFunctor<double,int>(inputs,values) { 
+        E = E;
+    }
+
+    int operator()(const VectorType& v, VectorType& energy) {
+        E->evaluateEnergy(v, energy);
+        return 0;
+    };
+    int df(const VectorType& uv, JacobianType& fjac){ 
+        E->evaluateJacobian(uv, fjac);
+        return 0;
+    };
+    EmbeddingOptimization* E;
+};
+
+
+
