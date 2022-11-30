@@ -82,6 +82,7 @@ int main(int argc, char **argv) {
     // Make sure a mesh name was given
     if (!inputFilename) {
         inputMeshPath = "../meshes/plane.obj";
+        //inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
     } else {
         inputMeshPath = args::get(inputFilename);
     }

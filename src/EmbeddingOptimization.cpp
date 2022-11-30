@@ -512,6 +512,8 @@ Eigen::VectorXd EmbeddingOptimization::gradientDescent(double t) {
 
     size_t c_iso_len = nCorners * (n-1) * (n-1);
     int values = 3*c_iso_len;
+    // the energy functor calls this->evaluateEnergy to evaluate the objective
+    // and this->evaluateJacobian for the Jacobian
     EnergyFunctor EF(inputs, values, this);
 
     VectorType uv = x;
