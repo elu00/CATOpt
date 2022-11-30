@@ -84,8 +84,8 @@ struct EnergyFunctor : Eigen::SparseFunctor<double,int>
     typedef Eigen::Matrix<double,Eigen::Dynamic,1> VectorType;
     typedef Eigen::SparseFunctor<double,int> Base;
     typedef typename Base::JacobianType JacobianType;
-    EnergyFunctor(int inputs, int values, EmbeddingOptimization* E) : SparseFunctor<double,int>(inputs,values) { 
-        E = E;
+    EnergyFunctor(int inputs, int values, EmbeddingOptimization* _E) : SparseFunctor<double,int>(inputs,values) { 
+        E = _E;
     }
 
     int operator()(const VectorType& v, VectorType& energy) {

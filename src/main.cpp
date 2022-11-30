@@ -99,7 +99,7 @@ int main(int argc, char **argv) {
     mesh->compress();
     polyscope::state::userCallback = myCallback;
     // intrinsically flatten the mesh, then try to embed it in the plane with a s * s subdivision on each triangle.
-    size_t subdivisions = 2;
+    size_t subdivisions = 4;
     embedding(subdivisions);
     E->optimize(0.01);
 

@@ -18,7 +18,7 @@ class CircleWrapper {
         VertexData<Eigen::Vector2d> uv;
         Vector<double> circleSol;
         Eigen::VectorXd thetas;
-        polyscope::SurfaceMesh *psMesh;
+        //polyscope::SurfaceMesh *psMesh;
 
         void setOffsets();
 };

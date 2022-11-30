@@ -9,7 +9,7 @@ inline double shift(double c) {
     return (c + 2.) * 500;
 }
 CircleWrapper::CircleWrapper(shared_ptr<ManifoldSurfaceMesh> mesh, CornerData<double> betas, polyscope::SurfaceMesh *psMesh): 
-    mesh(mesh), psMesh(psMesh) {
+    mesh(mesh)/*, psMesh(psMesh)*/ {
         beta = betas;
         thetas = Eigen::VectorXd::Zero(mesh->nEdges());
         EdgeData<size_t> e_ = mesh->getEdgeIndices();
@@ -36,7 +36,7 @@ CircleWrapper::CircleWrapper(shared_ptr<ManifoldSurfaceMesh> mesh, CornerData<do
         }
     }
 CircleWrapper::CircleWrapper(shared_ptr<ManifoldSurfaceMesh> mesh, EdgeData<double> intersectionAngles, polyscope::SurfaceMesh *psMesh): 
-    mesh(mesh), psMesh(psMesh) {
+    mesh(mesh)/*, psMesh(psMesh)*/ {
         theta = intersectionAngles;
         thetas = Eigen::VectorXd::Zero(mesh->nEdges());
         EdgeData<size_t> e_ = mesh->getEdgeIndices();
