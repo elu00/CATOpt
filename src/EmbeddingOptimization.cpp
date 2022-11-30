@@ -24,7 +24,7 @@ std::tuple<double, double, double> bendAngles(double t1, double t2, double t3, d
 // for convenience, j is assumed to be on the x-axis, and i is set to 0
 std::tuple<Vector2,Vector2,Vector2> projectToPlane(Vector3 i, Vector3 j, Vector3 k) {
     j -= i; k -= i;
-    i -= i;
+    i = Vector3{0.,0.,0.};
     /*
        Vector3 U = j.normalize();
        Vector3 V = cross(j,cross(j,k)).normalize();
@@ -454,7 +454,8 @@ inline void addCenterGradient(Eigen::VectorXd& gradient, const Eigen::VectorXd& 
 
 
 void EmbeddingOptimization::evaluateJacobian(const Eigen::VectorXd& v, Eigen::SparseMatrix<double>& J) {
-    size_t c_iso_len = nCorners * (n-1) * (n-1);
+   // number of fine quads
+    size_t nQuads = nCorners * (n-1) * (n-1);
     /*
     for (int i = 0; i < 3 * nSubdividedVertices; i++) {
         gradient[i] = 0.;
@@ -478,9 +479,9 @@ void EmbeddingOptimization::evaluateJacobian(const Eigen::VectorXd& v, Eigen::Sp
                 //================== c_iso_0 gradients===================
                 addLengthGradient(tripletList, v, quadIndex, iIndex, kIndex, c_iso_0[quadIndex]);
                 //===================== c_iso_1 gradients===========================
-                addLengthGradient(tripletList, v, quadIndex + c_iso_len ,jIndex, lIndex, c_iso_1[quadIndex]);
+                addLengthGradient(tripletList, v, quadIndex + nQuads ,jIndex, lIndex, c_iso_1[quadIndex]);
                 //===================== c_iso_2 gradients===========================
-                addAngleGradient(tripletList, v, quadIndex + 2 * c_iso_len, iIndex, jIndex, kIndex, lIndex, c_iso_2[quadIndex]);
+                addAngleGradient(tripletList, v, quadIndex + 2 * nQuads, iIndex, jIndex, kIndex, lIndex, c_iso_2[quadIndex]);
             }
         }
         /*
@@ -505,6 +506,9 @@ void EmbeddingOptimization::evaluateJacobian(const Eigen::VectorXd& v, Eigen::Sp
         }
         */
     }
+
+    // build Jacobian matrix from triplets
+    J.setFromTriplets(tripletList.begin(), tripletList.end());
 }
 
 Eigen::VectorXd EmbeddingOptimization::gradientDescent(double t) {
