@@ -197,8 +197,8 @@ void EmbeddingOptimization::buildEquivalenceClasses() {
     // by first splitting each triangle into 3 quads (by connecting the barycenter
     // of each triangle with the midpoints of each side), then subdividing each quad 
     // into an n by n grid.
-    // To do so, we associate each quad obtained in the first step with it's associated
-    // corner, indexing within this quad as follows:
+    // To do so, we associate each quad obtained in the first step with its associated
+    // triangle corner, indexing within this quad as follows:
     //        (0,n-1) -> ... -> (n-1,n-1)
     //        /                    /
     //      .........................
@@ -210,7 +210,8 @@ void EmbeddingOptimization::buildEquivalenceClasses() {
     //  Flattening this coordinate system, vertex (x,y) on the cth corner is then 
     //  assigned index c*n^2 + n*x + y.
     //
-    //  In order to assemble our final quad mesh though, we need to identify vertices
+    //  Note that some vertices created in this process are redundant.
+    //  In order to assemble our final quad mesh, we hence need to identify vertices
     //  that are double counted with this index system.
     //  Working it out, the correspondence is as given below, suppressing 
     //  the corner-based offsets on each quad:
@@ -364,10 +365,10 @@ inline double sqr(double x) { return x * x; }
 // Given indices for vertices i, j
 // adds the term (|i-j|^2 - target) and it's corresponding gradient to the energy
 inline void addLengthTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, double target) {
-    Vector3 i = {v[3*iIndex], v[3*iIndex+1],v[3*iIndex+2]};
-    Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
-    Vector3 ij = i -j;
-    energy[energyIndex] = ij.norm2() - target;
+    Vector3 vi = {v[3*iIndex], v[3*iIndex+1],v[3*iIndex+2]};
+    Vector3 vj = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
+
+    energy[energyIndex] = (vi-vj).norm2() - target;
 }
 
 inline void addLengthGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, double target) {
@@ -387,11 +388,11 @@ inline void addLengthGradient(vector<Eigen::Triplet<double>>& tripletList, const
 }
 
 inline void addAngleTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex, size_t lIndex, double target) {
-    Vector3 i = {v[3*iIndex], v[3*iIndex+1], v[3*iIndex+2]};
-    Vector3 j = {v[3*jIndex], v[3*jIndex+1], v[3*jIndex+2]};
-    Vector3 k = {v[3*kIndex], v[3*kIndex+1], v[3*kIndex+2]};
-    Vector3 l = {v[3*lIndex], v[3*lIndex+1], v[3*lIndex+2]};
-    energy[energyIndex] = dot(i-k,j-l) - target;
+    Vector3 vi = {v[3*iIndex], v[3*iIndex+1], v[3*iIndex+2]};
+    Vector3 vj = {v[3*jIndex], v[3*jIndex+1], v[3*jIndex+2]};
+    Vector3 vk = {v[3*kIndex], v[3*kIndex+1], v[3*kIndex+2]};
+    Vector3 vl = {v[3*lIndex], v[3*lIndex+1], v[3*lIndex+2]};
+    energy[energyIndex] = dot(vi-vk,vj-vl) - target;
 }
 
 inline void addAngleGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex, size_t lIndex, double target) {
@@ -508,23 +509,28 @@ void EmbeddingOptimization::evaluateJacobian(const Eigen::VectorXd& v, Eigen::Sp
 
 Eigen::VectorXd EmbeddingOptimization::gradientDescent(double t) {
     typedef Eigen::Matrix<double,Eigen::Dynamic,1> VectorType;
-    int inputs = 3*nSubdividedVertices;
+    int nCoordinates = 3*nSubdividedVertices;
 
-    size_t c_iso_len = nCorners * (n-1) * (n-1);
-    int values = 3*c_iso_len;
+    // number of quads in the fine mesh
+    size_t nQuads = nCorners * (n-1) * (n-1);
+
+    int values = 3*nQuads;
     // the energy functor calls this->evaluateEnergy to evaluate the objective
     // and this->evaluateJacobian for the Jacobian
-    EnergyFunctor EF(inputs, values, this);
+    EnergyFunctor EF(nCoordinates, values, this);
 
-    VectorType uv = x;
+    // make sure that the size of the vertex position vector x agrees with the
+    // number of fine vertices in the mesh times three
+    assert(x.size() == nCoordinates);
 
-    assert(x.size() == inputs);
+    // initialize our solution xStar to the current vertex positions x
+    VectorType xStar = x;
 
     // Solve the optimization problem
     Eigen::LevenbergMarquardt<EnergyFunctor> lm(EF);
 
     int info;
-    info = lm.minimize(uv);
+    info = lm.minimize(xStar);
     //cout << "STATUS: " << info << endl;
     switch(info) {
         case Eigen::LevenbergMarquardtSpace::ImproperInputParameters:
@@ -538,8 +544,9 @@ Eigen::VectorXd EmbeddingOptimization::gradientDescent(double t) {
             break;
         default:
             cout << "unrecognized error " << info << endl;
+            break;
     }
-    return uv;
+    return xStar;
 
     // Do a step by step solution and save the residual 
     /*
@@ -552,8 +559,6 @@ Eigen::VectorXd EmbeddingOptimization::gradientDescent(double t) {
        if (status==Eigen::LevenbergMarquardtSpace::ImproperInputParameters)
        return ;
        */
-
-
 }
 
 void EmbeddingOptimization::basisFunctionDebugging() {
@@ -596,8 +601,10 @@ void EmbeddingOptimization::basisFunctionDebugging() {
 
 }
 
-// call the optimization procedure for one step, then update the mesh in polyscope with the new vertex positions
-void EmbeddingOptimization::optimize(double t) {
+// Call the optimization procedure for one step of size t, then update the mesh in
+// polyscope with the new vertex positions
+void EmbeddingOptimization::optimize(double t)
+{
     x = gradientDescent(t);
     VertexData<Vector3> positions(*submesh);
     VertexData<size_t> subVertexIndices = submesh->getVertexIndices();
@@ -611,42 +618,52 @@ void EmbeddingOptimization::optimize(double t) {
 }
 
 // ======================================= LM Stuff ==========================================
-void EmbeddingOptimization::evaluateEnergy(const Eigen::VectorXd& v, Eigen::VectorXd& energy)
-    {
+void EmbeddingOptimization::evaluateEnergy(
+      const Eigen::VectorXd& v, // vertex positions
+      Eigen::VectorXd& energy) // each entry of this vector is the (square root of) a term in the energy summand
+{
    // For each quad ijkl, the energy is
     //    l --------k
     //   /          /
     //  /          /
     // i -------- j
     //  
-    // c_iso_0 = |ik|^2, 
-    // c_iso_1 = |jl|^2, 
-    // c_iso_2 = < ki, lj >
+    // c_iso_0 = |v_i - v_k|^2 - Lik^2, 
+    // c_iso_1 = |v_j - v_l|^2 - Ljl^2, 
+    // c_iso_2 = < v_k - v_i, v_l - v_j > - θijkl
 
-    //energy = 0.;
-    size_t c_iso_len = nCorners * (n-1) * (n-1);
+    // number of quads in the subdivided mesh
+    size_t nQuads = nCorners * (n-1) * (n-1);
+
+    // make sure we were given the right number of vertex coordinates
     assert(v.size() == 3 * nSubdividedVertices);
-    assert(energy.size() == 3 * c_iso_len);
+
+    // make sure the given energy summand vector is the right size
+    assert(energy.size() == 3 * nQuads);
+
+    // fill the energy summand vector with the individual terms
     for (Corner c: mesh->corners()) {
         // offset for the 3 stored intrinsic lengths
-        size_t cQuadOffset = c_[c] * (n-1) * (n-1);
-        size_t cVertexOffset = c_[c] * n * n;
-        // grab face coordinates
+        size_t cQuadOffset = c_[c] * (n-1) * (n-1); // base index for coarse quad faces
+        size_t cVertexOffset = c_[c] * n * n; // base index for coarse quad vertices
+        // iterate over fine quads
         for (int x = 0; x < n - 1; x++) {
             for (int y = 0; y < n - 1; y++) {
+               // get vertex indices for current fine quad ijkl
                 size_t iIndex = finalIndices[cVertexOffset + x + (n)*y];
                 size_t jIndex = finalIndices[cVertexOffset + (x+1) + (n)*y];
                 size_t kIndex = finalIndices[cVertexOffset + (x+1) + n*(y+1)];
                 size_t lIndex = finalIndices[cVertexOffset + x + n*(y+1)];
 
+                // get face index for current fine quad
                 size_t quadIndex = cQuadOffset + x + (n-1)*y;
 
                 // c_iso_0 term
                 addLengthTerm(energy, v, quadIndex, iIndex, kIndex, c_iso_0[quadIndex]);
                 // c_iso_1 term
-                addLengthTerm(energy, v, quadIndex + c_iso_len, jIndex, lIndex, c_iso_1[quadIndex]);
+                addLengthTerm(energy, v, quadIndex + nQuads, jIndex, lIndex, c_iso_1[quadIndex]);
                 // c_iso_2 term
-                addAngleTerm(energy, v, quadIndex + 2*c_iso_len, iIndex, jIndex, kIndex, lIndex, c_iso_2[quadIndex]);
+                addAngleTerm(energy, v, quadIndex + 2*nQuads, iIndex, jIndex, kIndex, lIndex, c_iso_2[quadIndex]);
             }
         }
         /*
