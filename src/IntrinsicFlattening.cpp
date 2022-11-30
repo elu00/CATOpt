@@ -1,6 +1,7 @@
 #include "IntrinsicFlattening.h"
 
 #include "nasoq/nasoq_eigen.h"
+// weird edge case that was breaking nasoq earlier; seems to be working now
 void IntrinsicFlattening::nasoqTest() {
 
     vector<Eigen::Triplet<double>> HList = {Eigen::Triplet<double>(0,0,1),
@@ -62,8 +63,6 @@ void IntrinsicFlattening::nasoqTest() {
     nasoq::QPSettings *qs = NULL;
     Eigen::VectorXd x,y,z;
     int status = nasoq::quadprog(H,q,A,b,C,d,x,y,z,qs);
-
-    
 }
 // returns the solution x to
 //      min x^T A x + x^T b
@@ -102,6 +101,7 @@ Eigen::VectorXd IntrinsicFlattening::QPSolve(
     cout << "status: " << status << endl;
     return x;
 }
+// constructor that just initializes all relevant geometric data
 IntrinsicFlattening::IntrinsicFlattening(shared_ptr<ManifoldSurfaceMesh> mesh,shared_ptr<VertexPositionGeometry> geometry):
     mesh(mesh), geometry(geometry) {
     geometry->requireEdgeLengths();
@@ -333,8 +333,6 @@ pair<vector<T>, vector<double>>IntrinsicFlattening::EdgeIntersectionAngleConstra
 // 4 |C| x |C|
 // Returns a matrix A and a vector b such that
 // Aβ ≤ b represents the constraint that each CAT is valid
-
-
 pair<vector<T>, vector<double>>IntrinsicFlattening::CATValidityConstraint() {
     vector<T> tripletList;
     vector<double> rhs = vector<double>(4*nCorners, 0);
@@ -524,6 +522,7 @@ CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
     return beta;
 }
 
+// TODO: rewrite/review this code
 // Given a CAT in the plane, and an assignment of new boundary curvatures (defined inline),
 // returns intersection angles for a conformally equivalent CAT, and new CAT corner angles (which are the same as input)
 pair<EdgeData<double>, CornerData<double>> IntrinsicFlattening::solveFromPlane(double interpolationWeight) {

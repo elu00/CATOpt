@@ -21,6 +21,7 @@ shared_ptr<ManifoldSurfaceMesh> mesh;
 shared_ptr<VertexPositionGeometry> geometry;
 polyscope::SurfaceMesh *psMesh;
 
+// TODO: rewrite this
 void planarMapping(int N) {
     for (int m = 0; m <= N; m++){
         IntrinsicFlattening flattener(mesh, geometry);
@@ -33,6 +34,7 @@ void planarMapping(int N) {
 
 EmbeddingOptimization* E;
 float t = 1e-4;
+    // intrinsically flatten the mesh, then try to embed it in the plane with a N * N subdivision on each triangle.
 void embedding(int N) {
     IntrinsicFlattening flattener(mesh, geometry);
     cout << "solving intrinsic..." << endl;
@@ -42,6 +44,7 @@ void embedding(int N) {
     auto [submesh, subgeometry] = E->solve(N);
 
 }
+// TODO: rewrite this
 void surfaceToPlane() {
     IntrinsicFlattening flattener(mesh, geometry);
     /*
@@ -60,7 +63,7 @@ void myCallback() {
 int main(int argc, char **argv) {
     // Configure the argument parser
     string inputMeshPath;
-    args::ArgumentParser parser("");
+    args::ArgumentParser parser("mesh file name");
     args::Positional<std::string> inputFilename(parser, "mesh", "A mesh file.");
 
     // Parse args
@@ -78,16 +81,7 @@ int main(int argc, char **argv) {
 
     // Make sure a mesh name was given
     if (!inputFilename) {
-        inputMeshPath = "/home/elu/repos/catopt/meshes/spotwithhole.obj";
-        inputMeshPath = "/home/elu/repos/catopt/meshes/SmallDisk.obj";
-        inputMeshPath = "/home/elu/repos/catopt/meshes/BumpyTorusPatch.obj";
-        inputMeshPath = "/home/elu/repos/catopt/meshes/triangle.obj";
-        inputMeshPath = "/home/elu/repos/catopt/meshes/beanhole.obj";
-        inputMeshPath = "/home/elu/repos/catopt/meshes/square.obj";
-        inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
-        //inputMeshPath = "/home/elu/repos/catopt/meshes/nonconvex2.obj";
-        //inputMeshPath = "/home/elu/repos/catopt/meshes/test.obj";
-        //inputMeshPath = "/home/elu/repos/catopt/meshes/patch.obj";
+        inputMeshPath = "../meshes/plane.obj";
     } else {
         inputMeshPath = args::get(inputFilename);
     }
@@ -95,19 +89,23 @@ int main(int argc, char **argv) {
     // polyscope sanity checks
     polyscope::init();
     /*
-       psMesh = polyscope::registerSurfaceMesh(
-       "waaah",
-       geometry->inputVertexPositions, mesh->getFaceVertexList(),
-       polyscopePermutations(*mesh));
-       */
+    psMesh = polyscope::registerSurfaceMesh(
+            "original geometry",
+            geometry->inputVertexPositions, mesh->getFaceVertexList(),
+            polyscopePermutations(*mesh));
+            */
 
     mesh->compress();
     polyscope::state::userCallback = myCallback;
-    embedding(2);
+    // intrinsically flatten the mesh, then try to embed it in the plane with a s * s subdivision on each triangle.
+    size_t subdivisions = 2;
+    embedding(subdivisions);
+    E->optimize(0.01);
+
     //planarMapping(5);
     //planarMapping(100);
 
-    //polyscope::show();
+    polyscope::show();
 
     return EXIT_SUCCESS;
 }

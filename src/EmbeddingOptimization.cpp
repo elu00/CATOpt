@@ -360,6 +360,7 @@ void EmbeddingOptimization::buildIntrinsicCheckerboard(){
 }
 
 inline double sqr(double x) { return x * x; }
+// TODO: most of the functions aren't needed anymore, I think....
 // Given indices for vertices i, j
 // adds the term (|i-j|^2 - target) and it's corresponding gradient to the energy
 inline void addLengthTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, double target) {
@@ -522,7 +523,20 @@ Eigen::VectorXd EmbeddingOptimization::gradientDescent(double t) {
 
     int info;
     info = lm.minimize(uv);
-    cout << "STATUS: " << info << endl;
+    //cout << "STATUS: " << info << endl;
+    switch(info) {
+        case Eigen::LevenbergMarquardtSpace::ImproperInputParameters:
+            cout << "Improper Input Parameters" << endl;
+            break;
+        case Eigen::LevenbergMarquardtSpace::NotStarted:
+            cout << "Not started" << endl;
+            break;
+        case Eigen::LevenbergMarquardtSpace::Running:
+            cout << "Running" << endl;
+            break;
+        default:
+            cout << "unrecognized error " << info << endl;
+    }
     return uv;
 
     // Do a step by step solution and save the residual 
@@ -580,9 +594,8 @@ void EmbeddingOptimization::basisFunctionDebugging() {
 
 }
 
+// call the optimization procedure for one step, then update the mesh in polyscope with the new vertex positions
 void EmbeddingOptimization::optimize(double t) {
-
-
     x = gradientDescent(t);
     VertexData<Vector3> positions(*submesh);
     VertexData<size_t> subVertexIndices = submesh->getVertexIndices();
@@ -699,7 +712,7 @@ std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry> >E
     }
 
 
-    polyscope::show();
+    //polyscope::show();
 
     return {submesh, subgeometry};
 }

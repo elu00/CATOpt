@@ -216,7 +216,7 @@ namespace nasoq {
   num_thread = openblas_get_num_procs();
   openblas_set_num_threads(1);
 #else
-#error couldnt determine BLAS implementation
+#error couldn't determine BLAS implementation
 #endif
   chunk = 1;
   cost_param = num_thread;
