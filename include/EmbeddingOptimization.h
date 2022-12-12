@@ -22,11 +22,11 @@ class EmbeddingOptimization {
     public:
         EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh, shared_ptr<VertexPositionGeometry> geometry, CornerData<double> beta);
         std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry>> solve(int N);
-        void optimize(double t);
+        void optimize();
         // Optimization procedures
         void evaluateEnergy(const Eigen::VectorXd& v, Eigen::VectorXd& energy);
         void evaluateJacobian(const Eigen::VectorXd& v, Eigen::SparseMatrix<double>& J);
-        Eigen::VectorXd gradientDescent(double t);
+        Eigen::VectorXd gradientDescent();
         Eigen::VectorXd x;
 
 
@@ -94,6 +94,7 @@ struct EnergyFunctor : Eigen::SparseFunctor<double,int>
     };
     int df(const VectorType& uv, JacobianType& fjac){ 
         E->evaluateJacobian(uv, fjac);
+        cout << "JACOBIAN NORM:" << fjac.norm() << endl;
         return 0;
     };
     EmbeddingOptimization* E;

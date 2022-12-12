@@ -42,6 +42,7 @@ void embedding(int N) {
     cout << "solved" << endl;
     E = (new EmbeddingOptimization(mesh, geometry, beta));
     auto [submesh, subgeometry] = E->solve(N);
+    cout << "EmbeddingOptimization initialized" << endl;
 
 }
 // TODO: rewrite this
@@ -56,7 +57,7 @@ void surfaceToPlane() {
 void myCallback() {
     ImGui::InputFloat("param value", &t, 0.01f, 1.0f);  // set a float variable
     if (ImGui::Button("run subroutine")) {
-        E->optimize(t);
+        E->optimize();
     }
 }
 
@@ -82,7 +83,7 @@ int main(int argc, char **argv) {
     // Make sure a mesh name was given
     if (!inputFilename) {
         inputMeshPath = "../meshes/plane.obj";
-        //inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/square.obj";
     } else {
         inputMeshPath = args::get(inputFilename);
     }
@@ -101,7 +102,7 @@ int main(int argc, char **argv) {
     // intrinsically flatten the mesh, then try to embed it in the plane with a s * s subdivision on each triangle.
     size_t subdivisions = 4;
     embedding(subdivisions);
-    E->optimize(0.01);
+    E->optimize();
 
     //planarMapping(5);
     //planarMapping(100);
