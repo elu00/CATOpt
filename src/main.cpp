@@ -14,7 +14,6 @@ using std::shared_ptr;
 
 #include "IntrinsicFlattening.h"
 #include "EmbeddingOptimization.h"
-#include "CircleWrapper.h"
 
 
 shared_ptr<ManifoldSurfaceMesh> mesh;
@@ -27,8 +26,10 @@ void planarMapping(int N) {
         IntrinsicFlattening flattener(mesh, geometry);
         auto [thetas, betas] = flattener.solveFromPlane((double)m/(double)N);
 
+        /*
         CircleWrapper patterns(mesh, betas, psMesh);
         patterns.solve("fin" + std::string(3 - std::to_string(m).length(), '0') +  std::to_string(m) );
+        */
     }
 }
 
