@@ -7,6 +7,7 @@
 #include <vector>
 #include <memory>
 #include <tuple>
+#include "geometrycentral/numerical/linear_solvers.h"
 using std::cout;
 using std::vector;
 using std::shared_ptr;
@@ -42,7 +43,7 @@ class EdgeLengthOptimization {
         double LengthEnergy(Eigen::VectorXd& lambda);
         Eigen::VectorXd LengthEnergyGradient(Eigen::VectorXd& lambda);
         Eigen::SparseMatrix<double> LengthEnergyHessian(Eigen::VectorXd& lambda);
-        void MinimizeLengthEnergy();
+        Eigen::VectorXd MinimizeLengthEnergy();
         void PrescribeCurvature();
         void LayoutMesh();
 };

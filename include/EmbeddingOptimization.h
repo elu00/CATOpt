@@ -16,18 +16,20 @@ using std::tuple;
 
 #include "Common.h"
 
-#include "unsupported/Eigen/LevenbergMarquardt"
-
 class EmbeddingOptimization {
     public:
         EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh, shared_ptr<VertexPositionGeometry> geometry, CornerData<double> beta);
-        std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry>> solve(int N);
-        void optimize();
-        // Optimization procedures
+        std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry>> initializeSubdivision(int N);
+        void initializeLM();
+        void optimizeOneStep();
+        // main methods
         void evaluateEnergy(const Eigen::VectorXd& v, Eigen::VectorXd& energy);
         void evaluateJacobian(const Eigen::VectorXd& v, Eigen::SparseMatrix<double>& J);
-        Eigen::VectorXd gradientDescent();
-        Eigen::VectorXd x;
+
+        void LMOneStep();
+        // current status of the solution
+        Eigen::VectorXd initialSolution;
+        Eigen::VectorXd currentSolution;
 
 
     private:
@@ -57,6 +59,17 @@ class EmbeddingOptimization {
         size_t nSubdividedVertices;
 
 
+        // internal convenience functions
+        double Angle(Vector2 u, Vector2 v); 
+        std::tuple<double, double, double> bendAngles(double t1, double t2, double t3, double b1, double b2, double b3);
+        std::tuple<Vector2,Vector2,Vector2> projectToPlane(Vector3 i, Vector3 j, Vector3 k);
+
+        BezierTriangle Coefficients (Vector3 I, Vector3 J, Vector3 K, double Bi, double Bj, double Bk);
+        BezierTriangle rotIndices(BezierTriangle T);
+
+        Vector2 RationalBezierTriangle(BezierTriangle T, std::tuple<double,double,double> coords);
+
+
         // Union find functions and data structures
         vector<int> top;
         vector<int> next;
@@ -71,6 +84,28 @@ class EmbeddingOptimization {
         // Subdivision routines
         void buildSubdivision();
         void buildIntrinsicCheckerboard();
+        bool intrinsicQuantitiesInitialized;
+
+        // Optimization routines
+        double sqr(double x);
+        inline void addLengthTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, 
+                size_t energyIndex, size_t iIndex, size_t jIndex, double target);
+        inline void addLengthGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, 
+                size_t energyIndex, size_t iIndex, size_t jIndex, double target);
+        inline void addAngleTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, 
+                size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex, size_t lIndex, double target);
+        inline void addAngleGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, 
+                size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex, size_t lIndex, double target);
+        inline void addCenterTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, 
+                size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex);
+        inline void addCenterGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, 
+                size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex);
+
+
+        // optimization values
+        bool LMInitialized;
+        size_t LMInputs;
+        size_t LMValues;
 
         
         void basisFunctionDebugging();
@@ -79,26 +114,3 @@ class EmbeddingOptimization {
         Vector3 bary(Corner c, int x, int y);
         tuple<double, double, double> baryCoords(int x, int y);
 };
-struct EnergyFunctor : Eigen::SparseFunctor<double,int>
-{
-    typedef Eigen::Matrix<double,Eigen::Dynamic,1> VectorType;
-    typedef Eigen::SparseFunctor<double,int> Base;
-    typedef typename Base::JacobianType JacobianType;
-    EnergyFunctor(int inputs, int values, EmbeddingOptimization* _E) : SparseFunctor<double,int>(inputs,values) { 
-        E = _E;
-    }
-
-    int operator()(const VectorType& v, VectorType& energy) {
-        E->evaluateEnergy(v, energy);
-        return 0;
-    };
-    int df(const VectorType& uv, JacobianType& fjac){ 
-        E->evaluateJacobian(uv, fjac);
-        cout << "JACOBIAN NORM:" << fjac.norm() << endl;
-        return 0;
-    };
-    EmbeddingOptimization* E;
-};
-
-
-

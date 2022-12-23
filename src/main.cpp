@@ -35,15 +35,16 @@ void planarMapping(int N) {
 
 EmbeddingOptimization* E;
 float t = 1e-4;
-    // intrinsically flatten the mesh, then try to embed it in the plane with a N * N subdivision on each triangle.
+// intrinsically flatten the mesh, then try to embed it in the plane with a N * N subdivision on each triangle.
 void embedding(int N) {
     IntrinsicFlattening flattener(mesh, geometry);
     cout << "solving intrinsic..." << endl;
     CornerData<double> beta = flattener.solveIntrinsicOnly();
     cout << "solved" << endl;
     E = (new EmbeddingOptimization(mesh, geometry, beta));
-    auto [submesh, subgeometry] = E->solve(N);
+    auto [submesh, subgeometry] = E->initializeSubdivision(N);
     cout << "EmbeddingOptimization initialized" << endl;
+    E->initializeLM();
 
 }
 // TODO: rewrite this
@@ -58,7 +59,7 @@ void surfaceToPlane() {
 void myCallback() {
     ImGui::InputFloat("param value", &t, 0.01f, 1.0f);  // set a float variable
     if (ImGui::Button("run subroutine")) {
-        E->optimize();
+        E->optimizeOneStep();
     }
 }
 
@@ -84,7 +85,7 @@ int main(int argc, char **argv) {
     // Make sure a mesh name was given
     if (!inputFilename) {
         inputMeshPath = "../meshes/plane.obj";
-        inputMeshPath = "/home/elu/repos/catopt/meshes/square.obj";
+        //inputMeshPath = "/home/elu/repos/catopt/meshes/square.obj";
     } else {
         inputMeshPath = args::get(inputFilename);
     }
@@ -101,9 +102,9 @@ int main(int argc, char **argv) {
     mesh->compress();
     polyscope::state::userCallback = myCallback;
     // intrinsically flatten the mesh, then try to embed it in the plane with a s * s subdivision on each triangle.
-    size_t subdivisions = 4;
+    size_t subdivisions = 2;
     embedding(subdivisions);
-    E->optimize();
+    //E->optimize();
 
     //planarMapping(5);
     //planarMapping(100);

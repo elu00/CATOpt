@@ -7,13 +7,13 @@
 
 
 // ======================= Basis Function Stuff ==================================
-double Angle (Vector2 u, Vector2 v) {
+double EmbeddingOptimization::Angle (Vector2 u, Vector2 v) {
     return atan2(cross(u,v), dot(u,v));
 }
 
 
 // solves for angle offsets alpha given Euclidean angles ti and beta values
-std::tuple<double, double, double> bendAngles(double t1, double t2, double t3, double b1, double b2, double b3) {
+std::tuple<double, double, double> EmbeddingOptimization::bendAngles(double t1, double t2, double t3, double b1, double b2, double b3) {
     double aij = (b1+b2-b3-t1-t2+t3)/2;
     double ajk = (-b1+b2+b3+t1-t2-t3)/2;
     double aki = (b1-b2+b3-t1+t2-t3)/2;
@@ -22,7 +22,7 @@ std::tuple<double, double, double> bendAngles(double t1, double t2, double t3, d
 
 // isometrically projects triangle i j k to the plane.
 // for convenience, j is assumed to be on the x-axis, and i is set to 0
-std::tuple<Vector2,Vector2,Vector2> projectToPlane(Vector3 i, Vector3 j, Vector3 k) {
+std::tuple<Vector2,Vector2,Vector2> EmbeddingOptimization::projectToPlane(Vector3 i, Vector3 j, Vector3 k) {
     j -= i; k -= i;
     i = Vector3{0.,0.,0.};
     /*
@@ -43,7 +43,7 @@ std::tuple<Vector2,Vector2,Vector2> projectToPlane(Vector3 i, Vector3 j, Vector3
     return {I,J,K};
 }
 
-BezierTriangle Coefficients (Vector3 I, Vector3 J, Vector3 K, double Bi, double Bj, double Bk) {
+BezierTriangle EmbeddingOptimization::Coefficients (Vector3 I, Vector3 J, Vector3 K, double Bi, double Bj, double Bk) {
     auto [i,j,k] = projectToPlane(I,J,K);
     Vector2 eij = i-j;
     Vector2 ejk = j-k;
@@ -61,7 +61,6 @@ BezierTriangle Coefficients (Vector3 I, Vector3 J, Vector3 K, double Bi, double 
     Vector2 mij = (i+j)/2;
     Vector2 mjk = (j+k)/2;
     Vector2 mki = (k+i)/2;
-    //cout << "midpoints" << mij << " " << mjk << " " << mki << endl;
 
     Vector2 p200 = i;
     Vector2 p020 = j;
@@ -80,11 +79,11 @@ BezierTriangle Coefficients (Vector3 I, Vector3 J, Vector3 K, double Bi, double 
     return { p200, p020, p002, p110, p011, p101, w200, w020, w002, w110, w011, w101 };
 }
 
-BezierTriangle rotIndices(BezierTriangle T) {
+BezierTriangle EmbeddingOptimization::rotIndices(BezierTriangle T) {
     return {T.p002, T.p200, T.p020, T.p101,T.p110,T.p011,T.w020, T.w002, T.w200, T.w101,T.w110,T.w011};
 }
 
-Vector2 RationalBezierTriangle(BezierTriangle T, std::tuple<double,double,double> coords) {
+Vector2 EmbeddingOptimization::RationalBezierTriangle(BezierTriangle T, std::tuple<double,double,double> coords) {
     auto [t1,t2,t3] = coords;
 
     double B200 = t1 * t1;
@@ -152,6 +151,8 @@ std::tuple<double, double, double> EmbeddingOptimization::baryCoords(int X, int 
 
 EmbeddingOptimization::EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh, shared_ptr<VertexPositionGeometry> geometry, CornerData<double> beta) : mesh(mesh), geometry(geometry), beta(beta) {
     // Initialize quantities
+    intrinsicQuantitiesInitialized = false;
+    LMInitialized = false;
     geometry->requireEdgeLengths();
     geometry->requireVertexGaussianCurvatures();
     geometry->requireVertexAngleSums();
@@ -351,18 +352,17 @@ void EmbeddingOptimization::buildIntrinsicCheckerboard(){
 }
 
 // ======================= Energy evaluation code ====================================
-inline double sqr(double x) { return x * x; }
-// TODO: most of the functions aren't needed anymore, I think....
+inline double EmbeddingOptimization::sqr(double x) { return x * x; }
 // Given indices for vertices i, j
 // adds the term (|i-j|^2 - target) and it's corresponding gradient to the energy
-inline void addLengthTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, double target) {
+inline void EmbeddingOptimization::addLengthTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, double target) {
     Vector3 vi = {v[3*iIndex], v[3*iIndex+1],v[3*iIndex+2]};
     Vector3 vj = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
 
     energy[energyIndex] = (vi-vj).norm2() - target;
 }
 
-inline void addLengthGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, double target) {
+inline void EmbeddingOptimization::addLengthGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, double target) {
     typedef Eigen::Triplet<double> T;
     Vector3 i = {v[3*iIndex], v[3*iIndex+1],v[3*iIndex+2]};
     Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
@@ -378,7 +378,7 @@ inline void addLengthGradient(vector<Eigen::Triplet<double>>& tripletList, const
     tripletList.push_back(T(energyIndex,3*jIndex+2, 2 *(j.z - i.z)));
 }
 
-inline void addAngleTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex, size_t lIndex, double target) {
+inline void EmbeddingOptimization::addAngleTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex, size_t lIndex, double target) {
     Vector3 vi = {v[3*iIndex], v[3*iIndex+1], v[3*iIndex+2]};
     Vector3 vj = {v[3*jIndex], v[3*jIndex+1], v[3*jIndex+2]};
     Vector3 vk = {v[3*kIndex], v[3*kIndex+1], v[3*kIndex+2]};
@@ -386,7 +386,7 @@ inline void addAngleTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, size
     energy[energyIndex] = dot(vi-vk,vj-vl) - target;
 }
 
-inline void addAngleGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex, size_t lIndex, double target) {
+inline void EmbeddingOptimization::addAngleGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex, size_t lIndex, double target) {
     typedef Eigen::Triplet<double> T;
     Vector3 i = {v[3*iIndex], v[3*iIndex+1], v[3*iIndex+2]};
     Vector3 j = {v[3*jIndex], v[3*jIndex+1], v[3*jIndex+2]};
@@ -414,7 +414,7 @@ inline void addAngleGradient(vector<Eigen::Triplet<double>>& tripletList, const 
     tripletList.push_back(T(energyIndex,3*lIndex+2, k.z - i.z));
 }
 
-inline void addCenterTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex) {
+inline void EmbeddingOptimization::addCenterTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex) {
     Vector3 i = {v[3*iIndex], v[3*iIndex+1],v[3*iIndex+2]};
     Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
     Vector3 k = {v[3*kIndex], v[3*kIndex+1],v[3*kIndex+2]};
@@ -424,7 +424,7 @@ inline void addCenterTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, siz
     energy[energyIndex+2] += displacement.z;
 }
 
-inline void addCenterGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex) {
+inline void EmbeddingOptimization::addCenterGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex) {
     typedef Eigen::Triplet<double> T;
     Vector3 i = {v[3*iIndex], v[3*iIndex+1],v[3*iIndex+2]};
     Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
@@ -448,82 +448,79 @@ inline void addCenterGradient(vector<Eigen::Triplet<double>>& tripletList, const
 }
 
 
+inline double cube(double x) {
+    return x * x * x;
+}
+void EmbeddingOptimization::LMOneStep() {
+    if (!LMInitialized) {
+        throw std::runtime_error("Error: LM stuff not initialized yet");
+        return;
+    }
 
-Eigen::VectorXd EmbeddingOptimization::gradientDescent() {
     typedef Eigen::Matrix<double,Eigen::Dynamic,1> VectorType;
-    int nCoordinates = 3*nSubdividedVertices;
+    // initialize parameters
+    double mu = 1e-6;
+    double nu = 2.;
+    const double tau = 1e-3;
+    const double eps1 = 1e-8;
+    const double eps2 = 1e-11;
+    const int MAX_ITERS = 100;
+    size_t k = 0;
 
-    // number of quads in the fine mesh
-    size_t nQuads = nCorners * (n-1) * (n-1);
-    size_t nFairVertices = nCorners * ((n-2)*(n-2) + n*(n-2));
+    // initialize the Jacobian
+    Eigen::SparseMatrix<double> J(LMValues, LMInputs);
+    evaluateJacobian(currentSolution, J);
+    // compute the relevant things
+    Eigen::SparseMatrix<double> A = J.transpose() * J;
+    Eigen::VectorXd f(LMValues);
+    Eigen::VectorXd fNew(LMValues);
+    evaluateEnergy(currentSolution, f);
+    Eigen::VectorXd g = J.transpose() * f;
+    bool found = (g.norm() < eps1);
+    // initialize our solution currentSolution to the current vertex positions x
+    VectorType xStar = currentSolution;
 
-    int values = 3*nQuads + 3 * nFairVertices;
-    // the energy functor calls this->evaluateEnergy to evaluate the objective
-    // and this->evaluateJacobian for the Jacobian
-    EnergyFunctor EF(nCoordinates, values, this);
-
-    // make sure that the size of the vertex position vector x agrees with the
-    // number of fine vertices in the mesh times three
-    assert(x.size() == nCoordinates);
-
-    // initialize our solution xStar to the current vertex positions x
-    VectorType xStar = x;
-
+    while (!found && k < MAX_ITERS) {
+        cout << "ITERATION" << k << endl;
+        k += 1;
+        Eigen::SparseMatrix<double> DescentMatrix(LMInputs, LMInputs);
+        DescentMatrix.setIdentity();
+        DescentMatrix *= mu;
+        DescentMatrix += A;
+        Eigen::VectorXd hLM = -solvePositiveDefinite(DescentMatrix,g);
+        // debug
+        if (hLM.norm() <= eps2 * (xStar.norm() + eps2) && false) {
+            cout << hLM.norm() << endl;
+            cout << xStar.norm() << endl;
+            cout << "TERMINATION CONDITION MET ON ITERATION " << k << endl;
+            return;
+        } else {
+            xStar = currentSolution + hLM;
+            // evaluate the energy after taking a descent step
+            fNew.setZero();
+            evaluateEnergy(xStar, fNew);
+            double numerator = f.squaredNorm() - fNew.squaredNorm();
+            double denominator = (hLM.dot(mu * hLM - g))/2.;
+            double rho = numerator/denominator;
+            if (rho > 0) {
+                currentSolution = xStar;
+                J.setZero();
+                evaluateJacobian(currentSolution, J);
+                // compute the relevant things
+                A = J.transpose() * J;
+                f = fNew;
+                g = J.transpose() * f;
+                found = (g.norm() < eps1);
+                mu = mu * std::max(1./3., 1 - cube(2 * rho - 1));
+                nu = 2;
+            } else {
+                mu = mu * nu;
+                nu = 2 * nu;
+            }
+        }
+    }
     // Solve the optimization problem
-    Eigen::LevenbergMarquardt<EnergyFunctor> lm(EF);
 
-    int info;
-    cout << "STARTING OPTIMIZATION" << endl;
-    //info = lm.minimize(xStar);
-    info = lm.minimizeInit(xStar);
-    cout << "INITIALIZED" << endl;
-    //cout << "STATUS: " << info << endl;
-    switch(info) {
-        case Eigen::LevenbergMarquardtSpace::ImproperInputParameters:
-            cout << "Improper Input Parameters" << endl;
-            break;
-        case Eigen::LevenbergMarquardtSpace::NotStarted:
-            cout << "Not started" << endl;
-            break;
-        case Eigen::LevenbergMarquardtSpace::Running:
-            cout << "Running" << endl;
-            break;
-        default:
-            cout << "unrecognized error " << info << endl;
-            break;
-    }
-    do {
-        info = lm.minimizeOneStep(xStar);
-        cout << "ONE STEP DONE" << endl;
-    } while (info==Eigen::LevenbergMarquardtSpace::Running);
-    switch(info) {
-        case Eigen::LevenbergMarquardtSpace::ImproperInputParameters:
-            cout << "Improper Input Parameters" << endl;
-            break;
-        case Eigen::LevenbergMarquardtSpace::NotStarted:
-            cout << "Not started" << endl;
-            break;
-        case Eigen::LevenbergMarquardtSpace::Running:
-            cout << "Running" << endl;
-            break;
-        default:
-            cout << "unrecognized error " << info << endl;
-            break;
-    }
-
-    return xStar;
-
-    // Do a step by step solution and save the residual 
-    /*
-       int maxiter = 200;
-       int iter = 0;
-       Eigen::MatrixXd Err(values, maxiter);
-       Eigen::MatrixXd Mod(values, maxiter);
-       Eigen::LevenbergMarquardtSpace::Status status; 
-       status = lm.minimizeInit(uv);
-       if (status==Eigen::LevenbergMarquardtSpace::ImproperInputParameters)
-       return ;
-       */
 }
 
 void EmbeddingOptimization::basisFunctionDebugging() {
@@ -566,16 +563,43 @@ void EmbeddingOptimization::basisFunctionDebugging() {
 
 }
 
-// Call the optimization procedure for one step of size t, then update the mesh in
+void EmbeddingOptimization::initializeLM() {
+    if (!intrinsicQuantitiesInitialized) {
+        throw std::runtime_error("Error: intrinsic checkboard/mesh not initialized yet");
+        return;
+    }
+    currentSolution = initialSolution;
+
+    int nCoordinates = 3*nSubdividedVertices;
+
+    // number of quads in the fine mesh
+    size_t nQuads = nCorners * (n-1) * (n-1);
+    size_t nFairVertices = nCorners * ((n-2)*(n-2) + n*(n-2));
+
+    LMValues = 3*nQuads + 3 * nFairVertices;
+    /*
+    // the energy functor calls this->evaluateEnergy to evaluate the objective
+    // and this->evaluateJacobian for the Jacobian
+    EnergyFunctor EF(nCoordinates, values, this);
+    */
+
+
+    // make sure that the size of the vertex position vector x agrees with the
+    // number of fine vertices in the mesh times three
+    assert(currentSolution.size() == nCoordinates);
+    LMInputs = nCoordinates;
+    LMInitialized = true;
+    return;
+}
+// Call the optimization procedure for one step, then update the mesh in
 // polyscope with the new vertex positions
-void EmbeddingOptimization::optimize()
-{
-    x = gradientDescent();
+void EmbeddingOptimization::optimizeOneStep() {
+    LMOneStep();
     VertexData<Vector3> positions(*submesh);
     VertexData<size_t> subVertexIndices = submesh->getVertexIndices();
     for (Vertex v: submesh->vertices()) {
         size_t i = subVertexIndices[v];
-        positions[v] = {x[3*i],x[3*i+1],x[3*i+2]};
+        positions[v] = {currentSolution[3*i],currentSolution[3*i+1],currentSolution[3*i+2]};
         //cout << positions[v] << endl;
     }
 
@@ -736,7 +760,7 @@ void EmbeddingOptimization::evaluateJacobian(const Eigen::VectorXd& v, Eigen::Sp
     cout << "jacobian done" << endl;
 }
 
-std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry> >EmbeddingOptimization::solve(int N) {
+std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry> >EmbeddingOptimization::initializeSubdivision(int N) {
     n = N;
 
     // Initialize union find data structure
@@ -759,20 +783,20 @@ std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry> >E
     //basisFunctionDebugging();
     //return {submesh, subgeometry};
     // initialize inital guess for x
-    x = Eigen::VectorXd::Zero(3*nSubdividedVertices);
+    initialSolution = Eigen::VectorXd::Zero(3*nSubdividedVertices);
     for (Corner c: mesh->corners()) {
         size_t cOffset = c_[c] * n * n;
         for (int X = 0; X < n; X++) {
             for (int Y = 0; Y < n; Y++) {
                 Vector3 pos = bary(c, X, Y);
                 size_t startIndex = 3*finalIndices[cOffset + X + n * Y];
-                x[startIndex] = pos.x;
-                x[startIndex + 1] = pos.y;
-                x[startIndex + 2] = pos.z;
+                initialSolution[startIndex] = pos.x;
+                initialSolution[startIndex + 1] = pos.y;
+                initialSolution[startIndex + 2] = pos.z;
             }
         }
     }
-
+    intrinsicQuantitiesInitialized = true;
 
     //polyscope::show();
 

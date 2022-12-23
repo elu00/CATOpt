@@ -133,28 +133,31 @@ Eigen::SparseMatrix<double> EdgeLengthOptimization::LengthEnergyHessian(Eigen::V
     H.setFromTriplets(tripletList.begin(), tripletList.end());
     return H;
 }
-void EdgeLengthOptimization::MinimizeLengthEnergy() {
+Eigen::VectorXd EdgeLengthOptimization::MinimizeLengthEnergy() {
     cout << "Starting length energy minimization" << endl;
     int k = 0;
     Eigen::VectorXd x = Eigen::VectorXd::Zero(n);
-    double f = LengthEnergyHessian(x);
 
     const double alpha = 0.5;
+    const double beta = 0.3;
     while (true) {
         // compute update direction
-        Eigen::VectorXd g = LengthEnergyGradient(x);
-        Eigen::SparseMatrix<double> = LengthEnergyHessian(x);
+        Eigen::VectorXd g = -LengthEnergyGradient(x);
+        Eigen::SparseMatrix<double> H = LengthEnergyHessian(x);
 
-        Eigen::VectorXd mu;
-        //mu = solvePositiveDefinite(-g, H);
+        Eigen::VectorXd mu = solvePositiveDefinite(H, g);
         if (abs(mu.dot(g)) <= 2 * EPSILON) break;
 
 
         // compute step size
         double t = 1.0;
         double initialEnergy = LengthEnergy(x);
-        while (LengthEnergy(x + t * mu) > initialEnergy + alpha*t*g.dot(mu)) {
+        Eigen::VectorXd xp = x + t * mu;
+        double currentEnergy = LengthEnergy(xp);
+        while (currentEnergy > initialEnergy + alpha*t*g.dot(mu)) {
             t = beta*t;
+            xp = x + t * mu;
+            currentEnergy = LengthEnergy(xp);
         }
 
         // update
@@ -162,7 +165,7 @@ void EdgeLengthOptimization::MinimizeLengthEnergy() {
         k++;
 
         // check termination condition
-        if (fabs(f - fp) < EPSILON || k > MAX_ITERS) break;
+        if (fabs(initialEnergy - LengthEnergy(x)) < EPSILON || k > MAX_ITERS) break;
     }
     cout << "Iterations: " << k << endl;
     for (int i = 0; i < nEdges; i++) {
