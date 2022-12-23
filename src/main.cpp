@@ -45,6 +45,7 @@ void embedding(int N) {
     auto [submesh, subgeometry] = E->initializeSubdivision(N);
     cout << "EmbeddingOptimization initialized" << endl;
     E->initializeLM();
+    cout << "LM initialized" << endl;
 
 }
 // TODO: rewrite this
@@ -84,7 +85,7 @@ int main(int argc, char **argv) {
 
     // Make sure a mesh name was given
     if (!inputFilename) {
-        inputMeshPath = "../meshes/plane.obj";
+        inputMeshPath = "../meshes/beanhole.obj";
         //inputMeshPath = "/home/elu/repos/catopt/meshes/square.obj";
     } else {
         inputMeshPath = args::get(inputFilename);
@@ -102,9 +103,9 @@ int main(int argc, char **argv) {
     mesh->compress();
     polyscope::state::userCallback = myCallback;
     // intrinsically flatten the mesh, then try to embed it in the plane with a s * s subdivision on each triangle.
-    size_t subdivisions = 2;
+    size_t subdivisions = 3;
     embedding(subdivisions);
-    //E->optimize();
+    E->optimizeOneStep();
 
     //planarMapping(5);
     //planarMapping(100);

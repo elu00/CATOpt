@@ -359,7 +359,8 @@ inline void EmbeddingOptimization::addLengthTerm(Eigen::VectorXd& energy, const 
     Vector3 vi = {v[3*iIndex], v[3*iIndex+1],v[3*iIndex+2]};
     Vector3 vj = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
 
-    energy[energyIndex] = (vi-vj).norm2() - target;
+    const double normalization = 1;
+    energy[energyIndex] = ((vi-vj).norm2() - target)*normalization;
 }
 
 inline void EmbeddingOptimization::addLengthGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, double target) {
@@ -367,15 +368,16 @@ inline void EmbeddingOptimization::addLengthGradient(vector<Eigen::Triplet<doubl
     Vector3 i = {v[3*iIndex], v[3*iIndex+1],v[3*iIndex+2]};
     Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
 
+    const double normalization = 1;
     // i gradients
-    tripletList.push_back(T(energyIndex,3*iIndex,   2 *(i.x - j.x)));
-    tripletList.push_back(T(energyIndex,3*iIndex+1, 2 *(i.y - j.y)));
-    tripletList.push_back(T(energyIndex,3*iIndex+2, 2 *(i.z - j.z)));
+    tripletList.push_back(T(energyIndex,3*iIndex,   2 *(i.x - j.x) * normalization));
+    tripletList.push_back(T(energyIndex,3*iIndex+1, 2 *(i.y - j.y) * normalization));
+    tripletList.push_back(T(energyIndex,3*iIndex+2, 2 *(i.z - j.z) * normalization));
 
     // j gradients
-    tripletList.push_back(T(energyIndex,3*jIndex,   2 *(j.x - i.x)));
-    tripletList.push_back(T(energyIndex,3*jIndex+1, 2 *(j.y - i.y)));
-    tripletList.push_back(T(energyIndex,3*jIndex+2, 2 *(j.z - i.z)));
+    tripletList.push_back(T(energyIndex,3*jIndex,   2 *(j.x - i.x) * normalization));
+    tripletList.push_back(T(energyIndex,3*jIndex+1, 2 *(j.y - i.y) * normalization));
+    tripletList.push_back(T(energyIndex,3*jIndex+2, 2 *(j.z - i.z) * normalization));
 }
 
 inline void EmbeddingOptimization::addAngleTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex, size_t lIndex, double target) {
@@ -383,7 +385,8 @@ inline void EmbeddingOptimization::addAngleTerm(Eigen::VectorXd& energy, const E
     Vector3 vj = {v[3*jIndex], v[3*jIndex+1], v[3*jIndex+2]};
     Vector3 vk = {v[3*kIndex], v[3*kIndex+1], v[3*kIndex+2]};
     Vector3 vl = {v[3*lIndex], v[3*lIndex+1], v[3*lIndex+2]};
-    energy[energyIndex] = dot(vi-vk,vj-vl) - target;
+    const double normalization = 1;
+    energy[energyIndex] = (dot(vi-vk,vj-vl) - target) * normalization;
 }
 
 inline void EmbeddingOptimization::addAngleGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex, size_t lIndex, double target) {
@@ -393,25 +396,26 @@ inline void EmbeddingOptimization::addAngleGradient(vector<Eigen::Triplet<double
     Vector3 k = {v[3*kIndex], v[3*kIndex+1], v[3*kIndex+2]};
     Vector3 l = {v[3*lIndex], v[3*lIndex+1], v[3*lIndex+2]};
 
+    const double normalization = 1;
     // i partial: j - l
-    tripletList.push_back(T(energyIndex,3*iIndex,   j.x - l.x));
-    tripletList.push_back(T(energyIndex,3*iIndex+1, j.y - l.y));
-    tripletList.push_back(T(energyIndex,3*iIndex+2, j.z - l.z));
+    tripletList.push_back(T(energyIndex,3*iIndex,   j.x - l.x * normalization));
+    tripletList.push_back(T(energyIndex,3*iIndex+1, j.y - l.y * normalization));
+    tripletList.push_back(T(energyIndex,3*iIndex+2, j.z - l.z * normalization));
 
     // k partial: l - j
-    tripletList.push_back(T(energyIndex,3*kIndex,   l.x - j.x));
-    tripletList.push_back(T(energyIndex,3*kIndex+1, l.y - j.y));
-    tripletList.push_back(T(energyIndex,3*kIndex+2, l.z - j.z));
+    tripletList.push_back(T(energyIndex,3*kIndex,   l.x - j.x * normalization));
+    tripletList.push_back(T(energyIndex,3*kIndex+1, l.y - j.y * normalization));
+    tripletList.push_back(T(energyIndex,3*kIndex+2, l.z - j.z * normalization));
 
     // j partial: i - k
-    tripletList.push_back(T(energyIndex,3*jIndex,   i.x - k.x));
-    tripletList.push_back(T(energyIndex,3*jIndex+1, i.y - k.y));
-    tripletList.push_back(T(energyIndex,3*jIndex+2, i.z - k.z));
+    tripletList.push_back(T(energyIndex,3*jIndex,   i.x - k.x * normalization));
+    tripletList.push_back(T(energyIndex,3*jIndex+1, i.y - k.y * normalization));
+    tripletList.push_back(T(energyIndex,3*jIndex+2, i.z - k.z * normalization));
 
     // l partial: k - i
-    tripletList.push_back(T(energyIndex,3*lIndex,   k.x - i.x));
-    tripletList.push_back(T(energyIndex,3*lIndex+1, k.y - i.y));
-    tripletList.push_back(T(energyIndex,3*lIndex+2, k.z - i.z));
+    tripletList.push_back(T(energyIndex,3*lIndex,   k.x - i.x * normalization));
+    tripletList.push_back(T(energyIndex,3*lIndex+1, k.y - i.y * normalization));
+    tripletList.push_back(T(energyIndex,3*lIndex+2, k.z - i.z * normalization));
 }
 
 inline void EmbeddingOptimization::addCenterTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex) {
@@ -419,9 +423,10 @@ inline void EmbeddingOptimization::addCenterTerm(Eigen::VectorXd& energy, const 
     Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
     Vector3 k = {v[3*kIndex], v[3*kIndex+1],v[3*kIndex+2]};
     Vector3 displacement = i-2*j+k;
-    energy[energyIndex] += displacement.x;
-    energy[energyIndex+1] += displacement.y;
-    energy[energyIndex+2] += displacement.z;
+    const double normalization = 1e-2;
+    energy[energyIndex] += displacement.x * normalization;
+    energy[energyIndex+1] += displacement.y * normalization;
+    energy[energyIndex+2] += displacement.z * normalization;
 }
 
 inline void EmbeddingOptimization::addCenterGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex) {
@@ -430,21 +435,22 @@ inline void EmbeddingOptimization::addCenterGradient(vector<Eigen::Triplet<doubl
     Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
     Vector3 k = {v[3*kIndex], v[3*kIndex+1],v[3*kIndex+2]};
 
+    const double normalization = 1e-2;
     // i partials
-    tripletList.push_back(T(energyIndex,  3*iIndex,   1));
-    tripletList.push_back(T(energyIndex+1,3*iIndex+1, 1));
-    tripletList.push_back(T(energyIndex+2,3*iIndex+2, 1));
+    tripletList.push_back(T(energyIndex,  3*iIndex,   normalization));
+    tripletList.push_back(T(energyIndex+1,3*iIndex+1, normalization));
+    tripletList.push_back(T(energyIndex+2,3*iIndex+2, normalization));
 
     // j partial: i - k
-    tripletList.push_back(T(energyIndex,  3*jIndex,   -2));
-    tripletList.push_back(T(energyIndex+1,3*jIndex+1, -2));
-    tripletList.push_back(T(energyIndex+2,3*jIndex+2, -2));
+    tripletList.push_back(T(energyIndex,  3*jIndex,   -2 * normalization));
+    tripletList.push_back(T(energyIndex+1,3*jIndex+1, -2 * normalization));
+    tripletList.push_back(T(energyIndex+2,3*jIndex+2, -2 * normalization));
 
 
     // k partials
-    tripletList.push_back(T(energyIndex,  3*kIndex,   1));
-    tripletList.push_back(T(energyIndex+1,3*kIndex+1, 1));
-    tripletList.push_back(T(energyIndex+2,3*kIndex+2, 1));
+    tripletList.push_back(T(energyIndex,  3*kIndex,   normalization));
+    tripletList.push_back(T(energyIndex+1,3*kIndex+1, normalization));
+    tripletList.push_back(T(energyIndex+2,3*kIndex+2, normalization));
 }
 
 
@@ -464,11 +470,12 @@ void EmbeddingOptimization::LMOneStep() {
     const double tau = 1e-3;
     const double eps1 = 1e-8;
     const double eps2 = 1e-11;
-    const int MAX_ITERS = 100;
+    const int MAX_ITERS = 1000;
     size_t k = 0;
 
     // initialize the Jacobian
     Eigen::SparseMatrix<double> J(LMValues, LMInputs);
+    J.setZero();
     evaluateJacobian(currentSolution, J);
     // compute the relevant things
     Eigen::SparseMatrix<double> A = J.transpose() * J;
@@ -481,15 +488,16 @@ void EmbeddingOptimization::LMOneStep() {
     VectorType xStar = currentSolution;
 
     while (!found && k < MAX_ITERS) {
-        cout << "ITERATION" << k << endl;
+        if (!(k % 100)) cout << "ITERATION" << k << endl;
         k += 1;
         Eigen::SparseMatrix<double> DescentMatrix(LMInputs, LMInputs);
         DescentMatrix.setIdentity();
         DescentMatrix *= mu;
         DescentMatrix += A;
+        //cout << "DescentMatrix norm: " << DescentMatrix.norm() << endl;
         Eigen::VectorXd hLM = -solvePositiveDefinite(DescentMatrix,g);
         // debug
-        if (hLM.norm() <= eps2 * (xStar.norm() + eps2) && false) {
+        if (hLM.norm() <= eps2 * (xStar.norm() + eps2)) {
             cout << hLM.norm() << endl;
             cout << xStar.norm() << endl;
             cout << "TERMINATION CONDITION MET ON ITERATION " << k << endl;
@@ -620,7 +628,7 @@ void EmbeddingOptimization::evaluateEnergy(
     // c_iso_0 = |v_i - v_k|^2 - Lik^2, 
     // c_iso_1 = |v_j - v_l|^2 - Ljl^2, 
     // c_iso_2 = < v_k - v_i, v_l - v_j > - θijkl
-    cout << "Evaluating energy" << endl;
+    //cout << "Evaluating energy" << endl;
 
     // number of quads in the subdivided mesh
     size_t nQuads = nCorners * (n-1) * (n-1);
@@ -698,11 +706,11 @@ void EmbeddingOptimization::evaluateEnergy(
             }
         }
     }
-    cout << "energy done" << endl;
+    //cout << "energy done" << endl;
 }
 void EmbeddingOptimization::evaluateJacobian(const Eigen::VectorXd& v, Eigen::SparseMatrix<double>& J) {
     // number of fine quads
-    cout << "evaluating jacobian" << endl;
+    //cout << "evaluating jacobian" << endl;
     size_t nQuads = nCorners * (n-1) * (n-1);
     vector<Eigen::Triplet<double>> tripletList;
 
@@ -757,7 +765,8 @@ void EmbeddingOptimization::evaluateJacobian(const Eigen::VectorXd& v, Eigen::Sp
 
     // build Jacobian matrix from triplets
     J.setFromTriplets(tripletList.begin(), tripletList.end());
-    cout << "jacobian done" << endl;
+    //cout << "jacobian done" << endl;
+    //cout << "Jacobian norm: " << J.norm() << endl;
 }
 
 std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry> >EmbeddingOptimization::initializeSubdivision(int N) {
