@@ -1,5 +1,6 @@
 # Build directories
 build/
+release/
 build_debug/
 .polyscope.ini
 imgui.ini

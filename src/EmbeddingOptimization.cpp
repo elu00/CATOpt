@@ -343,9 +343,9 @@ void EmbeddingOptimization::buildIntrinsicCheckerboard(){
                 Vector2 l = RationalBezierTriangle(T,baryCoords(x, y+1));
                 Vector2 e20 = i - k;
                 Vector2 e31 = j - l;
-                c_iso_0[index] = e20.norm2();
-                c_iso_1[index] = e31.norm2();
-                c_iso_2[index] = dot(e20,e31);
+                c_iso_0[index] = 0.5*e20.norm2();
+                c_iso_1[index] = 0.5*e31.norm2();
+                c_iso_2[index] = 0.5*dot(e20,e31);
             }
         }
     }
@@ -423,7 +423,7 @@ inline void EmbeddingOptimization::addCenterTerm(Eigen::VectorXd& energy, const 
     Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
     Vector3 k = {v[3*kIndex], v[3*kIndex+1],v[3*kIndex+2]};
     Vector3 displacement = i-2*j+k;
-    const double normalization = 1e-2;
+    const double normalization = 1;
     energy[energyIndex] += displacement.x * normalization;
     energy[energyIndex+1] += displacement.y * normalization;
     energy[energyIndex+2] += displacement.z * normalization;
@@ -435,7 +435,7 @@ inline void EmbeddingOptimization::addCenterGradient(vector<Eigen::Triplet<doubl
     Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
     Vector3 k = {v[3*kIndex], v[3*kIndex+1],v[3*kIndex+2]};
 
-    const double normalization = 1e-2;
+    const double normalization = 1;
     // i partials
     tripletList.push_back(T(energyIndex,  3*iIndex,   normalization));
     tripletList.push_back(T(energyIndex+1,3*iIndex+1, normalization));
@@ -467,10 +467,10 @@ void EmbeddingOptimization::LMOneStep() {
     // initialize parameters
     double mu = 1e-6;
     double nu = 2.;
-    const double tau = 1e-3;
+    const double tau = 1;
     const double eps1 = 1e-8;
-    const double eps2 = 1e-11;
-    const int MAX_ITERS = 1000;
+    const double eps2 = 1e-8;
+    const int MAX_ITERS = 100;
     size_t k = 0;
 
     // initialize the Jacobian
@@ -482,13 +482,17 @@ void EmbeddingOptimization::LMOneStep() {
     Eigen::VectorXd f(LMValues);
     Eigen::VectorXd fNew(LMValues);
     evaluateEnergy(currentSolution, f);
+    cout << "INITIAL ENERGY" << f.norm() << endl;
     Eigen::VectorXd g = J.transpose() * f;
     bool found = (g.norm() < eps1);
     // initialize our solution currentSolution to the current vertex positions x
     VectorType xStar = currentSolution;
 
     while (!found && k < MAX_ITERS) {
-        if (!(k % 100)) cout << "ITERATION" << k << endl;
+        if (!(k % 50)) {
+            cout << "ITERATION" << k << endl;
+            cout << "New ENERGY" << f.norm() << endl;
+        }
         k += 1;
         Eigen::SparseMatrix<double> DescentMatrix(LMInputs, LMInputs);
         DescentMatrix.setIdentity();

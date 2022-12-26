@@ -5,18 +5,24 @@
 EdgeLengthOptimization::EdgeLengthOptimization (shared_ptr<ManifoldSurfaceMesh> mesh, 
         EdgeData<double> eta) : mesh(mesh), eta(eta) {
     // Initialize quantities
-    nVertices = mesh->nVertices();
     nEdges = mesh->nEdges();
-    nCorners = mesh->nCorners();
-    nFaces = mesh->nFaces();
-    c_ = mesh->getCornerIndices();
     e_ = mesh->getEdgeIndices();
-    v_ = mesh->getVertexIndices();
-    f_ = mesh->getFaceIndices();
+    l0 = Eigen::VectorXd::Zero(nEdges);
+}
+EdgeLengthOptimization::EdgeLengthOptimization (shared_ptr<ManifoldSurfaceMesh> mesh, 
+      EdgeData<double> l, EdgeData<double> eta) : mesh(mesh), eta(eta) {
+    // Initialize quantities
+    nEdges = mesh->nEdges();
+    e_ = mesh->getEdgeIndices();
+    l0 = Eigen::VectorXd::Zero(nEdges);
+    for (Edge e: mesh->edges()) {
+        l0[e_[e]] = l[e];
+    }
 }
 
+
 // clausen integral
-inline double Cl2(double x) {
+inline double EdgeLengthOptimization::Cl2(double x) {
     if (x == 0.0) return 0.0;
     x = std::remainder(x, 2*M_PI);
     if (x == 0.0) return 0.0;
@@ -95,6 +101,7 @@ double EdgeLengthOptimization::LengthEnergy(Eigen::VectorXd& lambda) {
     }
     return energy;
 }
+
 Eigen::VectorXd EdgeLengthOptimization::LengthEnergyGradient(Eigen::VectorXd& lambda) {
     Eigen::VectorXd g(nEdges);
     // initialize corner angles
@@ -121,22 +128,47 @@ Eigen::VectorXd EdgeLengthOptimization::LengthEnergyGradient(Eigen::VectorXd& la
     return g;
 }
 Eigen::SparseMatrix<double> EdgeLengthOptimization::LengthEnergyHessian(Eigen::VectorXd& lambda) {
-    // initialize spare matrix and triplet list
+    // initialize sparse matrix and triplet list
     typedef Eigen::Triplet<double> T;
     Eigen::SparseMatrix<double> H(nEdges,nEdges);
     vector<Eigen::Triplet<double>> tripletList;
     // initialize corner angles corresponding to edge lengths
     CornerData<double> theta = InitializeCornerAngles(lambda);
     for (Face f: mesh->faces()) {
-        tripletList.push_back(T(1,1,1));
+        Halfedge h = f.halfedge();
+        size_t ij = e_[h.edge()];
+        size_t jk = e_[h.next().edge()];
+        size_t ki = e_[h.next().next().edge()];
+        double cot_ijk = 1/tan(theta[h.corner()]);
+        double cot_jki = 1/tan(theta[h.next().corner()]);
+        double cot_kij = 1/tan(theta[h.next().next().corner()]);
+        // diagonal entries
+        tripletList.push_back(T(ij, ij, cot_ijk + cot_jki));
+        tripletList.push_back(T(jk, jk, cot_jki + cot_kij));
+        tripletList.push_back(T(ki, ki, cot_kij + cot_ijk));
+        // off diagonal entries
+        tripletList.push_back(T(ij, jk, -cot_jki));
+        tripletList.push_back(T(jk, ki, -cot_kij));
+        tripletList.push_back(T(ki, ij, -cot_ijk));
+        // symmetric off diagonal entries
+        tripletList.push_back(T(jk, ij, -cot_jki));
+        tripletList.push_back(T(ki, jk, -cot_kij));
+        tripletList.push_back(T(ij, ki, -cot_ijk));
     }
     H.setFromTriplets(tripletList.begin(), tripletList.end());
     return H;
 }
+// Input: A triangulation with edge lengths l : E -> R>0,
+// and circumcircle intersection angles 𝜂ij that are compatible
+// with some coherent angle system. A parameter 𝜀 > 0 determines 
+// the stopping tolerance, and parameters 𝛼 ∈ (0, 1/2),
+// 𝛽 ∈ (0, 1) control line search 
+// Output: New edge lengths l : 𝐸 → R that exhibit the prescribed
+// intersection angles.
 Eigen::VectorXd EdgeLengthOptimization::MinimizeLengthEnergy() {
     cout << "Starting length energy minimization" << endl;
     int k = 0;
-    Eigen::VectorXd x = Eigen::VectorXd::Zero(n);
+    Eigen::VectorXd x = l0;
 
     const double alpha = 0.5;
     const double beta = 0.3;
@@ -173,11 +205,7 @@ Eigen::VectorXd EdgeLengthOptimization::MinimizeLengthEnergy() {
     }
     return x;
 }
-void EdgeLengthOptimization::PrescribeCurvature() {
-}
-void EdgeLengthOptimization::LayoutMesh() {
 
-}
 /*
 void CircleWrapper::uvSVG(std::string filename) {
     EdgeData<size_t> e_ = mesh->getEdgeIndices();

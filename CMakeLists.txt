@@ -81,6 +81,7 @@ set(SRCS
   src/IntrinsicFlattening.cpp
   src/EmbeddingOptimization.cpp
   src/EdgeLengthOptimization.cpp
+  src/PrescribeCurvature.cpp
   src/Solver.cpp
 )
 
