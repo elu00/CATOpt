@@ -6,7 +6,8 @@
 // i and edge ij (resp.). Curvatures must satisfy the CAT Gauss-Bonnet condition from Equation 10.
 // Output: A CAT surface (T, \tilde l, \tilde 𝛽) with the prescribed curvatures. For 
 // convenience, we also return the corresponding edge bend angles \tilde \alpha
-void PrescribeCurvature(shared_ptr<ManifoldSurfaceMesh> mesh, EdgeData<double> l, CornerData<double> beta, 
+pair<EdgeData<double>, CornerData<double>> PrescribeCurvature(shared_ptr<ManifoldSurfaceMesh> mesh, 
+        EdgeData<double> l, CornerData<double> beta, 
         VertexData<double> VertexCurvatures, EdgeData<double> EdgeCurvatures) {
 
     VertexData<double> VertexCurvatureStar(*mesh);
@@ -37,18 +38,34 @@ void PrescribeCurvature(shared_ptr<ManifoldSurfaceMesh> mesh, EdgeData<double> l
             VertexCurvatureStar[i] = VertexCurvatures[i] + accum;
         }
     }
-    // TODO: add intrinsic flattening stuff in
-    /*
-    IntrinsicFlattening flattening(mesh); 
+    IntrinsicFlattening flattening(mesh, l); 
     // arguments are VertexData targetCurvatures, CornerData targetBetas
-    // output is pair
-    auto [A,B] = flattening.CoherentAngleSystem(
-    */
+    auto [thetaHat, betaHat] = flattening.CoherentAngleSystem(VertexCurvatureStar, beta);
 
     // calculate intersection angles from CAS
     EdgeData<double> eta(*mesh);
+    for (Edge e: mesh->edges()) {
+        if (e.isBoundary()) {
+            // calculate which of the halfedges is interior
+            Halfedge ij = e.halfedge().isInterior() ? e.halfedge() : e.halfedge().twin();
+            eta[e] = M_PI - thetaHat[ij.next().next()];
+        } else {
+            Halfedge ij = e.halfedge();
+            Halfedge ji = e.halfedge().twin();
+            eta[e] = M_PI - thetaHat[ij.next().next()] - thetaHat[ji.next().next()];
+        }
+    }
 
-    //EdgeData<double> lStar = MinimizeLengthEnergy(mesh);
+    EdgeLengthOptimization E(mesh, l, eta);
+    Eigen::VectorXd temp = E->MinimizeLengthEnergy();
+    EdgeData<double> lHat(*mesh);
+    EdgeData<size_t> eIndices = mesh->getEdgeIndices();
+    for (Edge e: mesh->edges()) {
+        lHat[e] = temp[eIndices[e]];
+    }
+
+    // TODO: double check why lines 7-10 of the pseudocode are there...
+    return {lHat, betaHat};
 }
 void LayoutMesh() {
 
