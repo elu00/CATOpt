@@ -70,12 +70,12 @@ void IntrinsicFlattening::nasoqTest() {
 //      Cx ≤ d
 //      Ex = f
 Eigen::VectorXd IntrinsicFlattening::QPSolve(
-    Eigen::SparseMatrix<double,Eigen::ColMajor,int> A,
-    Eigen::Matrix<double,Eigen::Dynamic,1> b,
-    Eigen::SparseMatrix<double,Eigen::ColMajor,int> C,
-    Eigen::Matrix<double,Eigen::Dynamic,1> d,
-    Eigen::SparseMatrix<double,Eigen::ColMajor,int> E,
-    Eigen::Matrix<double,Eigen::Dynamic,1> f) {
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int>& A,
+    Eigen::Matrix<double,Eigen::Dynamic,1>& b,
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int>& C,
+    Eigen::Matrix<double,Eigen::Dynamic,1>& d,
+    Eigen::SparseMatrix<double,Eigen::ColMajor,int>& E,
+    Eigen::Matrix<double,Eigen::Dynamic,1>& f) {
 
     Eigen::VectorXd x, y, z;
     // DEBUG
@@ -101,12 +101,28 @@ Eigen::VectorXd IntrinsicFlattening::QPSolve(
     cout << "status: " << status << endl;
     return x;
 }
+// returns the angle at corner i^jk given the edge lengths l_ij, l_jk, l_ki
+double IntrinsicFlattening::CornerAngle(double l_ij, double l_jk, double l_ki) {
+    if (l_ij > l_jk + l_ki || l_ki > l_ij + l_jk) return 0.0;
+    if (l_jk > l_ki + l_ij) return M_PI;
+    return acos((l_ij * l_ij - l_jk * l_jk + l_ki * l_ki)/(2 * l_ij * l_ki));
+}
+
 // constructor that just initializes all relevant geometric data
-IntrinsicFlattening::IntrinsicFlattening(shared_ptr<ManifoldSurfaceMesh> mesh,shared_ptr<VertexPositionGeometry> geometry):
-    mesh(mesh), geometry(geometry) {
-    geometry->requireEdgeLengths();
-    geometry->requireVertexGaussianCurvatures();
-    geometry->requireVertexAngleSums();
+IntrinsicFlattening::IntrinsicFlattening(shared_ptr<ManifoldSurfaceMesh> mesh, EdgeData<double> l):
+    mesh(mesh) {
+    // initialize corner angles
+    cornerAngles = CornerData<double>(*mesh);
+
+    for (Corner c: mesh->corners()) {
+        double l_ij = l[c.halfedge().edge()];
+        double l_jk = l[c.halfedge().next().edge()];
+        double l_ki = l[c.halfedge().next().next().edge()];
+        cornerAngles[c] = CornerAngle(l_ij, l_jk, l_ki); 
+    }
+
+
+    // read off other geometric data
     nVertices = mesh->nVertices();
     nEdges = mesh->nEdges();
     nCorners = mesh->nCorners();
@@ -448,7 +464,7 @@ pair<vector<T>, vector<double>>IntrinsicFlattening::OffsetConstraints() {
         tripletList.push_back({index, nCorners + e_[c.halfedge().edge()], -1.});
         tripletList.push_back({index, nCorners + e_[c.halfedge().twin().next().edge()], -1.});
 
-        rhs[index]=geometry->cornerAngle(c);
+        rhs[index]=cornerAngles[c];
     }
     return {tripletList, rhs};
 }
@@ -459,7 +475,7 @@ CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
     CornerData<double> beta(*mesh);
     CornerData<double> originalAngles(*mesh);
     for (Corner c: mesh->corners()) {
-        originalAngles[c]=geometry->cornerAngle(c);
+        originalAngles[c]=cornerAngles[c];
     }
  
     // Minimizing ||beta - origAngles||
@@ -529,7 +545,7 @@ pair<EdgeData<double>, CornerData<double>> IntrinsicFlattening::solveFromPlane(d
     // get corner angles of input CAT mesh
     CornerData<double> targetBetas(*mesh);
     for (Corner c : mesh->corners()) {
-        targetBetas[c] = geometry->cornerAngle(c);
+        targetBetas[c] = cornerAngles[c];
     }
 
     // this next block should be replaced at some point
@@ -548,7 +564,7 @@ pair<EdgeData<double>, CornerData<double>> IntrinsicFlattening::solveFromPlane(d
             //targetCurvatures[v] = 2 * PI;
             double angleSum = 0.;
             for (Corner c: v.adjacentCorners()) {
-                angleSum += geometry->cornerAngle(c);
+                angleSum += cornerAngles[c];
             }
             //targetCurvatures[v] = PI - angleSum;
             targetCurvatures[v] = interpolationWeight * (2*PI/bdryCount) + (1-interpolationWeight) * (PI - angleSum);
@@ -569,7 +585,7 @@ pair<EdgeData<double>, CornerData<double>> IntrinsicFlattening::solveFromPlane(d
     double avgError = 0.;
     double maxError = 0.;
     for (Corner c: mesh->corners()) {
-        double error = abs(beta[c] - geometry->cornerAngle(c));
+        double error = abs(beta[c] - cornerAngles[c]);
         maxError = std::max(maxError, error);
         avgError += error;
     }

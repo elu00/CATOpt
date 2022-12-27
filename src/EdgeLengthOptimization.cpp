@@ -65,7 +65,7 @@ inline double EdgeLengthOptimization::Cl2(double x) {
 double EdgeLengthOptimization::CornerAngle(double l_ij, double l_jk, double l_ki) {
     if (l_ij > l_jk + l_ki || l_ki > l_ij + l_jk) return 0.0;
     if (l_jk > l_ki + l_ij) return M_PI;
-    return acos((l_ij * l_ij)/(2 * l_ij * l_ki));
+    return acos((l_ij * l_ij - l_jk * l_jk + l_ki * l_ki)/(2 * l_ij * l_ki));
 }
 // returns the angle at corner i^jk given the logarithmic edge lengths λ_ij, λ_jk, λ_ki
 double EdgeLengthOptimization::ExpCornerAngle(double lambda_ij, double lambda_jk, double lambda_ki) {

@@ -23,7 +23,8 @@ polyscope::SurfaceMesh *psMesh;
 // TODO: rewrite this
 void planarMapping(int N) {
     for (int m = 0; m <= N; m++){
-        IntrinsicFlattening flattener(mesh, geometry);
+        geometry->requireEdgeLengths();
+        IntrinsicFlattening flattener(mesh, geometry->edgeLengths);
         auto [thetas, betas] = flattener.solveFromPlane((double)m/(double)N);
 
         /*
@@ -37,7 +38,8 @@ EmbeddingOptimization* E;
 float t = 1e-4;
 // intrinsically flatten the mesh, then try to embed it in the plane with a N * N subdivision on each triangle.
 void embedding(int N) {
-    IntrinsicFlattening flattener(mesh, geometry);
+    geometry->requireEdgeLengths();
+    IntrinsicFlattening flattener(mesh, geometry->edgeLengths);
     cout << "solving intrinsic..." << endl;
     CornerData<double> beta = flattener.solveIntrinsicOnly();
     cout << "solved" << endl;
@@ -50,7 +52,8 @@ void embedding(int N) {
 }
 // TODO: rewrite this
 void surfaceToPlane() {
-    IntrinsicFlattening flattener(mesh, geometry);
+    geometry->requireEdgeLengths();
+    IntrinsicFlattening flattener(mesh, geometry->edgeLengths);
     /*
     EdgeData<double> intersectionAngles = flattener.solveKSS();
     CircleWrapper patterns(mesh, intersectionAngles, psMesh);
@@ -86,7 +89,7 @@ int main(int argc, char **argv) {
     // Make sure a mesh name was given
     if (!inputFilename) {
         inputMeshPath = "../meshes/beanhole.obj";
-        //inputMeshPath = "/home/elu/repos/catopt/meshes/square.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/beanhole.obj";
     } else {
         inputMeshPath = args::get(inputFilename);
     }
@@ -98,7 +101,7 @@ int main(int argc, char **argv) {
             "original geometry",
             geometry->inputVertexPositions, mesh->getFaceVertexList(),
             polyscopePermutations(*mesh));
-            */
+        */
 
     mesh->compress();
     polyscope::state::userCallback = myCallback;
@@ -108,7 +111,6 @@ int main(int argc, char **argv) {
     E->optimizeOneStep();
 
     //planarMapping(5);
-    //planarMapping(100);
 
     polyscope::show();
 
