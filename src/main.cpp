@@ -35,7 +35,8 @@ void planarMapping(int N) {
 }
 
 EmbeddingOptimization* E;
-float t = 1e-4;
+int subdivisions = 3;
+
 // intrinsically flatten the mesh, then try to embed it in the plane with a N * N subdivision on each triangle.
 void embedding(int N) {
     geometry->requireEdgeLengths();
@@ -48,7 +49,6 @@ void embedding(int N) {
     cout << "EmbeddingOptimization initialized" << endl;
     E->initializeLM();
     cout << "LM initialized" << endl;
-
 }
 // TODO: rewrite this
 void surfaceToPlane() {
@@ -60,10 +60,23 @@ void surfaceToPlane() {
     //patterns.solveKSS();
     */
 }
+bool LMInitialized = false;
+int MAX_ITERS = 100;
+double fairnessNormalization = 1.;
 void myCallback() {
-    ImGui::InputFloat("param value", &t, 0.01f, 1.0f);  // set a float variable
-    if (ImGui::Button("run subroutine")) {
-        E->optimizeOneStep();
+    ImGui::SliderInt("Number of subdivisions", &subdivisions, 2, 5);  // set a float variable
+    if (ImGui::Button("Create subdivisions")) {
+        embedding(subdivisions);
+        LMInitialized = true;
+    }
+    if (LMInitialized) {
+        ImGui::InputInt("Max iteration count", &MAX_ITERS, 1, 2000);  // set a float variable
+        ImGui::InputDouble("Fairness Weight", &fairnessNormalization, 0.01, 100.0);
+        if (ImGui::Button("Run LM")) {
+            //cout << E->fairnessNormalization << endl;
+            //E->fairnessNormalization = fairnessNormalization;
+            E->optimizeOneStep(MAX_ITERS);
+        }
     }
 }
 
@@ -89,28 +102,20 @@ int main(int argc, char **argv) {
     // Make sure a mesh name was given
     if (!inputFilename) {
         inputMeshPath = "../meshes/beanhole.obj";
-        inputMeshPath = "/home/elu/repos/catopt/meshes/beanhole.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/tetrahedron.obj";
     } else {
         inputMeshPath = args::get(inputFilename);
     }
     std::tie(mesh, geometry) = readManifoldSurfaceMesh(inputMeshPath);
     // polyscope sanity checks
     polyscope::init();
-    /*
     psMesh = polyscope::registerSurfaceMesh(
             "original geometry",
             geometry->inputVertexPositions, mesh->getFaceVertexList(),
             polyscopePermutations(*mesh));
-        */
 
     mesh->compress();
     polyscope::state::userCallback = myCallback;
-    // intrinsically flatten the mesh, then try to embed it in the plane with a s * s subdivision on each triangle.
-    size_t subdivisions = 3;
-    embedding(subdivisions);
-    E->optimizeOneStep();
-
-    //planarMapping(5);
 
     polyscope::show();
 

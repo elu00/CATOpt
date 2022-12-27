@@ -532,7 +532,8 @@ CornerData<double> IntrinsicFlattening::solveIntrinsicOnly() {
             for (Corner c: v.adjacentCorners()) {
                 accum += beta[c];
             }
-            cout << "angle sum: " << accum << endl;
+            // DEBUG
+            //cout << "angle sum: " << accum << endl;
         }
     }
     return beta;

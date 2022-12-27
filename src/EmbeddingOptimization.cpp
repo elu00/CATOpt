@@ -149,9 +149,13 @@ std::tuple<double, double, double> EmbeddingOptimization::baryCoords(int X, int 
     return {(1 - jWeight - kWeight), jWeight, kWeight};
 }
 
-EmbeddingOptimization::EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh, shared_ptr<VertexPositionGeometry> geometry, CornerData<double> beta) : mesh(mesh), geometry(geometry), beta(beta) {
+// constructor
+EmbeddingOptimization::EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh, 
+        shared_ptr<VertexPositionGeometry> geometry, CornerData<double> beta) 
+        : mesh(mesh), geometry(geometry), beta(beta) {
     // Initialize quantities
     intrinsicQuantitiesInitialized = false;
+    fairnessNormalization = 0.5;
     LMInitialized = false;
     geometry->requireEdgeLengths();
     geometry->requireVertexGaussianCurvatures();
@@ -343,9 +347,9 @@ void EmbeddingOptimization::buildIntrinsicCheckerboard(){
                 Vector2 l = RationalBezierTriangle(T,baryCoords(x, y+1));
                 Vector2 e20 = i - k;
                 Vector2 e31 = j - l;
-                c_iso_0[index] = 0.5*e20.norm2();
-                c_iso_1[index] = 0.5*e31.norm2();
-                c_iso_2[index] = 0.5*dot(e20,e31);
+                c_iso_0[index] = e20.norm2();
+                c_iso_1[index] = e31.norm2();
+                c_iso_2[index] = dot(e20,e31);
             }
         }
     }
@@ -423,10 +427,9 @@ inline void EmbeddingOptimization::addCenterTerm(Eigen::VectorXd& energy, const 
     Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
     Vector3 k = {v[3*kIndex], v[3*kIndex+1],v[3*kIndex+2]};
     Vector3 displacement = i-2*j+k;
-    const double normalization = 1;
-    energy[energyIndex] += displacement.x * normalization;
-    energy[energyIndex+1] += displacement.y * normalization;
-    energy[energyIndex+2] += displacement.z * normalization;
+    energy[energyIndex] += displacement.x * fairnessNormalization;
+    energy[energyIndex+1] += displacement.y * fairnessNormalization;
+    energy[energyIndex+2] += displacement.z * fairnessNormalization;
 }
 
 inline void EmbeddingOptimization::addCenterGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex) {
@@ -435,29 +438,28 @@ inline void EmbeddingOptimization::addCenterGradient(vector<Eigen::Triplet<doubl
     Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
     Vector3 k = {v[3*kIndex], v[3*kIndex+1],v[3*kIndex+2]};
 
-    const double normalization = 1;
     // i partials
-    tripletList.push_back(T(energyIndex,  3*iIndex,   normalization));
-    tripletList.push_back(T(energyIndex+1,3*iIndex+1, normalization));
-    tripletList.push_back(T(energyIndex+2,3*iIndex+2, normalization));
+    tripletList.push_back(T(energyIndex,  3*iIndex,   fairnessNormalization));
+    tripletList.push_back(T(energyIndex+1,3*iIndex+1, fairnessNormalization));
+    tripletList.push_back(T(energyIndex+2,3*iIndex+2, fairnessNormalization));
 
     // j partial: i - k
-    tripletList.push_back(T(energyIndex,  3*jIndex,   -2 * normalization));
-    tripletList.push_back(T(energyIndex+1,3*jIndex+1, -2 * normalization));
-    tripletList.push_back(T(energyIndex+2,3*jIndex+2, -2 * normalization));
+    tripletList.push_back(T(energyIndex,  3*jIndex,   -2 * fairnessNormalization));
+    tripletList.push_back(T(energyIndex+1,3*jIndex+1, -2 * fairnessNormalization));
+    tripletList.push_back(T(energyIndex+2,3*jIndex+2, -2 * fairnessNormalization));
 
 
     // k partials
-    tripletList.push_back(T(energyIndex,  3*kIndex,   normalization));
-    tripletList.push_back(T(energyIndex+1,3*kIndex+1, normalization));
-    tripletList.push_back(T(energyIndex+2,3*kIndex+2, normalization));
+    tripletList.push_back(T(energyIndex,  3*kIndex,   fairnessNormalization));
+    tripletList.push_back(T(energyIndex+1,3*kIndex+1, fairnessNormalization));
+    tripletList.push_back(T(energyIndex+2,3*kIndex+2, fairnessNormalization));
 }
 
 
 inline double cube(double x) {
     return x * x * x;
 }
-void EmbeddingOptimization::LMOneStep() {
+void EmbeddingOptimization::LMOneStep(int MAX_ITERS) {
     if (!LMInitialized) {
         throw std::runtime_error("Error: LM stuff not initialized yet");
         return;
@@ -470,7 +472,6 @@ void EmbeddingOptimization::LMOneStep() {
     const double tau = 1;
     const double eps1 = 1e-8;
     const double eps2 = 1e-8;
-    const int MAX_ITERS = 100;
     size_t k = 0;
 
     // initialize the Jacobian
@@ -479,8 +480,8 @@ void EmbeddingOptimization::LMOneStep() {
     evaluateJacobian(currentSolution, J);
     // compute the relevant things
     Eigen::SparseMatrix<double> A = J.transpose() * J;
-    Eigen::VectorXd f(LMValues);
-    Eigen::VectorXd fNew(LMValues);
+    Eigen::VectorXd f = Eigen::VectorXd::Zero(LMValues);
+    Eigen::VectorXd fNew = Eigen::VectorXd::Zero(LMValues);
     evaluateEnergy(currentSolution, f);
     cout << "INITIAL ENERGY" << f.norm() << endl;
     Eigen::VectorXd g = J.transpose() * f;
@@ -605,8 +606,8 @@ void EmbeddingOptimization::initializeLM() {
 }
 // Call the optimization procedure for one step, then update the mesh in
 // polyscope with the new vertex positions
-void EmbeddingOptimization::optimizeOneStep() {
-    LMOneStep();
+void EmbeddingOptimization::optimizeOneStep(int MAX_ITERS) {
+    LMOneStep(MAX_ITERS);
     VertexData<Vector3> positions(*submesh);
     VertexData<size_t> subVertexIndices = submesh->getVertexIndices();
     for (Vertex v: submesh->vertices()) {

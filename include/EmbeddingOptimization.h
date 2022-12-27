@@ -21,18 +21,20 @@ class EmbeddingOptimization {
         EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh, shared_ptr<VertexPositionGeometry> geometry, CornerData<double> beta);
         std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry>> initializeSubdivision(int N);
         void initializeLM();
-        void optimizeOneStep();
+        void optimizeOneStep(int MAX_ITERS = 1000);
+        double fairnessNormalization;
+    private:
         // main methods
         void evaluateEnergy(const Eigen::VectorXd& v, Eigen::VectorXd& energy);
         void evaluateJacobian(const Eigen::VectorXd& v, Eigen::SparseMatrix<double>& J);
 
-        void LMOneStep();
+
+        void LMOneStep(int MAX_ITERS);
         // current status of the solution
         Eigen::VectorXd initialSolution;
         Eigen::VectorXd currentSolution;
 
 
-    private:
         // pointers to geometric data associated to the original mesh
         int n;
         shared_ptr<ManifoldSurfaceMesh> mesh;
