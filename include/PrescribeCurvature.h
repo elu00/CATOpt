@@ -4,6 +4,7 @@
 #include <map>
 #include <iostream>
 #include <vector>
+#include <queue>
 #include <memory>
 #include <tuple>
 using std::cout;
@@ -14,3 +15,6 @@ using std::tuple;
 
 
 #include "Common.h"
+#include "Common.h"
+#include "EdgeLengthOptimization.h"
+#include "IntrinsicFlattening.h"

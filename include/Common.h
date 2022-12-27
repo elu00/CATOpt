@@ -17,7 +17,6 @@ using namespace geometrycentral;
 using namespace geometrycentral::surface;
 
 struct SolutionData {
-
    // for Riemann mapping only:
     Vertex infVertex; // vertex at infinity
     // marks edges/faces near vertex at infinity
