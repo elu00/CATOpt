@@ -62,19 +62,19 @@ void surfaceToPlane() {
 }
 bool LMInitialized = false;
 int MAX_ITERS = 100;
-double fairnessNormalization = 1.;
+double fairnessNormalization = 1e-5;
 void myCallback() {
-    ImGui::SliderInt("Number of subdivisions", &subdivisions, 2, 5);  // set a float variable
+    ImGui::SliderInt("Number of subdivisions", &subdivisions, 2, 5);  
     if (ImGui::Button("Create subdivisions")) {
         embedding(subdivisions);
         LMInitialized = true;
     }
     if (LMInitialized) {
-        ImGui::InputInt("Max iteration count", &MAX_ITERS, 1, 2000);  // set a float variable
-        ImGui::InputDouble("Fairness Weight", &fairnessNormalization, 0.01, 100.0);
+        ImGui::InputInt("Max iteration count", &MAX_ITERS, 1, 2000); 
+        ImGui::InputDouble("Fairness Weight", &fairnessNormalization, 1e-10, 100.0);
         if (ImGui::Button("Run LM")) {
             //cout << E->fairnessNormalization << endl;
-            //E->fairnessNormalization = fairnessNormalization;
+            E->fairnessNormalization = fairnessNormalization;
             E->optimizeOneStep(MAX_ITERS);
         }
     }
@@ -102,12 +102,17 @@ int main(int argc, char **argv) {
     // Make sure a mesh name was given
     if (!inputFilename) {
         inputMeshPath = "../meshes/beanhole.obj";
-        inputMeshPath = "/home/elu/repos/catopt/meshes/tetrahedron.obj";
+        //inputMeshPath = "/home/elu/repos/catopt/meshes/tetrahedron.obj";
     } else {
         inputMeshPath = args::get(inputFilename);
     }
     std::tie(mesh, geometry) = readManifoldSurfaceMesh(inputMeshPath);
     // polyscope sanity checks
+    //
+    /*
+    embedding(5);
+    E->optimizeOneStep(100);
+    */
     polyscope::init();
     psMesh = polyscope::registerSurfaceMesh(
             "original geometry",

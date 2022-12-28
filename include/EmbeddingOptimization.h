@@ -58,6 +58,8 @@ class EmbeddingOptimization {
         vector<double> c_iso_0;
         vector<double> c_iso_1;
         vector<double> c_iso_2;
+        vector<tuple<size_t, size_t, size_t, size_t>> quads;
+        vector<vector<size_t>> fairVertices;
         size_t nSubdividedVertices;
 
 
@@ -99,16 +101,15 @@ class EmbeddingOptimization {
         inline void addAngleGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, 
                 size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex, size_t lIndex, double target);
         inline void addCenterTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, 
-                size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex);
+                size_t energyIndex, vector<size_t>& indices);
         inline void addCenterGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, 
-                size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex);
+                size_t energyIndex, vector<size_t>& indices);
 
 
         // optimization values
         bool LMInitialized;
         size_t LMInputs;
         size_t LMValues;
-
         
         void basisFunctionDebugging();
 
