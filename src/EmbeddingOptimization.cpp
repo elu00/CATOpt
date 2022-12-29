@@ -377,9 +377,9 @@ void EmbeddingOptimization::buildIntrinsicCheckerboard(){
                 Vector2 l = RationalBezierTriangle(T,baryCoords(x, y+1));
                 Vector2 e20 = i - k;
                 Vector2 e31 = j - l;
-                c_iso_0[quadIndex] = e20.norm2()/2;
-                c_iso_1[quadIndex] = e31.norm2()/2;
-                c_iso_2[quadIndex] = dot(e20,e31)/2;
+                c_iso_0[quadIndex] = e20.norm2()*2;
+                c_iso_1[quadIndex] = e31.norm2()*2;
+                c_iso_2[quadIndex] = dot(e20,e31)*2;
             }
         }
     }
@@ -389,6 +389,7 @@ void EmbeddingOptimization::buildIntrinsicCheckerboard(){
     // allocate space
     fairVertices.clear();
 
+    /*
     VertexData<size_t> subVertexIndices = submesh->getVertexIndices();
     for (Vertex i: submesh->vertices()) {
         vector<size_t> neighbors = {subVertexIndices[i]};
@@ -397,7 +398,7 @@ void EmbeddingOptimization::buildIntrinsicCheckerboard(){
         }
         fairVertices.push_back(neighbors);
     }
-    /*
+    */
      for (Corner c: mesh->corners()) {
     // Recall that the subdivided grid looks like the following:
     //        (0,n-1) -> ... -> (n-1,n-1)
@@ -440,7 +441,6 @@ void EmbeddingOptimization::buildIntrinsicCheckerboard(){
         }
     }
     //assert(fairVertices.size() == nCorners * ((n-2)*(n-2) + n*(n-2)));
-    */
 }
 
 // ======================= Energy evaluation code ====================================
@@ -538,7 +538,7 @@ inline void EmbeddingOptimization::addCenterGradient(vector<Eigen::Triplet<doubl
 
     for (int n = 1; n < indices.size(); n++) {
         for (int i = 0; i < 3; i++) {
-            tripletList.push_back(T(energyIndex + i, 3 * centerIndex + i, fairnessNormalization));
+            tripletList.push_back(T(energyIndex + i, 3 * indices[n] + i, fairnessNormalization));
         }
     }
 }
@@ -705,6 +705,18 @@ void EmbeddingOptimization::optimizeOneStep(int MAX_ITERS) {
         positions[v] = {currentSolution[3*i],currentSolution[3*i+1],currentSolution[3*i+2]};
         //cout << positions[v] << endl;
     }
+    // calculate relative error
+    vector<double> error;
+    for (size_t quadIndex = 0; quadIndex < quads.size(); quadIndex++) {
+        // vertex indices
+        auto [i, j, k, l] = quads[quadIndex];
+        error.push_back( abs((positions[i]-positions[k]).norm2() / c_iso_0[quadIndex] -1 ));
+        error.push_back( abs((positions[j]-positions[l]).norm2() / c_iso_1[quadIndex] -1 ));
+    }
+    cout << "average relative error: " << std::reduce(error.begin(), error.end()) / error.size() << endl;
+    cout << "max relative error: " << (*std::max_element(error.begin(), error.end())) << endl;
+    cout << "min relative error: " << (*std::min_element(error.begin(), error.end())) << endl;
+
 
     polyscope::registerSurfaceMesh("Optimized Mesh", positions, submesh->getFaceVertexList());
 }
@@ -718,10 +730,8 @@ void EmbeddingOptimization::evaluateEnergy(
     size_t nQuads = nCorners * (n-1) * (n-1);
     // make sure we were given the right number of vertex coordinates
     assert(v.size() == 3 * nSubdividedVertices);
-
     // make sure the given energy summand vector is the right size; there are 3 * nQuads
     assert(energy.size() == 3 * nQuads + 3 * fairVertices.size());
-
     // fill the energy summand vector with the individual terms
     for (size_t quadIndex = 0; quadIndex < nQuads; quadIndex++) {
         // vertex indices
@@ -730,16 +740,13 @@ void EmbeddingOptimization::evaluateEnergy(
         addLengthTerm(energy, v, quadIndex + nQuads, j, l, c_iso_1[quadIndex]);
         addAngleTerm(energy, v, quadIndex + 2*nQuads, i, j, k, l, c_iso_2[quadIndex]);
     }
-
     for (int i = 0; i < fairVertices.size(); i++) {
         addCenterTerm(energy, v, 3 * nQuads + 3 * i, fairVertices[i]);
     }
-    
 
 }
 void EmbeddingOptimization::evaluateJacobian(const Eigen::VectorXd& v, Eigen::SparseMatrix<double>& J) {
     // number of fine quads
-    //cout << "evaluating jacobian" << endl;
     size_t nQuads = nCorners * (n-1) * (n-1);
     vector<Eigen::Triplet<double>> tripletList;
 
@@ -779,7 +786,6 @@ std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry> >E
 
     //===============DEBUG===================
     //basisFunctionDebugging();
-    //return {submesh, subgeometry};
     // initialize inital guess for x
     initialSolution = Eigen::VectorXd::Zero(3*nSubdividedVertices);
     for (Corner c: mesh->corners()) {

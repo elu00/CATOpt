@@ -62,7 +62,7 @@ void surfaceToPlane() {
 }
 bool LMInitialized = false;
 int MAX_ITERS = 100;
-double fairnessNormalization = 1e-5;
+double fairnessNormalization = 0;
 void myCallback() {
     ImGui::SliderInt("Number of subdivisions", &subdivisions, 2, 5);  
     if (ImGui::Button("Create subdivisions")) {
@@ -102,7 +102,7 @@ int main(int argc, char **argv) {
     // Make sure a mesh name was given
     if (!inputFilename) {
         inputMeshPath = "../meshes/beanhole.obj";
-        //inputMeshPath = "/home/elu/repos/catopt/meshes/tetrahedron.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/tetrahedron.obj";
     } else {
         inputMeshPath = args::get(inputFilename);
     }
@@ -114,10 +114,12 @@ int main(int argc, char **argv) {
     E->optimizeOneStep(100);
     */
     polyscope::init();
+    /*
     psMesh = polyscope::registerSurfaceMesh(
             "original geometry",
             geometry->inputVertexPositions, mesh->getFaceVertexList(),
             polyscopePermutations(*mesh));
+            */
 
     mesh->compress();
     polyscope::state::userCallback = myCallback;
