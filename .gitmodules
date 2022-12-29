@@ -5,6 +5,3 @@
 [submodule "deps/polyscope"]
 	path = deps/polyscope
 	url = https://github.com/nmwsharp/polyscope.git
-[submodule "deps/boundary-first-flattening"]
-	path = deps/boundary-first-flattening
-	url = https://github.com/GeometryCollective/boundary-first-flattening

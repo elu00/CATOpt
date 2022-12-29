@@ -1,44 +1,89 @@
-#include "CatOpt.h"
-CatOpt::CatOpt(string s) {
-    inputMeshPath = s;
-    cout << "Initialized" << endl;
+#include "args/args.hxx"
+#include <string>
+#include <iostream>
+#include <memory>
 
-    // Load mesh
-    std::tie(mesh, geometry) = readManifoldSurfaceMesh(inputMeshPath);
 
-    
-    cout << "starting optimization" << endl;
-    initializeQuantities();
-    generateConstraints();
+#include "polyscope/polyscope.h"
+#include "polyscope/surface_mesh.h"
+using std::string;
+using std::shared_ptr;
 
-    //subdivision();
-    //buildNewMesh();
+#include "Common.h"
 
-    //fin = descent();
 
-    //conformalFlatten();
-    //testSVG();
+#include "IntrinsicFlattening.h"
+#include "EmbeddingOptimization.h"
 
+
+shared_ptr<ManifoldSurfaceMesh> mesh;
+shared_ptr<VertexPositionGeometry> geometry;
+polyscope::SurfaceMesh *psMesh;
+
+// TODO: rewrite this
+void planarMapping(int N) {
+    for (int m = 0; m <= N; m++){
+        geometry->requireEdgeLengths();
+        IntrinsicFlattening flattener(mesh, geometry->edgeLengths);
+        auto [thetas, betas] = flattener.solveFromPlane((double)m/(double)N);
+
+        /*
+        CircleWrapper patterns(mesh, betas, psMesh);
+        patterns.solve("fin" + std::string(3 - std::to_string(m).length(), '0') +  std::to_string(m) );
+        */
+    }
 }
-void CatOpt::polyscopeInit() {
-    cout << "Initializing Polyscope" << endl;
-    //polyscope::init("openGL_mock");
-    polyscope::init();
-    //polyscope::state::userCallback = myCallback;
-    // Register the mesh with polyscope
-    
-    psMesh = polyscope::registerSurfaceMesh("main",
-        geometry->inputVertexPositions, mesh->getFaceVertexList(),
-        polyscopePermutations(*mesh));
-    //generateVisualization();
-    // Give control to the polyscope gui
-    polyscope::show();
-    
+
+EmbeddingOptimization* E;
+int subdivisions = 3;
+
+// intrinsically flatten the mesh, then try to embed it in the plane with a N * N subdivision on each triangle.
+void embedding(int N) {
+    geometry->requireEdgeLengths();
+    IntrinsicFlattening flattener(mesh, geometry->edgeLengths);
+    cout << "solving intrinsic..." << endl;
+    CornerData<double> beta = flattener.solveIntrinsicOnly();
+    cout << "solved" << endl;
+    E = (new EmbeddingOptimization(mesh, geometry, beta));
+    auto [submesh, subgeometry] = E->initializeSubdivision(N);
+    cout << "EmbeddingOptimization initialized" << endl;
+    E->initializeLM();
+    cout << "LM initialized" << endl;
 }
+// TODO: rewrite this
+void surfaceToPlane() {
+    geometry->requireEdgeLengths();
+    IntrinsicFlattening flattener(mesh, geometry->edgeLengths);
+    /*
+    EdgeData<double> intersectionAngles = flattener.solveKSS();
+    CircleWrapper patterns(mesh, intersectionAngles, psMesh);
+    //patterns.solveKSS();
+    */
+}
+bool LMInitialized = false;
+int MAX_ITERS = 100;
+double fairnessNormalization = 0;
+void myCallback() {
+    ImGui::SliderInt("Number of subdivisions", &subdivisions, 2, 5);  
+    if (ImGui::Button("Create subdivisions")) {
+        embedding(subdivisions);
+        LMInitialized = true;
+    }
+    if (LMInitialized) {
+        ImGui::InputInt("Max iteration count", &MAX_ITERS, 1, 2000); 
+        ImGui::InputDouble("Fairness Weight", &fairnessNormalization, 1e-10, 100.0);
+        if (ImGui::Button("Run LM")) {
+            //cout << E->fairnessNormalization << endl;
+            E->fairnessNormalization = fairnessNormalization;
+            E->optimizeOneStep(MAX_ITERS);
+        }
+    }
+}
+
 int main(int argc, char **argv) {
     // Configure the argument parser
     string inputMeshPath;
-    args::ArgumentParser parser("");
+    args::ArgumentParser parser("mesh file name");
     args::Positional<std::string> inputFilename(parser, "mesh", "A mesh file.");
 
     // Parse args
@@ -56,23 +101,30 @@ int main(int argc, char **argv) {
 
     // Make sure a mesh name was given
     if (!inputFilename) {
-        //inputMeshPath = "/home/elu/repos/catopt/meshes/cube.obj";
-        inputMeshPath = "/home/elu/repos/catopt/meshes/spotwithhole.obj";
-        inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
-        inputMeshPath = "/home/elu/repos/catopt/meshes/beanhole.obj";
-        //inputMeshPath = "/home/elu/repos/catopt/meshes/nonconvex2.obj";
-        //inputMeshPath = "/home/elu/repos/catopt/meshes/test.obj";
-        //inputMeshPath = "/home/elu/repos/catopt/meshes/patch.obj";
-        //inputMeshPath = "/home/elu/repos/catopt/meshes/BumpyTorusPatch.obj";
+        inputMeshPath = "../meshes/beanhole.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/tetrahedron.obj";
     } else {
         inputMeshPath = args::get(inputFilename);
     }
-    CatOpt c (inputMeshPath);
-    //c.polyscopeInit();
-    c.generateConstraints();
-    c.conformalFlatten();
-    c.circlePatterns();
-    c.setOffsets();
-    
+    std::tie(mesh, geometry) = readManifoldSurfaceMesh(inputMeshPath);
+    // polyscope sanity checks
+    //
+    /*
+    embedding(5);
+    E->optimizeOneStep(100);
+    */
+    polyscope::init();
+    /*
+    psMesh = polyscope::registerSurfaceMesh(
+            "original geometry",
+            geometry->inputVertexPositions, mesh->getFaceVertexList(),
+            polyscopePermutations(*mesh));
+            */
+
+    mesh->compress();
+    polyscope::state::userCallback = myCallback;
+
+    polyscope::show();
+
     return EXIT_SUCCESS;
 }

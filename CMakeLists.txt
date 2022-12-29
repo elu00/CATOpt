@@ -30,7 +30,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STR
   # using Clang (linux or apple) or GCC
   message("Using clang/gcc compiler flags")
   SET(BASE_CXX_FLAGS "-std=c++17 -Wall -Wextra -Werror -g3")
-  SET(DISABLED_WARNINGS " -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function -Wno-deprecated-declarations -Wno-missing-braces -Wno-comment -Wno-reorder -Wno-sign-compare -Wno-switch -Wno-delete-non-virtual-dtor -Wno-deprecated-copy -Wno-catch-value -Wno-tautological-compare")
+  SET(DISABLED_WARNINGS " -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function -Wno-deprecated-declarations -Wno-missing-braces -Wno-comment -Wno-reorder -Wno-sign-compare -Wno-switch -Wno-delete-non-virtual-dtor -Wno-tautological-compare -Wno-type-limits -Wno-sequence-point -Wno-parentheses -Wno-catch-value -Wno-deprecated-copy")
   SET(TRACE_INCLUDES " -H -Wno-error=unused-command-line-argument")
 
   if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
@@ -71,30 +71,22 @@ endif()
 # == Deps
 add_subdirectory(deps/geometry-central)
 add_subdirectory(deps/polyscope)
-add_subdirectory(deps/mosek)
-#add_subdirectory(deps/catviz)
-add_subdirectory(deps/boundary-first-flattening)
+set(NASOQ_BLAS_BACKEND "OpenBLAS")
+add_subdirectory(deps/nasoq)
 
 # == Build our project stuff
 
 set(SRCS 
-  src/triangle.c
   src/main.cpp
-  src/intrinsicOptimization.cpp
-  src/flatteningOptimization.cpp
-  src/embeddingOptimization.cpp
-  src/circleWrapper.cpp
-  src/CirclePatterns.cpp
+  src/IntrinsicFlattening.cpp
+  src/EmbeddingOptimization.cpp
+  src/EdgeLengthOptimization.cpp
+  src/PrescribeCurvature.cpp
   src/Solver.cpp
 )
 
 add_executable(catopt "${SRCS}")
 target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include/" )
-target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/catviz/src" )
-target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/catviz/deps/glm" )
 target_include_directories(catopt PUBLIC "${SuiteSparse_INCLUDE_DIRS}")
 
-target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/boundary-first-flattening/project/include" )
-target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/boundary-first-flattening/mesh/include" )
-target_include_directories(catopt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/deps/boundary-first-flattening/linear-algebra/include" )
-target_link_libraries(catopt PUBLIC geometry-central polyscope mosek bff)
+target_link_libraries(catopt PUBLIC geometry-central polyscope nasoq_eigen)

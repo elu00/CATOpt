@@ -1,7 +1,9 @@
 #include "Solver.h"
 #include <deque>
 #define beta 0.9
-#define EPSILON 1e-9
+//DEBUG
+//#define EPSILON 1e-9
+#define EPSILON 1e-11
 #define MAX_ITERS 20000
 
 SolverF::SolverF():
