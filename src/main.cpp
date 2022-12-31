@@ -62,7 +62,7 @@ void surfaceToPlane() {
 }
 bool LMInitialized = false;
 int MAX_ITERS = 100;
-double fairnessNormalization = 0;
+double fairnessNormalization = 1;
 void myCallback() {
     ImGui::SliderInt("Number of subdivisions", &subdivisions, 2, 5);  
     if (ImGui::Button("Create subdivisions")) {
@@ -109,10 +109,6 @@ int main(int argc, char **argv) {
     std::tie(mesh, geometry) = readManifoldSurfaceMesh(inputMeshPath);
     // polyscope sanity checks
     //
-    /*
-    embedding(5);
-    E->optimizeOneStep(100);
-    */
     polyscope::init();
     /*
     psMesh = polyscope::registerSurfaceMesh(
