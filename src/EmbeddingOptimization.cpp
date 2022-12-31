@@ -389,6 +389,16 @@ void EmbeddingOptimization::buildIntrinsicCheckerboard(){
     // allocate space
     fairVertices.clear();
 
+    VertexData<size_t> subVertexIndices = submesh->getVertexIndices();
+    for (Vertex i: submesh->vertices()) {
+        vector<size_t> neighbors = {subVertexIndices[i]};
+        for (Vertex j: i.adjacentVertices()) {
+            neighbors.push_back(subVertexIndices[j]);
+        }
+        fairVertices.push_back(neighbors);
+    }
+    return;
+    /*
     for (Corner c: mesh->corners()) {
         // Recall that the subdivided grid looks like the following:
         //        (0,n-1) -> ... -> (n-1,n-1)
@@ -441,6 +451,7 @@ void EmbeddingOptimization::buildIntrinsicCheckerboard(){
         fairVertices.push_back(neighbors);
     }
     //assert(fairVertices.size() == nCorners * ((n-2)*(n-2) + n*(n-2)));
+    */
 }
 
 // ======================= Energy evaluation code ====================================
@@ -733,6 +744,28 @@ void EmbeddingOptimization::optimizeOneStep(int MAX_ITERS) {
         positions[v] = {currentSolution[3*i],currentSolution[3*i+1],currentSolution[3*i+2]};
         //cout << positions[v] << endl;
     }
+    // visualize fairness term
+
+    vector<Vector3> nodes;
+    vector<std::array<size_t, 2>> edges;
+    for (auto indices: fairVertices) {
+        size_t centerIndex = indices[0];
+
+        size_t centerNodeIndex = nodes.size();
+        Vector3 center = {currentSolution[3*centerIndex], currentSolution[3*centerIndex+1],currentSolution[3*centerIndex+2]};
+        nodes.push_back(center);
+
+        for (int n = 1; n < indices.size(); n++) {
+            size_t index = indices[n];
+
+            size_t neighborNodeIndex = nodes.size();
+            Vector3 neighbor = {currentSolution[3*index], currentSolution[3*index+1],currentSolution[3*index+2]};
+
+            nodes.push_back(2*center/3 + neighbor /3);
+            edges.push_back({centerNodeIndex, neighborNodeIndex});
+        }
+    }
+    polyscope::registerCurveNetwork("my network", nodes, edges);
     // calculate relative error
     vector<double> error;
     for (size_t quadIndex = 0; quadIndex < quads.size(); quadIndex++) {

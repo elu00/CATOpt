@@ -15,6 +15,7 @@ using std::tuple;
 
 
 #include "Common.h"
+#include "polyscope/curve_network.h"
 
 class EmbeddingOptimization {
     public:
