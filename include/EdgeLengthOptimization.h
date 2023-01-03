@@ -29,7 +29,7 @@ class EdgeLengthOptimization {
         int n;
         shared_ptr<ManifoldSurfaceMesh> mesh;
         // initial guess for edge lengths
-        Eigen::VectorXd l0;
+        Eigen::VectorXd lambda0;
         EdgeData<double> eta;
         size_t nEdges;
         EdgeData<size_t> e_;

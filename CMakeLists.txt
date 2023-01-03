@@ -77,12 +77,11 @@ add_subdirectory(deps/nasoq)
 # == Build our project stuff
 
 set(SRCS 
-  src/main.cpp
   src/IntrinsicFlattening.cpp
   src/EmbeddingOptimization.cpp
   src/EdgeLengthOptimization.cpp
   src/PrescribeCurvature.cpp
-  src/Solver.cpp
+  src/main.cpp
 )
 
 add_executable(catopt "${SRCS}")

@@ -2,7 +2,7 @@
 // Input: A CAT surface with edge lengths l : E -> R>0
 // and interior angles 𝛽 : C -> R, together with target Gaussian curvatures 
 // Ωi, Ωij at each interior vertex i and edge ij
-// (resp.), and target geodesic curvatures k𝑖, k𝑖𝑗 at each boundary vertex
+// (resp.), and target geodesic curvatures ki, kij at each boundary vertex
 // i and edge ij (resp.). Curvatures must satisfy the CAT Gauss-Bonnet condition from Equation 10.
 // Output: A CAT surface (T, \tilde l, \tilde 𝛽) with the prescribed curvatures. For 
 // convenience, we also return the corresponding edge bend angles \tilde \alpha
@@ -80,7 +80,7 @@ Vector2 FinishTriangle(Vector2 x_i, Vector2 x_j,
 inline std::tuple<Corner, Corner, Corner> Corners(Halfedge h) {
     return {h.corner(), h.next().corner(), h.next().next().corner()};
 }
-void LayoutMesh(shared_ptr<ManifoldSurfaceMesh> mesh, 
+CornerData<Vector2> LayoutMesh(shared_ptr<ManifoldSurfaceMesh> mesh, 
         EdgeData<double> l, EdgeData<bool> S) {
     CornerData<Vector2> x(*mesh);
 
@@ -116,5 +116,88 @@ void LayoutMesh(shared_ptr<ManifoldSurfaceMesh> mesh,
             }
         }
     }
+    return x;
+}
 
+// Input: A CAT surface with corner positions p: C -> R^2 and edge 
+// and interior angles 𝛽 : C -> R
+// Output: an SVG with the given corner positions and edge bend angles written to the specified filename
+void CATToSVG(shared_ptr<ManifoldSurfaceMesh> mesh, CornerData<Vector2> p,
+        CornerData<double> beta, std::string filename) {
+
+    CornerData<Vector2> offsetPositions(*mesh);
+   
+    double minX = p[mesh->corner(0)].x;
+    double maxX = p[mesh->corner(0)].x;
+    double minY = p[mesh->corner(0)].y;
+    double maxY = p[mesh->corner(0)].y;
+
+    // calculate min/max of corner positions
+    for (Corner c: mesh->corners()) {
+        minX = std::min(minX, p[c].x);
+        maxX = std::max(maxX, p[c].x);
+        minY = std::min(minY, p[c].y);
+        maxY = std::max(maxY, p[c].y);
+    }
+    double deltaX = maxX - minX;
+    double deltaY = maxY - minY;
+    //int width = ceil(deltaX);
+    //int height = ceil(deltaY);
+    int width = 100, height = 100;
+
+    // do renormalization
+    for (Corner c: mesh->corners()) {
+        Vector2 pos = p[c];
+        offsetPositions[c] = { (pos.x - minX) / deltaX * width, (pos.y - minY) / deltaY * height};
+    }
+         // initialize file I/O
+    std::ofstream ss(filename, std::ofstream::out);
+    
+    // SVG Header
+    ss << "<?xml version=\"1.0\" standalone=\"no\" ?>" << endl
+        << "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" "
+        "\"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">"
+        << endl
+        << "<svg width=\"" << width << "\" height=\"" << height << "2000\" "
+        "xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\" >"
+        << "<rect width=\"100%\" height =\"100%\" fill=\"#ffffff\"/>"
+        << endl;
+
+    // point labels
+    for (Corner c: mesh->corners()) {
+        ss << "<circle cx=\"" << offsetPositions[c].x << "\" cy=\""
+            << offsetPositions[c].y << "\" r=\"1\"/>" << endl;
+    }
+
+    // circular arcs
+    for (Halfedge h : mesh->halfedges()) {
+        Vector2 i = offsetPositions[h.corner()];
+        Vector2 j = offsetPositions[h.next().corner()];
+        // calculate arc length/radius
+        // DEBUG: fix this
+        double angle = 0;
+        // double angle = beta[h.edge()];
+        double radius = (i - j).norm() / abs(2 * sin(angle));
+        if (abs(angle) > 1e-7) {
+            // this flag is 0 if the drawn arc should be the "minor" arc
+            // and 1 if it should be the major arc
+            std::string largeArcFlag = std::abs(2 * angle) <= M_PI ? "0" : "1";
+            // sweep flag is 1 if going outward, 0 if going inward
+            // visually check this at some point
+            std::string sweepFlag = angle >= 0 ? "1" : "0";
+            ss << "<path d=\"M" << i.x << "," << i.y << " A" 
+                << radius << "," << radius << " 0 " << largeArcFlag
+                << " " << sweepFlag << " " << j.x<< "," << j.y
+                << "\" fill=\"none\" stroke=\"green\" stroke-width=\"2\" />"
+                << endl;
+        } else {
+            // flat line case
+            ss << "<line x1=\"" << i.x << "\" x2=\""
+                << j.x << "\" y1=\"" << i.y << "\" y2=\""
+                << j.y << "\" stroke=\"blue\" stroke-width=\"2\"/>"
+                << endl;
+        }
+    }
+    // footer
+    ss << "</svg>";
 }

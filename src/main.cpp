@@ -14,24 +14,41 @@ using std::shared_ptr;
 
 #include "IntrinsicFlattening.h"
 #include "EmbeddingOptimization.h"
+#include "PrescribeCurvature.h"
 
 
 shared_ptr<ManifoldSurfaceMesh> mesh;
 shared_ptr<VertexPositionGeometry> geometry;
 polyscope::SurfaceMesh *psMesh;
 
-// TODO: rewrite this
-void planarMapping(int N) {
-    for (int m = 0; m <= N; m++){
-        geometry->requireEdgeLengths();
-        IntrinsicFlattening flattener(mesh, geometry->edgeLengths);
-        auto [thetas, betas] = flattener.solveFromPlane((double)m/(double)N);
+// test to see if optimization stuff works
+void planarMapping() {
+    geometry->requireEdgeLengths();
 
-        /*
-        CircleWrapper patterns(mesh, betas, psMesh);
-        patterns.solve("fin" + std::string(3 - std::to_string(m).length(), '0') +  std::to_string(m) );
-        */
+    // calculate desired betas - in this case, we're just using the flat angles
+    geometry->requireCornerAngles();
+    CornerData<double> beta = geometry->cornerAngles;
+
+    // calculate desired vertex curvatures
+    VertexData<double> VertexCurvatures(*mesh); 
+    for (Vertex v: mesh->vertices()) {
+        double accum = v.isBoundary() ? M_PI : 2*M_PI;
+        for (Corner c: v.adjacentCorners()) {
+            accum -= beta[c];
+        }
     }
+
+
+    // calculate edge curvatures
+    EdgeData<double> EdgeCurvatures(*mesh);
+    for (Edge e: mesh->edges()) {
+        EdgeCurvatures[e] = 0;
+    }
+    auto [l, betaHat] = PrescribeCurvature(mesh, geometry->edgeLengths, beta, VertexCurvatures, EdgeCurvatures);
+    // Seam edges
+    EdgeData<bool> S(*mesh, false);
+    CornerData<Vector2> positions = LayoutMesh(mesh, l, S);
+    CATToSVG(mesh, positions, betaHat, "test.svg");
 }
 
 EmbeddingOptimization* E;
@@ -103,6 +120,7 @@ int main(int argc, char **argv) {
     if (!inputFilename) {
         inputMeshPath = "../meshes/beanhole.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/tetrahedron.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
     } else {
         inputMeshPath = args::get(inputFilename);
     }
@@ -118,9 +136,9 @@ int main(int argc, char **argv) {
             */
 
     mesh->compress();
-    polyscope::state::userCallback = myCallback;
-
-    polyscope::show();
+    planarMapping();
+    //polyscope::state::userCallback = myCallback;
+    //polyscope::show();
 
     return EXIT_SUCCESS;
 }

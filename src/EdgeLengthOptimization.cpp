@@ -7,16 +7,16 @@ EdgeLengthOptimization::EdgeLengthOptimization (shared_ptr<ManifoldSurfaceMesh> 
     // Initialize quantities
     nEdges = mesh->nEdges();
     e_ = mesh->getEdgeIndices();
-    l0 = Eigen::VectorXd::Zero(nEdges);
+    lambda0 = Eigen::VectorXd::Zero(nEdges);
 }
 EdgeLengthOptimization::EdgeLengthOptimization (shared_ptr<ManifoldSurfaceMesh> mesh, 
       EdgeData<double> l, EdgeData<double> eta) : mesh(mesh), eta(eta) {
     // Initialize quantities
     nEdges = mesh->nEdges();
     e_ = mesh->getEdgeIndices();
-    l0 = Eigen::VectorXd::Zero(nEdges);
+    lambda0 = Eigen::VectorXd::Zero(nEdges);
     for (Edge e: mesh->edges()) {
-        l0[e_[e]] = l[e];
+        lambda0[e_[e]] = log(l[e]);
     }
 }
 
@@ -63,6 +63,7 @@ inline double EdgeLengthOptimization::Cl2(double x) {
 
 // returns the angle at corner i^jk given the edge lengths l_ij, l_jk, l_ki
 double EdgeLengthOptimization::CornerAngle(double l_ij, double l_jk, double l_ki) {
+    //cout << l_ij << " " << l_jk << " " << l_ki << endl;
     if (l_ij > l_jk + l_ki || l_ki > l_ij + l_jk) return 0.0;
     if (l_jk > l_ki + l_ij) return M_PI;
     return acos((l_ij * l_ij - l_jk * l_jk + l_ki * l_ki)/(2 * l_ij * l_ki));
@@ -142,6 +143,7 @@ Eigen::SparseMatrix<double> EdgeLengthOptimization::LengthEnergyHessian(Eigen::V
         double cot_ijk = 1/tan(theta[h.corner()]);
         double cot_jki = 1/tan(theta[h.next().corner()]);
         double cot_kij = 1/tan(theta[h.next().next().corner()]);
+        cout << cot_ijk << " " << cot_jki << " " << cot_kij << endl;
         // diagonal entries
         tripletList.push_back(T(ij, ij, cot_ijk + cot_jki));
         tripletList.push_back(T(jk, jk, cot_jki + cot_kij));
@@ -168,16 +170,26 @@ Eigen::SparseMatrix<double> EdgeLengthOptimization::LengthEnergyHessian(Eigen::V
 Eigen::VectorXd EdgeLengthOptimization::MinimizeLengthEnergy() {
     cout << "Starting length energy minimization" << endl;
     int k = 0;
-    Eigen::VectorXd x = l0;
+    Eigen::VectorXd x = lambda0;
 
     const double alpha = 0.5;
     const double beta = 0.3;
     while (true) {
         // compute update direction
+        // debug stuff
+        cout << "iteration " << k << endl;
+        for (int i = 0; i < x.size(); i++) {
+            cout << x[i] << endl;
+        }
         Eigen::VectorXd g = -LengthEnergyGradient(x);
         Eigen::SparseMatrix<double> H = LengthEnergyHessian(x);
+        cout << "g size " << g.norm() << endl;
+        cout << "H size " << H.norm() << endl;
+
 
         Eigen::VectorXd mu = solvePositiveDefinite(H, g);
+        // debug
+        cout << "step size " << mu.norm() << endl;
         if (abs(mu.dot(g)) <= 2 * EPSILON) break;
 
 
@@ -206,65 +218,4 @@ Eigen::VectorXd EdgeLengthOptimization::MinimizeLengthEnergy() {
     return x;
 }
 
-/*
-void CircleWrapper::uvSVG(std::string filename) {
-    EdgeData<size_t> e_ = mesh->getEdgeIndices();
-    std::ofstream ss(filename, std::ofstream::out);
-    ss << "<?xml version=\"1.0\" standalone=\"no\" ?>" << endl
-        << "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" "
-        "\"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">"
-        << endl
-        << "<svg width=\"2000\" height=\"2000\" "
-        "xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\" >"
-        << "<rect width=\"100%\" height =\"100%\" fill=\"#ffffff\"/>"
-        << endl;
-    // point labels
-    for (Vertex v : mesh->vertices()) {
-        Eigen::Vector2d thing = uv[v];
-        ss << "<circle cx=\"" << shift(thing.x()) << "\" cy=\""
-            << shift(thing.y()) << "\" r=\"1\"/>" << endl;
-    }
 
-    // circle center thing
-    for (Edge e : mesh->edges()) {
-        Eigen::Vector2d i = uv[e.halfedge().vertex()];
-        Eigen::Vector2d j = uv[e.halfedge().twin().vertex()];
-        double angle = -circleSol[e_[e]];
-        // FROM NORMALIZATION
-        double radius = 500 * (i - j).norm() / abs(2 * sin(angle));
-        if (abs(angle) > 1e-7) {
-            std::string largeArcFlag =
-                std::abs(2 * angle) <= 3.14159265358979323846264 ? "0"
-                : "1";
-            // sweep flag is 1 if going outward, 0 if going inward
-            // debug: maybe circle inversion stuff changes this?
-            std::string sweepFlag = angle >= 0 ? "0" : "1";
-            //std::string sweepFlag = angle < 0 ? "0" : "1";
-            ss << "<path d=\"M" << shift(i.x()) << "," << shift(i.y())
-                << " A" << radius << "," << radius << " 0 " << largeArcFlag
-                << " " << sweepFlag << " " << shift(j.x()) << ","
-                << shift(j.y())
-                << "\" fill=\"none\" stroke=\"green\" stroke-width=\"2\" />"
-                << endl;
-        } else {
-            ss << "<line x1=\"" << shift(i.x()) << "\" x2=\""
-                << shift(j.x()) << "\" y1=\"" << shift(i.y()) << "\" y2=\""
-                << shift(j.y()) << "\" stroke=\"blue\" stroke-width=\"2\"/>"
-                << endl;
-        }
-    }
-    size_t count = 0;
-    size_t excl = 1;
-    for (Vertex v : mesh->boundaryLoop(0).adjacentVertices()) {
-        Eigen::Vector2d thing = uv[v];
-        if (count < excl) {
-            ss << "<circle fill=\"red\" cx=\"" << shift(thing.x()) << "\" cy=\""
-                << shift(thing.y()) << "\" r=\"5\"/>" << endl;
-        } 
-        count++;
-    }
-    // footer
-    ss << "</svg>";
-    std::cout << "done" << endl;
-}
-*/
