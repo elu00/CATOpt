@@ -104,7 +104,7 @@ double EdgeLengthOptimization::LengthEnergy(Eigen::VectorXd& lambda) {
 }
 
 Eigen::VectorXd EdgeLengthOptimization::LengthEnergyGradient(Eigen::VectorXd& lambda) {
-    Eigen::VectorXd g(nEdges);
+    Eigen::VectorXd g = Eigen::VectorXd::Zero(nEdges);
     // initialize corner angles
     CornerData<double> theta = InitializeCornerAngles(lambda);
     for (Edge e: mesh->edges()) {
