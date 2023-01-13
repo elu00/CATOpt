@@ -61,6 +61,7 @@ class EmbeddingOptimization {
         vector<double> c_iso_2;
         vector<tuple<size_t, size_t, size_t, size_t>> quads;
         vector<vector<size_t>> fairVertices;
+        double targetVolume;
         size_t nSubdividedVertices;
 
 
@@ -93,6 +94,7 @@ class EmbeddingOptimization {
 
         // Optimization routines
         double sqr(double x);
+        inline Vector3 indexToVector(size_t index, const Eigen::VectorXd& v);
         inline void addLengthTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, 
                 size_t energyIndex, size_t iIndex, size_t jIndex, double target);
         inline void addLengthGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, 
@@ -105,6 +107,15 @@ class EmbeddingOptimization {
                 size_t energyIndex, vector<size_t>& indices);
         inline void addCenterGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, 
                 size_t energyIndex, vector<size_t>& indices);
+        // volume calculations
+
+inline double tripProd(Vector3 i, Vector3 j, Vector3 k);
+inline double calculateVolume(const Eigen::VectorXd& v);
+        inline void addVolumeTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, 
+                size_t energyIndex, double targetVolume);
+inline void addVolumeGradient(vector<Eigen::Triplet<double>>& tripletList, 
+        const Eigen::VectorXd& v, size_t energyIndex);
+
 
 
         // optimization values

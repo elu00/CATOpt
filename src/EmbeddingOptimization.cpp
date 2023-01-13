@@ -385,10 +385,12 @@ void EmbeddingOptimization::buildIntrinsicCheckerboard(){
     }
     // ===============================Fairness energy stuff==================================
     // number of vertices for which we calculate the fairness term
-    // size_t nFairVertices = nCorners * ((n-2)*(n-2) + n*(n-2));
     // allocate space
     fairVertices.clear();
 
+    VertexData<size_t> subVertexIndices = submesh->getVertexIndices();
+    // "graph laplacian" type energy
+    /*
     VertexData<size_t> subVertexIndices = submesh->getVertexIndices();
     for (Vertex i: submesh->vertices()) {
         vector<size_t> neighbors = {subVertexIndices[i]};
@@ -398,7 +400,7 @@ void EmbeddingOptimization::buildIntrinsicCheckerboard(){
         fairVertices.push_back(neighbors);
     }
     return;
-    /*
+    */
     for (Corner c: mesh->corners()) {
         // Recall that the subdivided grid looks like the following:
         //        (0,n-1) -> ... -> (n-1,n-1)
@@ -417,11 +419,9 @@ void EmbeddingOptimization::buildIntrinsicCheckerboard(){
         // The total number of resulting terms in the energy per corner is 3*((n-2)*(n-2) + n*(n-2))
 
         size_t cVertexOffset = c_[c] * n * n; // base index for coarse quad vertices
-        size_t cOffset = 3 * c_[c] * ((n-2)*(n-2) + n*(n-2)); // local offset in this energy term
         // regularization term - horizontal
         for (int x = 0; x < n - 2; x++) {
             for (int y = 1; y < n - 1; y++) {
-                //size_t energyIndex = cOffset + 3*(x + (n-2) * (y-1));
                 size_t i = finalIndices[cVertexOffset + x + n*y];
                 size_t j = finalIndices[cVertexOffset + (x+1) + n*y];
                 size_t k = finalIndices[cVertexOffset + (x+2) + n*y];
@@ -432,7 +432,6 @@ void EmbeddingOptimization::buildIntrinsicCheckerboard(){
         // Note x is allowed to take the value n-1 here
         for (int x = 0; x < n; x++) {
             for (int y = 0; y < n - 2; y++) {
-                //size_t energyIndex = cOffset + 3 * (n-2) * (n-2) + 3*(x + n * y);
                 size_t i = finalIndices[cVertexOffset + x + n*y];
                 size_t j = finalIndices[cVertexOffset + x + n*(y+1)];
                 size_t k = finalIndices[cVertexOffset + x + n*(y+2)];
@@ -440,7 +439,55 @@ void EmbeddingOptimization::buildIntrinsicCheckerboard(){
             }
         }
     }
-    VertexData<size_t> subVertexIndices = submesh->getVertexIndices();
+    // regularizer for the center vertex on each edge
+    // I do some probably unnecessarily complicated stuff here to account for boundary; 
+    // I should check if it's necessary.
+    for (Edge e: mesh->edges()) {
+        // grab the two associated corners
+        Corner c1 = e.halfedge().isInterior() ? e.halfedge().corner() : e.halfedge().twin().corner();
+        Corner c2 = c1.halfedge().next().corner();
+        // find the index for the midpoint vertex
+        size_t centerIndex = finalIndices[c_[c1] * n * n + (n-1)];
+        size_t leftIndex   = finalIndices[c_[c1] * n * n + (n-2)];
+        size_t rightIndex  = finalIndices[c_[c2] * n * n + n * (n-2)];
+        fairVertices.push_back({centerIndex, leftIndex, rightIndex});
+    }
+    // Regularizer for edges like the following:
+    //        _____________________
+    //       /                    /
+    //      .....................
+    //     /                    /
+    //    /         (n-2) <-> (n-1,y) <-> (y, n-2) (on the other corner)
+    //   /                    /
+    //   ---------------------
+    //
+    for (Corner c1: mesh->corners()) {
+        Corner c2 = c1.halfedge().next().corner();
+        for (int y = 1; y < n - 1; y++) {
+            size_t centerIndex = finalIndices[c_[c1] * n * n + (n-1) + n * y];
+            size_t leftIndex   = finalIndices[c_[c1] * n * n + (n-2) + n * y];
+            size_t rightIndex  = finalIndices[c_[c2] * n * n +   y   + n * (n-2)];
+            fairVertices.push_back({centerIndex, leftIndex, rightIndex});
+        }
+    }
+
+
+    // "triple point" regularizer
+    // for each face, we add a regularization term for the center vertex and it's 3 neighbors, which are all in 
+    // distinct "corner quads"
+    for (Face f: mesh->faces()) {
+        Corner c = f.halfedge().corner();
+        size_t centerVertexIndex = finalIndices[c_[c] * n * n + (n-1) + (n-1) * n]; 
+        Vertex i = submesh->vertex(centerVertexIndex);
+        vector<size_t> neighbors = {centerVertexIndex};
+        for (Vertex j: i.adjacentVertices()) {
+            neighbors.push_back(subVertexIndices[j]);
+        }
+        fairVertices.push_back(neighbors);
+    }
+
+    // regularizer for vertices of original mesh
+    /*
     for (Vertex v0: mesh->vertices()) {
         size_t subdividedIndex = finalIndices[c_[v0.corner()] * n * n];
         Vertex i = submesh->vertex(subdividedIndex);
@@ -450,17 +497,21 @@ void EmbeddingOptimization::buildIntrinsicCheckerboard(){
         }
         fairVertices.push_back(neighbors);
     }
-    //assert(fairVertices.size() == nCorners * ((n-2)*(n-2) + n*(n-2)));
     */
+    
+    //assert(fairVertices.size() == nCorners * ((n-2)*(n-2) + n*(n-2)));
 }
 
 // ======================= Energy evaluation code ====================================
 inline double EmbeddingOptimization::sqr(double x) { return x * x; }
+inline Vector3 EmbeddingOptimization::indexToVector(size_t index, const Eigen::VectorXd& v) {
+    return {v[3*index], v[3*index + 1], v[3*index + 2]};
+}
 // Given indices for vertices i, j
 // adds the term (|i-j|^2 - target) and it's corresponding gradient to the energy
 inline void EmbeddingOptimization::addLengthTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, double target) {
-    Vector3 vi = {v[3*iIndex], v[3*iIndex+1],v[3*iIndex+2]};
-    Vector3 vj = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
+    Vector3 vi = indexToVector(iIndex, v);
+    Vector3 vj = indexToVector(jIndex, v);
 
     const double normalization = 1;
     energy[energyIndex] = ((vi-vj).norm2() - target) * normalization;
@@ -468,101 +519,88 @@ inline void EmbeddingOptimization::addLengthTerm(Eigen::VectorXd& energy, const 
 
 inline void EmbeddingOptimization::addLengthGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, double target) {
     typedef Eigen::Triplet<double> T;
-    Vector3 i = {v[3*iIndex], v[3*iIndex+1],v[3*iIndex+2]};
-    Vector3 j = {v[3*jIndex], v[3*jIndex+1],v[3*jIndex+2]};
 
     const double normalization = 1;
-    // i gradients
-    tripletList.push_back(T(energyIndex,3*iIndex,   2 *(i.x - j.x) * normalization));
-    tripletList.push_back(T(energyIndex,3*iIndex+1, 2 *(i.y - j.y) * normalization));
-    tripletList.push_back(T(energyIndex,3*iIndex+2, 2 *(i.z - j.z) * normalization));
-
-    // j gradients
-    tripletList.push_back(T(energyIndex,3*jIndex,   2 *(j.x - i.x) * normalization));
-    tripletList.push_back(T(energyIndex,3*jIndex+1, 2 *(j.y - i.y) * normalization));
-    tripletList.push_back(T(energyIndex,3*jIndex+2, 2 *(j.z - i.z) * normalization));
+    for (int d = 0; d < 3; d++) {
+        // i gradients
+        tripletList.push_back(T(energyIndex,3*iIndex+d, 2 * (v[3*iIndex + d] - v[3*jIndex + d]) * normalization));
+        // j gradients
+        tripletList.push_back(T(energyIndex,3*jIndex+d, 2 * (v[3*jIndex + d] - v[3*iIndex + d]) * normalization));
+    }
 }
 
-inline void EmbeddingOptimization::addAngleTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex, size_t lIndex, double target) {
-    Vector3 vi = {v[3*iIndex], v[3*iIndex+1], v[3*iIndex+2]};
-    Vector3 vj = {v[3*jIndex], v[3*jIndex+1], v[3*jIndex+2]};
-    Vector3 vk = {v[3*kIndex], v[3*kIndex+1], v[3*kIndex+2]};
-    Vector3 vl = {v[3*lIndex], v[3*lIndex+1], v[3*lIndex+2]};
+inline void EmbeddingOptimization::addAngleTerm(Eigen::VectorXd& energy, 
+        const Eigen::VectorXd& v, size_t energyIndex, 
+        size_t iIndex, size_t jIndex, size_t kIndex, size_t lIndex, double target) {
+    Vector3 vi = indexToVector(iIndex, v);
+    Vector3 vj = indexToVector(jIndex, v);
+    Vector3 vk = indexToVector(kIndex, v);
+    Vector3 vl = indexToVector(lIndex, v);
+
     const double normalization = 1;
     energy[energyIndex] = (dot(vi-vk,vj-vl) - target) * normalization;
 }
 
-inline void EmbeddingOptimization::addAngleGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex, size_t lIndex, double target) {
+inline void EmbeddingOptimization::addAngleGradient(vector<Eigen::Triplet<double>>& tripletList, 
+        const Eigen::VectorXd& v, size_t energyIndex, 
+        size_t iIndex, size_t jIndex, size_t kIndex, size_t lIndex, double target) {
     typedef Eigen::Triplet<double> T;
-    Vector3 i = {v[3*iIndex], v[3*iIndex+1], v[3*iIndex+2]};
-    Vector3 j = {v[3*jIndex], v[3*jIndex+1], v[3*jIndex+2]};
-    Vector3 k = {v[3*kIndex], v[3*kIndex+1], v[3*kIndex+2]};
-    Vector3 l = {v[3*lIndex], v[3*lIndex+1], v[3*lIndex+2]};
 
     const double normalization = 1;
     // i partial: j - l
-    tripletList.push_back(T(energyIndex,3*iIndex,   j.x - l.x * normalization));
-    tripletList.push_back(T(energyIndex,3*iIndex+1, j.y - l.y * normalization));
-    tripletList.push_back(T(energyIndex,3*iIndex+2, j.z - l.z * normalization));
+    for (int d = 0; d < 3; d++) {
+        tripletList.push_back(T(energyIndex,3*iIndex, v[3*jIndex+d] - v[3*lIndex+d] * normalization));
 
-    // k partial: l - j
-    tripletList.push_back(T(energyIndex,3*kIndex,   l.x - j.x * normalization));
-    tripletList.push_back(T(energyIndex,3*kIndex+1, l.y - j.y * normalization));
-    tripletList.push_back(T(energyIndex,3*kIndex+2, l.z - j.z * normalization));
+        // k partial: l - j
+        tripletList.push_back(T(energyIndex,3*kIndex, v[3*lIndex+d] - v[3*jIndex+d] * normalization));
 
-    // j partial: i - k
-    tripletList.push_back(T(energyIndex,3*jIndex,   i.x - k.x * normalization));
-    tripletList.push_back(T(energyIndex,3*jIndex+1, i.y - k.y * normalization));
-    tripletList.push_back(T(energyIndex,3*jIndex+2, i.z - k.z * normalization));
+        // j partial: i - k
+        tripletList.push_back(T(energyIndex,3*jIndex, v[3*iIndex+d] - v[3*kIndex+d] * normalization));
 
-    // l partial: k - i
-    tripletList.push_back(T(energyIndex,3*lIndex,   k.x - i.x * normalization));
-    tripletList.push_back(T(energyIndex,3*lIndex+1, k.y - i.y * normalization));
-    tripletList.push_back(T(energyIndex,3*lIndex+2, k.z - i.z * normalization));
+        // l partial: k - i
+        tripletList.push_back(T(energyIndex,3*lIndex, v[3*kIndex+d] - v[3*iIndex+d] * normalization));
+    }
 }
 
 // indices is a vector consisting of [center term, neighbors].
 // The corresponding contribution to the energy is || # neighbors * center position - Σ neighbors ||^2 
-inline void EmbeddingOptimization::addCenterTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, 
-        size_t energyIndex, vector<size_t>& indices) {
+inline void EmbeddingOptimization::addCenterTerm(Eigen::VectorXd& energy, 
+        const Eigen::VectorXd& v, size_t energyIndex, vector<size_t>& indices) {
     size_t nNeighbors = indices.size() - 1;
     size_t centerIndex = indices[0];
 
-    if (nNeighbors > 2) fairnessNormalization *= 5;
 
     // the position of the desired center
-    Vector3 center = {v[3*centerIndex], v[3*centerIndex+1],v[3*centerIndex+2]};
+    Vector3 center = indexToVector(centerIndex,v);
     // the center of neighbors
     Vector3 average = {0,0,0};
 
     for (int n = 1; n < indices.size(); n++) {
         size_t index = indices[n];
-        average += {v[3*index], v[3*index+1],v[3*index+2]};
+        average += indexToVector(index,v);
     }
     average /= nNeighbors;
     Vector3 difference = center - average;
     energy[energyIndex] = ((center-average).norm2() ) * fairnessNormalization;
 
-    if (nNeighbors > 2) fairnessNormalization /= 5;
 }
 
-inline void EmbeddingOptimization::addCenterGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, 
-        size_t energyIndex, vector<size_t>& indices) {
+inline void EmbeddingOptimization::addCenterGradient(vector<Eigen::Triplet<double>>& tripletList, 
+        const Eigen::VectorXd& v, size_t energyIndex, vector<size_t>& indices) {
     typedef Eigen::Triplet<double> T;
 
     size_t nNeighbors = indices.size() - 1;
     size_t centerIndex = indices[0];
 
-    if (nNeighbors > 2) fairnessNormalization *= 5;
 
      // the position of the desired center
-    Vector3 center = {v[3*centerIndex], v[3*centerIndex+1],v[3*centerIndex+2]};
+    Vector3 center = indexToVector(centerIndex,v);
     // the center of neighbors
     Vector3 average = {0,0,0};
 
     for (int n = 1; n < indices.size(); n++) {
         size_t neighborIndex = indices[n];
-        average += {v[3*neighborIndex], v[3*neighborIndex+1],v[3*neighborIndex+2]};
+        average += indexToVector(neighborIndex,v);
     }
     average /= nNeighbors;
     Vector3 difference = center - average;
@@ -579,7 +617,59 @@ inline void EmbeddingOptimization::addCenterGradient(vector<Eigen::Triplet<doubl
         tripletList.push_back(T(energyIndex,3*neighborIndex+2, -2*(difference.z) * fairnessNormalization/nNeighbors));
     }
 
-    if (nNeighbors > 2) fairnessNormalization /= 5;
+}
+
+// volume calculations
+inline double EmbeddingOptimization::tripProd(Vector3 i, Vector3 j, Vector3 k) {
+    return dot(i, cross(j,k));
+}
+
+inline double EmbeddingOptimization::calculateVolume(const Eigen::VectorXd& v) {
+    double volume = 0.0;
+    VertexData<size_t> subVertexIndices = submesh->getVertexIndices();
+    for (Face f: submesh->faces()) {
+        vector<size_t> vertexIndices 
+            = {subVertexIndices[f.halfedge().vertex()],
+                subVertexIndices[f.halfedge().next().vertex()],
+                subVertexIndices[f.halfedge().next().next().vertex()],
+                subVertexIndices[f.halfedge().next().next().next().vertex()]};
+        vector<Vector3> V;
+        for (auto ind: vertexIndices) {
+            V.push_back(indexToVector(ind, v));
+        }
+        for (int i = 0; i < 4; i++) {
+            volume += tripProd(V[i], V[(i+1)%4],V[(i+2)%4])/12.;
+        }
+    }
+    cout << "current volume is" << volume << endl;
+    return volume;
+}
+inline void EmbeddingOptimization::addVolumeTerm(Eigen::VectorXd& energy, 
+        const Eigen::VectorXd& v, size_t energyIndex, double targetVolume) {
+    energy[energyIndex] = (calculateVolume(v) - targetVolume)/10;
+}
+
+inline void EmbeddingOptimization::addVolumeGradient(vector<Eigen::Triplet<double>>& tripletList, 
+        const Eigen::VectorXd& v, size_t energyIndex) {
+    typedef Eigen::Triplet<double> T;
+    VertexData<size_t> subVertexIndices = submesh->getVertexIndices();
+    for (Face f: submesh->faces()) {
+        vector<size_t> vertexIndices 
+            = {subVertexIndices[f.halfedge().vertex()],
+                subVertexIndices[f.halfedge().next().vertex()],
+                subVertexIndices[f.halfedge().next().next().vertex()],
+                subVertexIndices[f.halfedge().next().next().next().vertex()]};
+        vector<Vector3> V;
+        for (auto ind: vertexIndices) {
+            V.push_back(indexToVector(ind, v));
+        }
+        for (int i = 0; i < 4; i++) {
+            Vector3 grad = cross(V[(i+1)%4],V[(i+2)%4]) + cross(V[(i+2)%4],V[(i+3)%4])+ cross(V[(i+1)%4],V[(i+3)%4]);
+            tripletList.push_back(T(energyIndex,3*vertexIndices[i] + 0, grad.x/120.));
+            tripletList.push_back(T(energyIndex,3*vertexIndices[i] + 1, grad.y/120.));
+            tripletList.push_back(T(energyIndex,3*vertexIndices[i] + 2, grad.z/120.));
+        }
+    }
 }
 
 
@@ -718,12 +808,10 @@ void EmbeddingOptimization::initializeLM() {
     size_t nQuads = nCorners * (n-1) * (n-1);
     size_t nFairVertices = fairVertices.size();
 
-    LMValues = 3*nQuads + nFairVertices;
-    /*
-    // the energy functor calls this->evaluateEnergy to evaluate the objective
-    // and this->evaluateJacobian for the Jacobian
-    EnergyFunctor EF(nCoordinates, values, this);
-    */
+    LMValues = 3*nQuads + nFairVertices + 1;
+
+    targetVolume = 10 * calculateVolume(currentSolution);
+    cout << "target volume is " << targetVolume << endl;
 
 
     // make sure that the size of the vertex position vector x agrees with the
@@ -765,7 +853,7 @@ void EmbeddingOptimization::optimizeOneStep(int MAX_ITERS) {
             edges.push_back({centerNodeIndex, neighborNodeIndex});
         }
     }
-    polyscope::registerCurveNetwork("my network", nodes, edges);
+    polyscope::registerCurveNetwork("fairness terms", nodes, edges);
     // calculate relative error
     vector<double> error;
     for (size_t quadIndex = 0; quadIndex < quads.size(); quadIndex++) {
@@ -801,10 +889,12 @@ void EmbeddingOptimization::evaluateEnergy(
         addLengthTerm(energy, v, quadIndex + nQuads, j, l, c_iso_1[quadIndex]);
         addAngleTerm(energy, v, quadIndex + 2*nQuads, i, j, k, l, c_iso_2[quadIndex]);
     }
+    // center regularizer
     for (int i = 0; i < fairVertices.size(); i++) {
         addCenterTerm(energy, v, 3 * nQuads + i, fairVertices[i]);
     }
-
+    // volume term
+    addVolumeTerm(energy, v, 3 * nQuads + fairVertices.size(), targetVolume);
 }
 void EmbeddingOptimization::evaluateJacobian(const Eigen::VectorXd& v, Eigen::SparseMatrix<double>& J) {
     // number of fine quads
@@ -819,9 +909,12 @@ void EmbeddingOptimization::evaluateJacobian(const Eigen::VectorXd& v, Eigen::Sp
         addLengthGradient(tripletList, v, quadIndex + nQuads, j, l, c_iso_1[quadIndex]);
         addAngleGradient(tripletList, v, quadIndex + 2*nQuads, i, j, k, l, c_iso_2[quadIndex]);
     }
+    // regularization term
     for (int i = 0; i < fairVertices.size(); i++) {
         addCenterGradient(tripletList, v, 3 * nQuads + i, fairVertices[i]);
     }
+    // volume term
+    addVolumeGradient(tripletList, v, 3 * nQuads + fairVertices.size());
     // build Jacobian matrix from triplets
     J.setFromTriplets(tripletList.begin(), tripletList.end());
 }
@@ -842,11 +935,7 @@ std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry> >E
     // Initialize submesh and subgeometry
     buildSubdivision();
     cout << "built subdivision" << endl;
-    buildIntrinsicCheckerboard();
-    cout << "built intrinsic lengths" << endl;
-
-    //===============DEBUG===================
-    //basisFunctionDebugging();
+    
     // initialize inital guess for x
     initialSolution = Eigen::VectorXd::Zero(3*nSubdividedVertices);
     for (Corner c: mesh->corners()) {
@@ -861,6 +950,9 @@ std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry> >E
             }
         }
     }
+    buildIntrinsicCheckerboard();
+    cout << "built intrinsic lengths" << endl;
+
     intrinsicQuantitiesInitialized = true;
 
     //polyscope::show();

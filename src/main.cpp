@@ -120,7 +120,7 @@ int main(int argc, char **argv) {
     if (!inputFilename) {
         inputMeshPath = "../meshes/beanhole.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/tetrahedron.obj";
-        inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
+        //inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
     } else {
         inputMeshPath = args::get(inputFilename);
     }
@@ -136,9 +136,9 @@ int main(int argc, char **argv) {
             */
 
     mesh->compress();
-    planarMapping();
-    //polyscope::state::userCallback = myCallback;
-    //polyscope::show();
+    //planarMapping();
+    polyscope::state::userCallback = myCallback;
+    polyscope::show();
 
     return EXIT_SUCCESS;
 }
