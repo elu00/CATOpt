@@ -1,32 +1,30 @@
 #pragma once
-#include <memory>
+#include "glm/vec3.hpp"
 #include <cmath>
 #include <iostream>
+#include <memory>
 #include <tuple>
-#include "glm/vec3.hpp"
 
+#include "geometrycentral/numerical/linear_solvers.h"
+#include "geometrycentral/surface/edge_length_geometry.h"
 #include "geometrycentral/surface/manifold_surface_mesh.h"
 #include "geometrycentral/surface/meshio.h"
-#include "geometrycentral/surface/edge_length_geometry.h"
 #include "geometrycentral/surface/vertex_position_geometry.h"
-#include "geometrycentral/numerical/linear_solvers.h"
-using std::shared_ptr;
 using std::cout;
 using std::endl;
+using std::shared_ptr;
 using namespace geometrycentral;
 using namespace geometrycentral::surface;
 
 struct SolutionData {
-   // for Riemann mapping only:
+    // for Riemann mapping only:
     Vertex infVertex; // vertex at infinity
     // marks edges/faces near vertex at infinity
     EdgeData<bool> eMask;
-    EdgeData<bool> eBdry; 
+    EdgeData<bool> eBdry;
     FaceData<bool> fMask;
     CornerData<double> betas; // corner angles of circular arc triangulation
-    EdgeData<double> thetas; // circumcircle intersection angles
-
-
+    EdgeData<double> thetas;  // circumcircle intersection angles
 };
 
 struct BezierTriangle {

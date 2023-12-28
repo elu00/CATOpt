@@ -1,131 +1,139 @@
 #pragma once
 
 #include <algorithm>
-#include <tuple>
-#include <map>
 #include <iostream>
-#include <vector>
+#include <map>
 #include <memory>
 #include <tuple>
+#include <vector>
 using std::cout;
-using std::vector;
-using std::shared_ptr;
 using std::endl;
+using std::shared_ptr;
 using std::tuple;
-
+using std::vector;
 
 #include "Common.h"
 #include "polyscope/curve_network.h"
 
 class EmbeddingOptimization {
-    public:
-        EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh, shared_ptr<VertexPositionGeometry> geometry, CornerData<double> beta);
-        std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry>> initializeSubdivision(int N);
-        void initializeLM();
-        void optimizeOneStep(int MAX_ITERS = 1000);
-        double fairnessNormalization;
-    private:
-        // main methods
-        void evaluateEnergy(const Eigen::VectorXd& v, Eigen::VectorXd& energy);
-        void evaluateJacobian(const Eigen::VectorXd& v, Eigen::SparseMatrix<double>& J);
+  public:
+    EmbeddingOptimization(shared_ptr<ManifoldSurfaceMesh> mesh,
+                          shared_ptr<VertexPositionGeometry> geometry,
+                          CornerData<double> beta);
+    std::pair<shared_ptr<ManifoldSurfaceMesh>,
+              shared_ptr<VertexPositionGeometry>>
+    initializeSubdivision(int N);
+    void initializeLM();
+    void optimizeOneStep(int MAX_ITERS = 1000);
+    double fairnessNormalization;
 
+  private:
+    // main methods
+    void evaluateEnergy(const Eigen::VectorXd &v, Eigen::VectorXd &energy);
+    void evaluateJacobian(const Eigen::VectorXd &v,
+                          Eigen::SparseMatrix<double> &J);
 
-        void LMOneStep(int MAX_ITERS);
-        // current status of the solution
-        Eigen::VectorXd initialSolution;
-        Eigen::VectorXd currentSolution;
+    void LMOneStep(int MAX_ITERS);
+    // current status of the solution
+    Eigen::VectorXd initialSolution;
+    Eigen::VectorXd currentSolution;
 
+    // pointers to geometric data associated to the original mesh
+    int n;
+    shared_ptr<ManifoldSurfaceMesh> mesh;
+    shared_ptr<VertexPositionGeometry> geometry;
+    CornerData<double> beta;
+    // quantities to read off from the mesh
+    size_t nVertices;
+    size_t nEdges;
+    size_t nCorners;
+    size_t nFaces;
+    CornerData<size_t> c_;
+    FaceData<size_t> f_;
+    EdgeData<size_t> e_;
+    VertexData<size_t> v_;
 
-        // pointers to geometric data associated to the original mesh
-        int n;
-        shared_ptr<ManifoldSurfaceMesh> mesh;
-        shared_ptr<VertexPositionGeometry> geometry;
-        CornerData<double> beta;
-        // quantities to read off from the mesh
-        size_t nVertices;
-        size_t nEdges;
-        size_t nCorners;
-        size_t nFaces;
-        CornerData<size_t> c_;
-        FaceData<size_t> f_;
-        EdgeData<size_t> e_;
-        VertexData<size_t> v_;
+    // pointers to geometric data associated to the subdivided mesh
+    //
+    shared_ptr<ManifoldSurfaceMesh> submesh;
+    shared_ptr<VertexPositionGeometry> subgeometry;
+    vector<double> c_iso_0;
+    vector<double> c_iso_1;
+    vector<double> c_iso_2;
+    vector<tuple<size_t, size_t, size_t, size_t>> quads;
+    vector<vector<size_t>> fairVertices;
+    double targetVolume;
+    size_t nSubdividedVertices;
 
+    // internal convenience functions
+    double Angle(Vector2 u, Vector2 v);
+    std::tuple<double, double, double> bendAngles(double t1, double t2,
+                                                  double t3, double b1,
+                                                  double b2, double b3);
+    std::tuple<Vector2, Vector2, Vector2> projectToPlane(Vector3 i, Vector3 j,
+                                                         Vector3 k);
 
-        // pointers to geometric data associated to the subdivided mesh
-        //
-        shared_ptr<ManifoldSurfaceMesh> submesh;
-        shared_ptr<VertexPositionGeometry> subgeometry;
-        vector<double> c_iso_0;
-        vector<double> c_iso_1;
-        vector<double> c_iso_2;
-        vector<tuple<size_t, size_t, size_t, size_t>> quads;
-        vector<vector<size_t>> fairVertices;
-        double targetVolume;
-        size_t nSubdividedVertices;
+    BezierTriangle Coefficients(Vector3 I, Vector3 J, Vector3 K, double Bi,
+                                double Bj, double Bk);
+    BezierTriangle rotIndices(BezierTriangle T);
 
+    Vector2 RationalBezierTriangle(BezierTriangle T,
+                                   std::tuple<double, double, double> coords);
 
-        // internal convenience functions
-        double Angle(Vector2 u, Vector2 v); 
-        std::tuple<double, double, double> bendAngles(double t1, double t2, double t3, double b1, double b2, double b3);
-        std::tuple<Vector2,Vector2,Vector2> projectToPlane(Vector3 i, Vector3 j, Vector3 k);
+    // Union find functions and data structures
+    vector<int> top;
+    vector<int> next;
+    void merge(int a, int b);
+    int find(int a);
+    void buildEquivalenceClasses();
 
-        BezierTriangle Coefficients (Vector3 I, Vector3 J, Vector3 K, double Bi, double Bj, double Bk);
-        BezierTriangle rotIndices(BezierTriangle T);
+    // final indices built by reindexing union find stuff
+    vector<int> finalIndices;
+    int buildFinalIndices();
 
-        Vector2 RationalBezierTriangle(BezierTriangle T, std::tuple<double,double,double> coords);
+    // Subdivision routines
+    void buildSubdivision();
+    void buildIntrinsicCheckerboard();
+    bool intrinsicQuantitiesInitialized;
 
+    // Optimization routines
+    double sqr(double x);
+    inline Vector3 indexToVector(size_t index, const Eigen::VectorXd &v);
+    inline void addLengthTerm(Eigen::VectorXd &energy, const Eigen::VectorXd &v,
+                              size_t energyIndex, size_t iIndex, size_t jIndex,
+                              double target);
+    inline void addLengthGradient(vector<Eigen::Triplet<double>> &tripletList,
+                                  const Eigen::VectorXd &v, size_t energyIndex,
+                                  size_t iIndex, size_t jIndex, double target);
+    inline void addAngleTerm(Eigen::VectorXd &energy, const Eigen::VectorXd &v,
+                             size_t energyIndex, size_t iIndex, size_t jIndex,
+                             size_t kIndex, size_t lIndex, double target);
+    inline void addAngleGradient(vector<Eigen::Triplet<double>> &tripletList,
+                                 const Eigen::VectorXd &v, size_t energyIndex,
+                                 size_t iIndex, size_t jIndex, size_t kIndex,
+                                 size_t lIndex, double target);
+    inline void addCenterTerm(Eigen::VectorXd &energy, const Eigen::VectorXd &v,
+                              size_t energyIndex, vector<size_t> &indices);
+    inline void addCenterGradient(vector<Eigen::Triplet<double>> &tripletList,
+                                  const Eigen::VectorXd &v, size_t energyIndex,
+                                  vector<size_t> &indices);
+    // volume calculations
 
-        // Union find functions and data structures
-        vector<int> top;
-        vector<int> next;
-        void merge(int a, int b);
-        int find(int a);
-        void buildEquivalenceClasses();
+    inline double tripProd(Vector3 i, Vector3 j, Vector3 k);
+    inline double calculateVolume(const Eigen::VectorXd &v);
+    inline void addVolumeTerm(Eigen::VectorXd &energy, const Eigen::VectorXd &v,
+                              size_t energyIndex, double targetVolume);
+    inline void addVolumeGradient(vector<Eigen::Triplet<double>> &tripletList,
+                                  const Eigen::VectorXd &v, size_t energyIndex);
 
-        // final indices built by reindexing union find stuff
-        vector<int> finalIndices;
-        int buildFinalIndices();
+    // optimization values
+    bool LMInitialized;
+    size_t LMInputs;
+    size_t LMValues;
 
-        // Subdivision routines
-        void buildSubdivision();
-        void buildIntrinsicCheckerboard();
-        bool intrinsicQuantitiesInitialized;
+    void basisFunctionDebugging();
 
-        // Optimization routines
-        double sqr(double x);
-        inline Vector3 indexToVector(size_t index, const Eigen::VectorXd& v);
-        inline void addLengthTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, 
-                size_t energyIndex, size_t iIndex, size_t jIndex, double target);
-        inline void addLengthGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, 
-                size_t energyIndex, size_t iIndex, size_t jIndex, double target);
-        inline void addAngleTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, 
-                size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex, size_t lIndex, double target);
-        inline void addAngleGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, 
-                size_t energyIndex, size_t iIndex, size_t jIndex, size_t kIndex, size_t lIndex, double target);
-        inline void addCenterTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, 
-                size_t energyIndex, vector<size_t>& indices);
-        inline void addCenterGradient(vector<Eigen::Triplet<double>>& tripletList, const Eigen::VectorXd& v, 
-                size_t energyIndex, vector<size_t>& indices);
-        // volume calculations
-
-inline double tripProd(Vector3 i, Vector3 j, Vector3 k);
-inline double calculateVolume(const Eigen::VectorXd& v);
-        inline void addVolumeTerm(Eigen::VectorXd& energy, const Eigen::VectorXd& v, 
-                size_t energyIndex, double targetVolume);
-inline void addVolumeGradient(vector<Eigen::Triplet<double>>& tripletList, 
-        const Eigen::VectorXd& v, size_t energyIndex);
-
-
-
-        // optimization values
-        bool LMInitialized;
-        size_t LMInputs;
-        size_t LMValues;
-        
-        void basisFunctionDebugging();
-
-        // barycentric coordinates for each quad
-        Vector3 bary(Corner c, int x, int y);
-        tuple<double, double, double> baryCoords(int x, int y);
+    // barycentric coordinates for each quad
+    Vector3 bary(Corner c, int x, int y);
+    tuple<double, double, double> baryCoords(int x, int y);
 };
