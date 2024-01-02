@@ -34,6 +34,7 @@ class IntrinsicFlattening {
     */
 
   private:
+    static constexpr double EPS = 1e-6;
     // convenience functions
     void nasoqTest();
     Eigen::VectorXd

@@ -1,6 +1,7 @@
 #include "IntrinsicFlattening.h"
 
 #include "nasoq/nasoq_eigen.h"
+
 // Code order:
 // - Constructor
 // - Intrinsic flattening constraints + problem setup and solver
@@ -35,7 +36,6 @@ IntrinsicFlattening::IntrinsicFlattening(shared_ptr<ManifoldSurfaceMesh> mesh,
 // of the form min xᵀ A x + xᵀ b
 // Here β represents the angle at any corner, and α is an offset per edge to the
 // original angle
-// TODO: check
 CornerData<double> IntrinsicFlattening::SolveIntrinsicOnly() {
 
     CornerData<double> originalAngles(*mesh);
@@ -86,7 +86,6 @@ CornerData<double> IntrinsicFlattening::SolveIntrinsicOnly() {
     for (Corner c : mesh->corners()) {
         size_t index = c_[c];
         beta[c] = x[index];
-        // alpha[c] = x[nCorners + index];
     }
     return beta;
 }
@@ -107,19 +106,36 @@ IntrinsicFlattening::AngleDeviationPenalty(CornerData<double> angles) {
     }
     return {tripletList, linearTerm};
 }
-// 4 |C| x |C|
-// Returns a matrix A and a vector b such that
-// Aβ ≤ b represents the constraint that each CAT is valid
-// TODO: implement
+
 bool IntrinsicFlattening::CheckCATValidityConstraint(CornerData<double> beta) {
-    return true;
+    // 4 |C| x |C|
+    // Returns a matrix A and a vector b such that
+    // Aβ ≤ b represents the constraint that each CAT is valid
+    // In particular, for each corner ᵢʲᵏ, we enforce the following constraints:
+    // 1. β ∈ (0, 2 π)
+    // 2. βᵢ - βⱼ - βₖ \in [-3 π, π]
+    bool ans = true;
+    for (Corner c : mesh->corners()) {
+        Corner c1 = c.halfedge().next().corner();
+        Corner c2 = c.halfedge().next().next().corner();
+        double betaDiff = beta[c] - beta[c1] - beta[c2];
+        ans = ans && (-3 * PI < beta[c]) && (beta[c] < PI) &&
+              (-3 * PI < betaDiff) && (betaDiff < PI);
+    }
+
+    return ans;
 }
-// TODO: check
 SparseSystem IntrinsicFlattening::CATValidityConstraint() {
+    // the resulting matrix is blocked as follows:
+    // - β < 0
+    // β < 2 π
+    // -β' < -3  π
+    // β' < π
     vector<T> tripletList;
     vector<double> rhs = vector<double>(4 * nCorners, 0);
 
     for (int i = 0; i < nCorners; i++) {
+        // identity for the first two blocks
         tripletList.push_back({i, i, -1});
         tripletList.push_back({nCorners + i, i, 1});
     }
@@ -136,15 +152,15 @@ SparseSystem IntrinsicFlattening::CATValidityConstraint() {
         tripletList.push_back({3 * nCorners + i, k, -1});
     }
     for (int i = 0; i < nCorners; i++) {
-        rhs[i] = 0;
+        rhs[0 * nCorners + i] = 0;
         rhs[1 * nCorners + i] = 2 * PI;
         rhs[2 * nCorners + i] = 3 * PI;
         rhs[3 * nCorners + i] = PI;
     }
     return {tripletList, rhs};
 }
-// TODO: implement
 bool IntrinsicFlattening::CheckVertexAngleSumConstraint(
+    CornerData<double> beta, VertexData<double> curvatures) {
     // |V| x |C|
     // =========== Equation [3]=====================
     // For each interior vertex, add a constraint that
@@ -158,18 +174,22 @@ bool IntrinsicFlattening::CheckVertexAngleSumConstraint(
     //   \  /   \  /
     //    \/_____\/
     // and similarly for boundary vertices
-    CornerData<double> beta, VertexData<double> curvatures) {
+    bool ans = true;
     for (Vertex v : mesh->vertices()) {
+        double accum = 0.;
+        for (Corner c : v.adjacentCorners()) {
+            accum += beta[c];
+        }
         if (!v.isBoundary()) {
-            double accum = 0.;
-            for (Corner c : v.adjacentCorners()) {
-                accum += beta[c];
-            }
+            ans = ans && (abs(accum - (2 * PI - curvatures[v])) < EPS);
+        } else if (curvatures[v] < PI) {
+            // only add these constraints if we want to actually constrain the
+            // curvature on the boundary
+            ans = ans && (abs(accum - (PI - curvatures[v])) < EPS);
         }
     }
-    return true;
+    return ans;
 }
-// TODO: check
 SparseSystem
 IntrinsicFlattening::VertexAngleSumConstraint(VertexData<double> curvatures) {
 
@@ -195,8 +215,13 @@ IntrinsicFlattening::VertexAngleSumConstraint(VertexData<double> curvatures) {
 }
 void IntrinsicFlattening::CheckConstraintsIntrinsicOnly(
     CornerData<double> beta) {
-    assert(CheckCATValidityConstraint(beta));
-    assert(CheckVertexAngleSumConstraint(beta, ComputeTargetCurvatures()));
+    if (!CheckCATValidityConstraint(beta)) {
+        throw(std::runtime_error("CAT Validity constraint violated"));
+    }
+    if (!CheckVertexAngleSumConstraint(beta, ComputeTargetCurvatures())) {
+        throw(std::runtime_error("Vertex angle sum constraint violated"));
+    }
+    return;
 }
 SparseSystem IntrinsicFlattening::OffsetConstraints() {
     // |C| x |C| + |E|
