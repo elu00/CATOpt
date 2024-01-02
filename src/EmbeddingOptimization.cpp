@@ -106,8 +106,8 @@ Vector2 EmbeddingOptimization::RationalBezierTriangle(
     return y / h;
 }
 
-// ======================= Optimization Stuff
-// ==================================== Given a corner c and integer weights X,Y
+// ======================= Optimization Stuff==========================
+// Given a corner c and integer weights X,Y
 // representing local coordinates on c's quad, returns the associated point in
 // R^3. Here the integers X,Y are assumed to be in the range [0,N-1], with the
 // mapping to barycentric coordinates being given by the transformation induced
@@ -144,7 +144,7 @@ std::tuple<double, double, double> EmbeddingOptimization::baryCoords(int X,
     return {(1 - jWeight - kWeight), jWeight, kWeight};
 }
 
-// constructor
+// Constructor for EmbeddingOptimization
 EmbeddingOptimization::EmbeddingOptimization(
     shared_ptr<ManifoldSurfaceMesh> mesh,
     shared_ptr<VertexPositionGeometry> geometry, CornerData<double> beta)
@@ -312,8 +312,8 @@ void EmbeddingOptimization::buildSubdivision() {
 // i -------- j
 
 void EmbeddingOptimization::buildIntrinsicCheckerboard() {
-    // ===============================Isometry energy
-    // stuff================================== Allocate space for target edge
+    // ==============Isometry energy stuff======================
+    // Allocate space for target edge
     // lengths Note that these are lengths per quad, hence the count is
     // different from the number of vertices number of quads in the subdivided
     // mesh
@@ -507,9 +507,9 @@ void EmbeddingOptimization::buildIntrinsicCheckerboard() {
     // assert(fairVertices.size() == nCorners * ((n-2)*(n-2) + n*(n-2)));
 }
 
-// ======================= Energy evaluation code
-// ====================================
+// ======================= Energy evaluation code==========================
 inline double EmbeddingOptimization::sqr(double x) { return x * x; }
+// grabs the 3 indices associated to index
 inline Vector3 EmbeddingOptimization::indexToVector(size_t index,
                                                     const Eigen::VectorXd &v) {
     return {v[3 * index], v[3 * index + 1], v[3 * index + 2]};

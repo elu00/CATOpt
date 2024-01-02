@@ -1,8 +1,6 @@
 #pragma once
 
-#include <algorithm>
 #include <iostream>
-#include <map>
 #include <memory>
 #include <tuple>
 #include <vector>
@@ -16,24 +14,27 @@ using std::vector;
 #include "Common.h"
 
 typedef tuple<int, int, double> T;
-
+// a member of type [A,b] represents the linear system Ax = b
+typedef pair<vector<T>, vector<double>> SparseSystem;
 class IntrinsicFlattening {
   public:
     // constructor from geometry-central data
+    // l[e] is the target edge length
     IntrinsicFlattening(shared_ptr<ManifoldSurfaceMesh> mesh,
                         EdgeData<double> l);
 
     pair<CornerData<double>, CornerData<double>>
     CoherentAngleSystem(VertexData<double> targetCurvatures,
                         CornerData<double> targetBetas);
-    CornerData<double> solveIntrinsicOnly();
-    pair<EdgeData<double>, CornerData<double>>
+    CornerData<double> SolveIntrinsicOnly();
+    void CheckConstraintsIntrinsicOnly(CornerData<double> beta);
+    // TODO: think about this
+    /* pair<EdgeData<double>, CornerData<double>>
     solveFromPlane(double flatWeight);
+    */
 
   private:
-    // convenience function
-
-    double CornerAngle(double l_ij, double l_jk, double l_ki);
+    // convenience functions
     void nasoqTest();
     Eigen::VectorXd
     QPSolve(Eigen::SparseMatrix<double, Eigen::ColMajor, int> &A,
@@ -44,23 +45,45 @@ class IntrinsicFlattening {
             Eigen::Matrix<double, Eigen::Dynamic, 1> &f);
     void addTriples(vector<Eigen::Triplet<double>> &triples, vector<T> &tuples,
                     int i = 0, int j = 0);
+    // convenience function that concatenates a variable number of
+    // std::vector<double> into an Eigen Vector
+    template <typename... Args>
+    Eigen::VectorXd concat(size_t size, Args &...args);
 
+    // geometric helper functions
+    double CornerAngle(double l_ij, double l_jk, double l_ki);
+    VertexData<double> ComputeTargetCurvatures();
+
+    // constraints used for the optimization
     Eigen::SparseMatrix<double, Eigen::ColMajor, int>
     constructMatrix(vector<Eigen::Triplet<double>> &triples, int m, int n);
-    pair<vector<T>, vector<double>> PositiveAngleConstraint();
-    pair<vector<T>, vector<double>> FaceAngleSumConstraint();
-    pair<vector<T>, vector<double>>
-    VertexAngleSumConstraint(VertexData<double> curvatures);
-    pair<vector<T>, vector<double>> EdgeDelaunayConstraint();
-    pair<vector<T>, vector<double>> EdgeIntersectionAngleConstraint();
-    pair<vector<T>, vector<double>> CATValidityConstraint();
-    pair<vector<T>, vector<double>>
-    AngleDeviationPenalty(CornerData<double> beta);
-    pair<vector<T>, vector<double>> OffsetConstraints();
+    // constraints used for intrinsic only optimization
+    SparseSystem CATValidityConstraint();
+    SparseSystem VertexAngleSumConstraint(VertexData<double> curvatures);
+    SparseSystem OffsetConstraints();
+
+    bool CheckCATValidityConstraint(CornerData<double> beta);
+    bool CheckVertexAngleSumConstraint(CornerData<double> beta,
+                                       VertexData<double> curvatures);
+
+    // constraints used for CAS optimization
+    SparseSystem PositiveAngleConstraint();
+    SparseSystem FaceAngleSumConstraint();
+    SparseSystem EdgeDelaunayConstraint();
+    SparseSystem EdgeIntersectionAngleConstraint();
+
+    // TODO: think about what the signature for these should be
+    bool CheckPositiveAngleConstraint(CornerData<double> beta);
+    bool CheckFaceAngleSumConstraint(CornerData<double> beta);
+    bool CheckEdgeDelaunayConstraint(CornerData<double> beta);
+    bool CheckEdgeIntersectionAngleConstraint(CornerData<double> beta);
+
+    // Matrices defining the energy
+    SparseSystem AngleDeviationPenalty(CornerData<double> beta);
 
     // pointers to geometric data
     shared_ptr<ManifoldSurfaceMesh> mesh;
-    // quantities to read off from the mesh
+    // quantities to initialize from the mesh
     size_t nVertices;
     size_t nEdges;
     size_t nCorners;

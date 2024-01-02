@@ -56,21 +56,24 @@ void planarMapping() {
 EmbeddingOptimization *E;
 int subdivisions = 3;
 
-// intrinsically flatten the mesh, then try to embed it in the plane with a N *
-// N subdivision on each triangle.
-void embedding(int N) {
+// intrinsically flatten the mesh, then perform an NxN subdivision on each
+// triangle.
+void embeddingInitialization(int N) {
     geometry->requireEdgeLengths();
     IntrinsicFlattening flattener(mesh, geometry->edgeLengths);
-    cout << "solving intrinsic..." << endl;
-    CornerData<double> beta = flattener.solveIntrinsicOnly();
-    cout << "solved" << endl;
+    cout << "Solving for intrinstic angles..." << endl;
+    // corner angles from our solve
+    CornerData<double> beta = flattener.SolveIntrinsicOnly();
+    cout << "Solved, checking validity of solution..." << endl;
+    flattener.CheckConstraintsIntrinsicOnly(beta);
+    cout << "Solution is valid" << endl;
     E = (new EmbeddingOptimization(mesh, geometry, beta));
     auto [submesh, subgeometry] = E->initializeSubdivision(N);
     cout << "EmbeddingOptimization initialized" << endl;
     E->initializeLM();
     cout << "LM initialized" << endl;
 }
-// TODO: rewrite this
+// TODO: write a function to map a surface to the plane
 void surfaceToPlane() {
     geometry->requireEdgeLengths();
     IntrinsicFlattening flattener(mesh, geometry->edgeLengths);
@@ -80,14 +83,14 @@ void surfaceToPlane() {
   //patterns.solveKSS();
   */
 }
-// Imgui paramters
+// Imgui parameters
 bool LMInitialized = false;
 int MAX_ITERS = 100;
 double fairnessNormalization = 1;
-void myCallback() {
-    ImGui::SliderInt("Number of subdivisions", &subdivisions, 2, 5);
+void imguiCallback() {
+    ImGui::SliderInt("Number of subdivisions", &subdivisions, 2, 6);
     if (ImGui::Button("Create subdivisions")) {
-        embedding(subdivisions);
+        embeddingInitialization(subdivisions);
         LMInitialized = true;
     }
     // run LM optimization on subdivided mesh
@@ -123,9 +126,9 @@ int main(int argc, char **argv) {
 
     // choose a default mesh if none is provided
     if (!inputFilename) {
-        inputMeshPath = "../meshes/beanhole.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/beanhole.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/tetrahedron.obj";
-        // inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
+        //  inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
     } else {
         inputMeshPath = args::get(inputFilename);
     }
@@ -142,7 +145,7 @@ int main(int argc, char **argv) {
   */
 
     // planarMapping();
-    polyscope::state::userCallback = myCallback;
+    polyscope::state::userCallback = imguiCallback;
     polyscope::show();
 
     return EXIT_SUCCESS;

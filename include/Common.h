@@ -5,6 +5,7 @@
 #include <memory>
 #include <tuple>
 
+#define CATDEBUG
 #include "geometrycentral/numerical/linear_solvers.h"
 #include "geometrycentral/surface/edge_length_geometry.h"
 #include "geometrycentral/surface/manifold_surface_mesh.h"
