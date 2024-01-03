@@ -67,6 +67,9 @@ void embeddingInitialization(int N) {
     cout << "Solved, checking validity of solution..." << endl;
     flattener.CheckConstraintsIntrinsicOnly(beta);
     cout << "Solution is valid" << endl;
+    for (Corner c : mesh->corners()) {
+        cout << beta[c] << endl;
+    }
     E = (new EmbeddingOptimization(mesh, geometry, beta));
     auto [submesh, subgeometry] = E->initializeSubdivision(N);
     cout << "EmbeddingOptimization initialized" << endl;
@@ -128,6 +131,7 @@ int main(int argc, char **argv) {
     if (!inputFilename) {
         inputMeshPath = "/home/elu/repos/catopt/meshes/beanhole.obj";
         inputMeshPath = "/home/elu/repos/catopt/meshes/tetrahedron.obj";
+        inputMeshPath = "/home/elu/repos/catopt/meshes/tri.obj";
         //  inputMeshPath = "/home/elu/repos/catopt/meshes/plane.obj";
     } else {
         inputMeshPath = args::get(inputFilename);

@@ -34,6 +34,48 @@ EmbeddingOptimization::EmbeddingOptimization(
 }
 
 // ======================= Subdivision code ====================================
+std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry>>
+EmbeddingOptimization::initializeSubdivision(int N) {
+    n = N;
+
+    // Initialize union find data structure
+    top = vector<int>(n * n * nCorners);
+    for (int i = 0; i < n * n * nCorners; i++)
+        top[i] = i;
+    next = vector<int>(n * n * nCorners, -1);
+
+    buildEquivalenceClasses();
+    cout << "built equivalence classes" << endl;
+    nSubdividedVertices = buildFinalIndices();
+    cout << "built final indices" << endl;
+
+    // Initialize submesh and subgeometry
+    buildSubdivision();
+    cout << "built subdivision" << endl;
+
+    // initialize inital guess for x
+    initialSolution = Eigen::VectorXd::Zero(3 * nSubdividedVertices);
+    for (Corner c : mesh->corners()) {
+        size_t cOffset = c_[c] * n * n;
+        for (int X = 0; X < n; X++) {
+            for (int Y = 0; Y < n; Y++) {
+                Vector3 pos = bary(c, X, Y);
+                size_t startIndex = 3 * finalIndices[cOffset + X + n * Y];
+                initialSolution[startIndex] = pos.x;
+                initialSolution[startIndex + 1] = pos.y;
+                initialSolution[startIndex + 2] = pos.z;
+            }
+        }
+    }
+    buildIntrinsicCheckerboard();
+    cout << "built intrinsic lengths" << endl;
+
+    intrinsicQuantitiesInitialized = true;
+
+    // polyscope::show();
+
+    return {submesh, subgeometry};
+}
 // TODO: double check indices here
 void EmbeddingOptimization::buildEquivalenceClasses() {
     // Given a triangle mesh, our goal is subdivide it into a quad mesh

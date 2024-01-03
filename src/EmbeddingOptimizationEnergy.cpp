@@ -1,15 +1,230 @@
 #include "EmbeddingOptimization.h"
 
-#include "polyscope/polyscope.h"
 #include "polyscope/surface_mesh.h"
+// ======================= Optimization code==========================
+void EmbeddingOptimization::initializeLM() {
+    if (!intrinsicQuantitiesInitialized) {
+        throw std::runtime_error(
+            "Error: intrinsic checkboard/mesh not initialized yet");
+        return;
+    }
+    currentSolution = initialSolution;
+
+    int nCoordinates = 3 * nSubdividedVertices;
+
+    // number of quads in the fine mesh
+    size_t nQuads = nCorners * (n - 1) * (n - 1);
+    size_t nFairVertices = fairVertices.size();
+
+    LMValues = 3 * nQuads + nFairVertices + 1;
+
+    targetVolume = 10 * calculateVolume(currentSolution);
+    cout << "target volume is " << targetVolume << endl;
+
+    // make sure that the size of the vertex position vector x agrees with the
+    // number of fine vertices in the mesh times three
+    assert(currentSolution.size() == nCoordinates);
+    LMInputs = nCoordinates;
+    LMInitialized = true;
+    return;
+}
+// One step of Levenberg-Marquardt.
+// For reference, see
+// https://www.dmg.tuwien.ac.at/geom/ig/publications/isoforfab/isoforfab.pdf#cite.madsen04
+// and http://www2.imm.dtu.dk/pubdb/edoc/imm3215.pdf for pseudocode
+void EmbeddingOptimization::LMOneStep(int MAX_ITERS) {
+    if (!LMInitialized) {
+        throw std::runtime_error("Error: LM stuff not initialized yet");
+        return;
+    }
+
+    typedef Eigen::Matrix<double, Eigen::Dynamic, 1> VectorType;
+    // initialize parameters
+    double mu = 1e-6;
+    double nu = 2.;
+    const double tau = 1e-3;
+    const double eps1 = 1e-8;
+    const double eps2 = 1e-8;
+    size_t k = 0;
+
+    // initialize the Jacobian
+    Eigen::SparseMatrix<double> J(LMValues, LMInputs);
+    J.setZero();
+    evaluateJacobian(currentSolution, J);
+    // compute the relevant things
+    Eigen::SparseMatrix<double> A = J.transpose() * J;
+    Eigen::VectorXd f = Eigen::VectorXd::Zero(LMValues);
+    Eigen::VectorXd fNew = Eigen::VectorXd::Zero(LMValues);
+    evaluateEnergy(currentSolution, f);
+    cout << "INITIAL ENERGY" << f.norm() << endl;
+    Eigen::VectorXd g = J.transpose() * f;
+    bool found = (g.norm() < eps1);
+    // initialize our solution currentSolution to the current vertex positions x
+    VectorType xStar = currentSolution;
+
+    while (!found && k < MAX_ITERS) {
+        if (!(k % 50)) {
+            cout << "ITERATION" << k << endl;
+            cout << "New ENERGY" << f.norm() << endl;
+        }
+        k += 1;
+        Eigen::SparseMatrix<double> DescentMatrix(LMInputs, LMInputs);
+        DescentMatrix.setIdentity();
+        DescentMatrix *= mu;
+        DescentMatrix += A;
+        // cout << "DescentMatrix norm: " << DescentMatrix.norm() << endl;
+        Eigen::VectorXd hLM = -solvePositiveDefinite(DescentMatrix, g);
+        // debug
+        if (hLM.norm() <= eps2 * (xStar.norm() + eps2)) {
+            cout << "TERMINATION CONDITION MET ON ITERATION " << k << endl;
+            cout << "Final ENERGY" << f.norm() << endl;
+            cout << hLM.norm() << endl;
+            cout << xStar.norm() << endl;
+            return;
+        } else {
+            xStar = currentSolution + hLM;
+            // evaluate the energy after taking a descent step
+            fNew.setZero();
+            evaluateEnergy(xStar, fNew);
+            double numerator = f.squaredNorm() - fNew.squaredNorm();
+            double denominator = (hLM.dot(mu * hLM - g)) / 2.;
+            double rho = numerator / denominator;
+            if (rho > 0) {
+                currentSolution = xStar;
+                J.setZero();
+                evaluateJacobian(currentSolution, J);
+                // compute the relevant things
+                A = J.transpose() * J;
+                f = fNew;
+                g = J.transpose() * f;
+                found = (g.norm() < eps1);
+                mu = mu * std::max(1. / 3., 1 - cube(2 * rho - 1));
+                nu = 2;
+            } else {
+                mu = mu * nu;
+                nu = 2 * nu;
+            }
+        }
+    }
+    // Solve the optimization problem
+    cout << "Finished on iteration " << k << endl;
+}
+
+// Call the optimization procedure for one step, then update the mesh in
+// polyscope with the new vertex positions
+void EmbeddingOptimization::optimizeOneStep(int MAX_ITERS) {
+    LMOneStep(MAX_ITERS);
+    VertexData<Vector3> positions(*submesh);
+    VertexData<size_t> subVertexIndices = submesh->getVertexIndices();
+    for (Vertex v : submesh->vertices()) {
+        size_t i = subVertexIndices[v];
+        positions[v] = {currentSolution[3 * i], currentSolution[3 * i + 1],
+                        currentSolution[3 * i + 2]};
+        // cout << positions[v] << endl;
+    }
+    // visualize fairness term
+
+    vector<Vector3> nodes;
+    vector<std::array<size_t, 2>> edges;
+    for (auto indices : fairVertices) {
+        size_t centerIndex = indices[0];
+
+        size_t centerNodeIndex = nodes.size();
+        Vector3 center = {currentSolution[3 * centerIndex],
+                          currentSolution[3 * centerIndex + 1],
+                          currentSolution[3 * centerIndex + 2]};
+        nodes.push_back(center);
+
+        for (int n = 1; n < indices.size(); n++) {
+            size_t index = indices[n];
+
+            size_t neighborNodeIndex = nodes.size();
+            Vector3 neighbor = {currentSolution[3 * index],
+                                currentSolution[3 * index + 1],
+                                currentSolution[3 * index + 2]};
+
+            nodes.push_back(2 * center / 3 + neighbor / 3);
+            edges.push_back({centerNodeIndex, neighborNodeIndex});
+        }
+    }
+    polyscope::registerCurveNetwork("fairness terms", nodes, edges);
+    // calculate relative error
+    vector<double> error;
+    for (size_t quadIndex = 0; quadIndex < quads.size(); quadIndex++) {
+        // vertex indices
+        auto [i, j, k, l] = quads[quadIndex];
+        error.push_back(abs(
+            (positions[i] - positions[k]).norm2() / c_iso_0[quadIndex] - 1));
+        error.push_back(abs(
+            (positions[j] - positions[l]).norm2() / c_iso_1[quadIndex] - 1));
+    }
+    cout << "average relative error: "
+         << std::reduce(error.begin(), error.end()) / error.size() << endl;
+    cout << "max relative error: "
+         << (*std::max_element(error.begin(), error.end())) << endl;
+    cout << "min relative error: "
+         << (*std::min_element(error.begin(), error.end())) << endl;
+
+    polyscope::registerSurfaceMesh("Optimized Mesh", positions,
+                                   submesh->getFaceVertexList());
+}
 
 // ======================= Energy evaluation code==========================
-inline double EmbeddingOptimization::sqr(double x) { return x * x; }
-// grabs the 3 indices associated to index
-inline Vector3 EmbeddingOptimization::indexToVector(size_t index,
-                                                    const Eigen::VectorXd &v) {
-    return {v[3 * index], v[3 * index + 1], v[3 * index + 2]};
+void EmbeddingOptimization::evaluateEnergy(
+    const Eigen::VectorXd &v, // vertex positions
+    Eigen::VectorXd &energy)  // each entry of this vector is the (square root
+                              // of) a term in the energy summand
+{
+
+    size_t nQuads = nCorners * (n - 1) * (n - 1);
+    // make sure we were given the right number of vertex coordinates
+    assert(v.size() == 3 * nSubdividedVertices);
+    // make sure the given energy summand vector is the right size; there are 3
+    // * nQuads
+    assert(energy.size() == 3 * nQuads + fairVertices.size());
+    // fill the energy summand vector with the individual terms
+    for (size_t quadIndex = 0; quadIndex < nQuads; quadIndex++) {
+        // vertex indices
+        auto [i, j, k, l] = quads[quadIndex];
+        addLengthTerm(energy, v, quadIndex, i, k, c_iso_0[quadIndex]);
+        addLengthTerm(energy, v, quadIndex + nQuads, j, l, c_iso_1[quadIndex]);
+        addAngleTerm(energy, v, quadIndex + 2 * nQuads, i, j, k, l,
+                     c_iso_2[quadIndex]);
+    }
+    // center regularizer
+    for (int i = 0; i < fairVertices.size(); i++) {
+        addCenterTerm(energy, v, 3 * nQuads + i, fairVertices[i]);
+    }
+    // volume term
+    addVolumeTerm(energy, v, 3 * nQuads + fairVertices.size(), targetVolume);
 }
+void EmbeddingOptimization::evaluateJacobian(const Eigen::VectorXd &v,
+                                             Eigen::SparseMatrix<double> &J) {
+    // number of fine quads
+    size_t nQuads = nCorners * (n - 1) * (n - 1);
+    vector<Eigen::Triplet<double>> tripletList;
+
+    // isometry term entries
+    for (size_t quadIndex = 0; quadIndex < nQuads; quadIndex++) {
+        // vertex indices
+        auto [i, j, k, l] = quads[quadIndex];
+        addLengthGradient(tripletList, v, quadIndex, i, k, c_iso_0[quadIndex]);
+        addLengthGradient(tripletList, v, quadIndex + nQuads, j, l,
+                          c_iso_1[quadIndex]);
+        addAngleGradient(tripletList, v, quadIndex + 2 * nQuads, i, j, k, l,
+                         c_iso_2[quadIndex]);
+    }
+    // regularization term
+    for (int i = 0; i < fairVertices.size(); i++) {
+        addCenterGradient(tripletList, v, 3 * nQuads + i, fairVertices[i]);
+    }
+    // volume term
+    addVolumeGradient(tripletList, v, 3 * nQuads + fairVertices.size());
+    // build Jacobian matrix from triplets
+    J.setFromTriplets(tripletList.begin(), tripletList.end());
+}
+
+// ======================= Energy components==========================
 // Given indices for vertices i, j
 // adds the term (|i-j|^2 - target) and it's corresponding gradient to the
 // energy
@@ -151,11 +366,6 @@ inline void EmbeddingOptimization::addCenterGradient(
     }
 }
 
-// volume calculations
-inline double EmbeddingOptimization::tripProd(Vector3 i, Vector3 j, Vector3 k) {
-    return dot(i, cross(j, k));
-}
-
 inline double EmbeddingOptimization::calculateVolume(const Eigen::VectorXd &v) {
     double volume = 0.0;
     VertexData<size_t> subVertexIndices = submesh->getVertexIndices();
@@ -212,264 +422,17 @@ inline void EmbeddingOptimization::addVolumeGradient(
     }
 }
 
-inline double cube(double x) { return x * x * x; }
-void EmbeddingOptimization::LMOneStep(int MAX_ITERS) {
-    if (!LMInitialized) {
-        throw std::runtime_error("Error: LM stuff not initialized yet");
-        return;
-    }
+// =================== Utility==========================================
 
-    typedef Eigen::Matrix<double, Eigen::Dynamic, 1> VectorType;
-    // initialize parameters
-    double mu = 1e-6;
-    double nu = 2.;
-    const double tau = 1e-3;
-    const double eps1 = 1e-8;
-    const double eps2 = 1e-8;
-    size_t k = 0;
-
-    // initialize the Jacobian
-    Eigen::SparseMatrix<double> J(LMValues, LMInputs);
-    J.setZero();
-    evaluateJacobian(currentSolution, J);
-    // compute the relevant things
-    Eigen::SparseMatrix<double> A = J.transpose() * J;
-    Eigen::VectorXd f = Eigen::VectorXd::Zero(LMValues);
-    Eigen::VectorXd fNew = Eigen::VectorXd::Zero(LMValues);
-    evaluateEnergy(currentSolution, f);
-    cout << "INITIAL ENERGY" << f.norm() << endl;
-    Eigen::VectorXd g = J.transpose() * f;
-    bool found = (g.norm() < eps1);
-    // initialize our solution currentSolution to the current vertex positions x
-    VectorType xStar = currentSolution;
-
-    while (!found && k < MAX_ITERS) {
-        if (!(k % 50)) {
-            cout << "ITERATION" << k << endl;
-            cout << "New ENERGY" << f.norm() << endl;
-        }
-        k += 1;
-        Eigen::SparseMatrix<double> DescentMatrix(LMInputs, LMInputs);
-        DescentMatrix.setIdentity();
-        DescentMatrix *= mu;
-        DescentMatrix += A;
-        // cout << "DescentMatrix norm: " << DescentMatrix.norm() << endl;
-        Eigen::VectorXd hLM = -solvePositiveDefinite(DescentMatrix, g);
-        // debug
-        if (hLM.norm() <= eps2 * (xStar.norm() + eps2)) {
-            cout << "TERMINATION CONDITION MET ON ITERATION " << k << endl;
-            cout << "Final ENERGY" << f.norm() << endl;
-            cout << hLM.norm() << endl;
-            cout << xStar.norm() << endl;
-            return;
-        } else {
-            xStar = currentSolution + hLM;
-            // evaluate the energy after taking a descent step
-            fNew.setZero();
-            evaluateEnergy(xStar, fNew);
-            double numerator = f.squaredNorm() - fNew.squaredNorm();
-            double denominator = (hLM.dot(mu * hLM - g)) / 2.;
-            double rho = numerator / denominator;
-            if (rho > 0) {
-                currentSolution = xStar;
-                J.setZero();
-                evaluateJacobian(currentSolution, J);
-                // compute the relevant things
-                A = J.transpose() * J;
-                f = fNew;
-                g = J.transpose() * f;
-                found = (g.norm() < eps1);
-                mu = mu * std::max(1. / 3., 1 - cube(2 * rho - 1));
-                nu = 2;
-            } else {
-                mu = mu * nu;
-                nu = 2 * nu;
-            }
-        }
-    }
-    // Solve the optimization problem
-    cout << "Finished on iteration " << k << endl;
+// grabs the 3 indices associated to index
+inline Vector3 EmbeddingOptimization::indexToVector(size_t index,
+                                                    const Eigen::VectorXd &v) {
+    return {v[3 * index], v[3 * index + 1], v[3 * index + 2]};
 }
 
-void EmbeddingOptimization::initializeLM() {
-    if (!intrinsicQuantitiesInitialized) {
-        throw std::runtime_error(
-            "Error: intrinsic checkboard/mesh not initialized yet");
-        return;
-    }
-    currentSolution = initialSolution;
-
-    int nCoordinates = 3 * nSubdividedVertices;
-
-    // number of quads in the fine mesh
-    size_t nQuads = nCorners * (n - 1) * (n - 1);
-    size_t nFairVertices = fairVertices.size();
-
-    LMValues = 3 * nQuads + nFairVertices + 1;
-
-    targetVolume = 10 * calculateVolume(currentSolution);
-    cout << "target volume is " << targetVolume << endl;
-
-    // make sure that the size of the vertex position vector x agrees with the
-    // number of fine vertices in the mesh times three
-    assert(currentSolution.size() == nCoordinates);
-    LMInputs = nCoordinates;
-    LMInitialized = true;
-    return;
-}
-// Call the optimization procedure for one step, then update the mesh in
-// polyscope with the new vertex positions
-void EmbeddingOptimization::optimizeOneStep(int MAX_ITERS) {
-    LMOneStep(MAX_ITERS);
-    VertexData<Vector3> positions(*submesh);
-    VertexData<size_t> subVertexIndices = submesh->getVertexIndices();
-    for (Vertex v : submesh->vertices()) {
-        size_t i = subVertexIndices[v];
-        positions[v] = {currentSolution[3 * i], currentSolution[3 * i + 1],
-                        currentSolution[3 * i + 2]};
-        // cout << positions[v] << endl;
-    }
-    // visualize fairness term
-
-    vector<Vector3> nodes;
-    vector<std::array<size_t, 2>> edges;
-    for (auto indices : fairVertices) {
-        size_t centerIndex = indices[0];
-
-        size_t centerNodeIndex = nodes.size();
-        Vector3 center = {currentSolution[3 * centerIndex],
-                          currentSolution[3 * centerIndex + 1],
-                          currentSolution[3 * centerIndex + 2]};
-        nodes.push_back(center);
-
-        for (int n = 1; n < indices.size(); n++) {
-            size_t index = indices[n];
-
-            size_t neighborNodeIndex = nodes.size();
-            Vector3 neighbor = {currentSolution[3 * index],
-                                currentSolution[3 * index + 1],
-                                currentSolution[3 * index + 2]};
-
-            nodes.push_back(2 * center / 3 + neighbor / 3);
-            edges.push_back({centerNodeIndex, neighborNodeIndex});
-        }
-    }
-    polyscope::registerCurveNetwork("fairness terms", nodes, edges);
-    // calculate relative error
-    vector<double> error;
-    for (size_t quadIndex = 0; quadIndex < quads.size(); quadIndex++) {
-        // vertex indices
-        auto [i, j, k, l] = quads[quadIndex];
-        error.push_back(abs(
-            (positions[i] - positions[k]).norm2() / c_iso_0[quadIndex] - 1));
-        error.push_back(abs(
-            (positions[j] - positions[l]).norm2() / c_iso_1[quadIndex] - 1));
-    }
-    cout << "average relative error: "
-         << std::reduce(error.begin(), error.end()) / error.size() << endl;
-    cout << "max relative error: "
-         << (*std::max_element(error.begin(), error.end())) << endl;
-    cout << "min relative error: "
-         << (*std::min_element(error.begin(), error.end())) << endl;
-
-    polyscope::registerSurfaceMesh("Optimized Mesh", positions,
-                                   submesh->getFaceVertexList());
-}
-
-// =================== LM Stuff==========================================
-void EmbeddingOptimization::evaluateEnergy(
-    const Eigen::VectorXd &v, // vertex positions
-    Eigen::VectorXd &energy)  // each entry of this vector is the (square root
-                              // of) a term in the energy summand
-{
-
-    size_t nQuads = nCorners * (n - 1) * (n - 1);
-    // make sure we were given the right number of vertex coordinates
-    assert(v.size() == 3 * nSubdividedVertices);
-    // make sure the given energy summand vector is the right size; there are 3
-    // * nQuads
-    assert(energy.size() == 3 * nQuads + fairVertices.size());
-    // fill the energy summand vector with the individual terms
-    for (size_t quadIndex = 0; quadIndex < nQuads; quadIndex++) {
-        // vertex indices
-        auto [i, j, k, l] = quads[quadIndex];
-        addLengthTerm(energy, v, quadIndex, i, k, c_iso_0[quadIndex]);
-        addLengthTerm(energy, v, quadIndex + nQuads, j, l, c_iso_1[quadIndex]);
-        addAngleTerm(energy, v, quadIndex + 2 * nQuads, i, j, k, l,
-                     c_iso_2[quadIndex]);
-    }
-    // center regularizer
-    for (int i = 0; i < fairVertices.size(); i++) {
-        addCenterTerm(energy, v, 3 * nQuads + i, fairVertices[i]);
-    }
-    // volume term
-    addVolumeTerm(energy, v, 3 * nQuads + fairVertices.size(), targetVolume);
-}
-void EmbeddingOptimization::evaluateJacobian(const Eigen::VectorXd &v,
-                                             Eigen::SparseMatrix<double> &J) {
-    // number of fine quads
-    size_t nQuads = nCorners * (n - 1) * (n - 1);
-    vector<Eigen::Triplet<double>> tripletList;
-
-    // isometry term entries
-    for (size_t quadIndex = 0; quadIndex < nQuads; quadIndex++) {
-        // vertex indices
-        auto [i, j, k, l] = quads[quadIndex];
-        addLengthGradient(tripletList, v, quadIndex, i, k, c_iso_0[quadIndex]);
-        addLengthGradient(tripletList, v, quadIndex + nQuads, j, l,
-                          c_iso_1[quadIndex]);
-        addAngleGradient(tripletList, v, quadIndex + 2 * nQuads, i, j, k, l,
-                         c_iso_2[quadIndex]);
-    }
-    // regularization term
-    for (int i = 0; i < fairVertices.size(); i++) {
-        addCenterGradient(tripletList, v, 3 * nQuads + i, fairVertices[i]);
-    }
-    // volume term
-    addVolumeGradient(tripletList, v, 3 * nQuads + fairVertices.size());
-    // build Jacobian matrix from triplets
-    J.setFromTriplets(tripletList.begin(), tripletList.end());
-}
-
-std::pair<shared_ptr<ManifoldSurfaceMesh>, shared_ptr<VertexPositionGeometry>>
-EmbeddingOptimization::initializeSubdivision(int N) {
-    n = N;
-
-    // Initialize union find data structure
-    top = vector<int>(n * n * nCorners);
-    for (int i = 0; i < n * n * nCorners; i++)
-        top[i] = i;
-    next = vector<int>(n * n * nCorners, -1);
-
-    buildEquivalenceClasses();
-    cout << "built equivalence classes" << endl;
-    nSubdividedVertices = buildFinalIndices();
-    cout << "built final indices" << endl;
-
-    // Initialize submesh and subgeometry
-    buildSubdivision();
-    cout << "built subdivision" << endl;
-
-    // initialize inital guess for x
-    initialSolution = Eigen::VectorXd::Zero(3 * nSubdividedVertices);
-    for (Corner c : mesh->corners()) {
-        size_t cOffset = c_[c] * n * n;
-        for (int X = 0; X < n; X++) {
-            for (int Y = 0; Y < n; Y++) {
-                Vector3 pos = bary(c, X, Y);
-                size_t startIndex = 3 * finalIndices[cOffset + X + n * Y];
-                initialSolution[startIndex] = pos.x;
-                initialSolution[startIndex + 1] = pos.y;
-                initialSolution[startIndex + 2] = pos.z;
-            }
-        }
-    }
-    buildIntrinsicCheckerboard();
-    cout << "built intrinsic lengths" << endl;
-
-    intrinsicQuantitiesInitialized = true;
-
-    // polyscope::show();
-
-    return {submesh, subgeometry};
+inline double EmbeddingOptimization::sqr(double x) { return x * x; }
+inline double EmbeddingOptimization::cube(double x) { return x * x * x; }
+// volume calculations
+inline double EmbeddingOptimization::tripProd(Vector3 i, Vector3 j, Vector3 k) {
+    return dot(i, cross(j, k));
 }

@@ -98,6 +98,7 @@ class EmbeddingOptimization {
 
     // Optimization routines
     double sqr(double x);
+    double cube(double x);
     inline Vector3 indexToVector(size_t index, const Eigen::VectorXd &v);
     inline void addLengthTerm(Eigen::VectorXd &energy, const Eigen::VectorXd &v,
                               size_t energyIndex, size_t iIndex, size_t jIndex,
