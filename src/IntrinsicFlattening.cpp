@@ -12,9 +12,11 @@
 // Initializes all relevant geometric data, l is a vector of target edge lengths
 IntrinsicFlattening::IntrinsicFlattening(shared_ptr<ManifoldSurfaceMesh> mesh,
                                          EdgeData<double> l)
-    : mesh(mesh), cornerAngles(*mesh), nVertices(mesh->nVertices()),
+    : mesh(mesh), cornerAngles(*mesh), // to be initialized from original angles
+      nVertices(mesh->nVertices()),    // initialized from data
       nEdges(mesh->nEdges()), nCorners(mesh->nCorners()),
-      nFaces(mesh->nFaces()), c_(mesh->getCornerIndices()),
+      nFaces(mesh->nFaces()),
+      c_(mesh->getCornerIndices()), // geometry-central containers for indexing
       e_(mesh->getEdgeIndices()), v_(mesh->getVertexIndices()),
       f_(mesh->getFaceIndices()) {
 
